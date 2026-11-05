@@ -6,6 +6,12 @@ description: "在 Linux、macOS、WSL2 或原生 Windows 上安装 Hermes Agent"
 
 # 安装
 
+<!-- clawd-docs-note -->
+:::warning 不是本检出
+本页的安装器、安装包和下载说明属于上游 Hermes Agent，不会安装 clawd。本检出不发布安装器地址。在本检出中运行 `./clawd`。配置命令写成 `clawd setup`。`clawd` 拒绝 `update`、`desktop`、`dashboard`、`gui` 和 `webapp`。本检出的 Web 界面是 `clawd panel`。
+:::
+
+
 使用一行安装命令，两分钟内即可启动并运行 Hermes Agent。
 
 ## 快速安装

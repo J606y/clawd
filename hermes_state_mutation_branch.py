@@ -74,6 +74,8 @@ def branch_in_transaction(db, conn, session_id, payload, prepared=None):
     now = _now()
     entry = SessionEntry(route, child, now, now, origin=source, platform=Platform.LOCAL)
     parent = conn.execute('SELECT * FROM sessions WHERE id=?', (target,)).fetchone()
+    # Project snapshot is taken inside _publish_child_session_row, before this
+    # transaction commits. A failure raises and the child row is not released.
     db._publish_child_session_row(conn, parent, parent_session_id=target,
         child_session_id=child, source=policy['source'], model=policy['model'],
         model_config={'_branched_from': target}, system_prompt=None,

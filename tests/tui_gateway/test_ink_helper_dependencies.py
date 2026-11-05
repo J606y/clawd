@@ -99,7 +99,7 @@ def test_store_python_without_a_generation_names_the_remedy():
     lines = bootstrap.stderr.strip().splitlines()
     assert bootstrap.returncode == 1
     assert lines[0] == "gateway unavailable: bootstrap_dependencies", bootstrap.stderr
-    assert lines[-1] == "gateway unavailable: run `hermes pm repair`, then restart the TUI", bootstrap.stderr
+    assert lines[-1] == "gateway unavailable: run `clawd pm repair`, then restart the TUI", bootstrap.stderr
 
 
 def test_clipboard_helper_without_a_generation_answers_false(tmp_path):

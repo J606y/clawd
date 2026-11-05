@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>subagents session frame</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #111; }
+    #page { height: 100%; display: flex; flex-direction: column; }
+    #log { flex: 1; min-height: 0; overflow: auto; }
+    #composer { height: 64px; flex: none; }
+    #running { position: absolute; left: 0; top: 0; width: 320px; visibility: hidden; }
+  </style>
+</head>
+<body>
+  <div class="hp-chat" id="page">
+    <div id="log"></div>
+    <div id="chat"></div>
+    <div id="composer">输入框</div>
+  </div>
+  <div class="hp-chat" id="running"></div>
+  <div id="probe"></div>
+  <script type="module">
+    import { createElement, useEffect, useState } from "react";
+    import { createRoot } from "react-dom/client";
+    import { flushSync } from "react-dom";
+    import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+    import { ChatStyles } from "/src/react/pages/chat/chat-styles.tsx";
+    import { SubagentsBar } from "/src/react/pages/chat/subagents-bar.tsx";
+    import { useSubagents } from "/src/react/lib/queries.ts";
+    import { disclosureLeavesBottom } from "/src/react/pages/chat/scroll-intent.ts";
+    import "/src/react/styles/index.css";
+    document.documentElement.dataset.theme = "dark";
+
+    const agent = (partial) => ({
+      id: partial.id,
+      parentId: partial.parentId,
+      parentTitle: null,
+      title: partial.title,
+      model: "grok-4.7",
+      startedAt: 1700000000,
+      endedAt: partial.status === "running" ? null : 1700001000,
+      endReason: null,
+      status: partial.status,
+      messages: 2,
+      toolCalls: 3,
+      apiCalls: 1,
+      tokens: 10,
+      lastActivityAt: 1700001000,
+      lastTool: null,
+      snippet: partial.snippet || "结果摘要留在卡片里",
+    });
+    const owned = (id, title, status = "done") => agent({ id, parentId: id.startsWith("b") ? "B" : id.startsWith("r") ? "R" : "A", title, status });
+    const bodies = {
+      A: {
+        data: [
+          ...Array.from({ length: 8 }, (_, i) => agent({ id: `a${i + 1}`, parentId: "A", title: `任务A-${i + 1}`, status: "done", snippet: `A 的摘要 ${i + 1} ${"甲".repeat(40)}` })),
+          agent({ id: "foreign-b", parentId: "B", title: "外来B", status: "running" }),
+          agent({ id: "foreign-null", parentId: null, title: "无归属", status: "done" }),
+          agent({ id: "foreign-empty", parentId: "", title: "空归属", status: "done" }),
+        ],
+        running: 7,
+        now: Date.now() / 1000,
+      },
+      B: {
+        data: [
+          agent({ id: "b1", parentId: "B", title: "任务B", status: "done" }),
+          agent({ id: "a1-stale", parentId: "A", title: "任务A-1", status: "done" }),
+          agent({ id: "b-null", parentId: null, title: "无归属", status: "running" }),
+        ],
+        running: 3,
+        now: Date.now() / 1000,
+      },
+      R: {
+        data: [agent({ id: "r1", parentId: "R", title: "进行中的R", status: "running", snippet: "仍在跑" })],
+        running: 1,
+        now: Date.now() / 1000,
+      },
+      "": {
+        data: [agent({ id: "z1", parentId: "Z", title: "全局任务", status: "done" })],
+        running: 1,
+        now: Date.now() / 1000,
+      },
+      C: {
+        data: [agent({ id: "c1", parentId: "C", title: "迟到C", status: "running" })],
+        running: 1,
+        now: Date.now() / 1000,
+      },
+      D: {
+        data: [agent({ id: "d1", parentId: "D", title: "迟到D", status: "running" })],
+        running: 1,
+        now: Date.now() / 1000,
+      },
+      N: {
+        data: Array.from({ length: 25 }, (_, i) => agent({ id: `n${i + 1}`, parentId: "N", title: `任务N-${i + 1}`, status: "done", snippet: `N 摘要 ${i + 1}` })),
+        running: 0,
+        now: Date.now() / 1000,
+      },
+    };
+    void owned;
+
+    window.harness = { hold: new Set(), waiters: [], requests: [], setSession() {}, setListOnly() {}, mountProbe() {} };
+    const original = window.fetch.bind(window);
+    window.fetch = (input, init) => {
+      const url = String(input);
+      if (!url.includes("subagents")) return original(input, init);
+      const parsed = new URL(url, location.href);
+      const session = parsed.searchParams.get("parent") ?? parsed.searchParams.get("session") ?? "";
+      const limit = Number(parsed.searchParams.get("limit") || 50);
+      const offset = Number(parsed.searchParams.get("offset") || 0);
+      window.harness.requests.push({ session, limit: String(limit) });
+      const raw = bodies[session] ?? { data: [], running: 0, now: Date.now() / 1000 };
+      const data = (raw.data ?? []).slice(offset, offset + limit);
+      const respond = () => new Response(JSON.stringify({
+        data,
+        running: raw.running ?? 0,
+        stalled: 0,
+        total: raw.data?.length ?? 0,
+        now: raw.now,
+        limit,
+        offset,
+      }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+      if (window.harness.hold.has(session)) {
+        return new Promise((resolve) => {
+          window.harness.waiters.push({ session, resolve: () => resolve(respond()) });
+        });
+      }
+      return Promise.resolve(respond());
+    };
+    window.harness.release = (session) => {
+      window.harness.hold.delete(session);
+      const ready = window.harness.waiters.filter((item) => item.session === session);
+      window.harness.waiters = window.harness.waiters.filter((item) => item.session !== session);
+      ready.forEach((item) => item.resolve());
+    };
+
+    const log = document.querySelector("#log");
+    for (let i = 0; i < 40; i += 1) {
+      const p = document.createElement("p");
+      p.textContent = `消息 ${i}`;
+      log.appendChild(p);
+    }
+    log.scrollTop = 0;
+    document.querySelector("#page").addEventListener("click", (event) => {
+      if (disclosureLeavesBottom(event.composedPath())) {
+        log.scrollTop = log.scrollHeight;
+        document.documentElement.dataset.jumped = "1";
+      }
+    });
+
+    function ChatHarness() {
+      const [sessionId, setSessionId] = useState("A");
+      const [listOnly, setListOnly] = useState(false);
+      useEffect(() => {
+        window.harness.setSession = setSessionId;
+        window.harness.setListOnly = setListOnly;
+      });
+      return createElement(SubagentsBar, { sessionId, active: false, listOnly });
+    }
+    function HookProbe() {
+      const query = useSubagents("", 12, false);
+      return createElement("output", { id: "hook-probe" }, query.data ? `count:${query.data.data.length}` : "pending");
+    }
+    window.harness.mountProbe = () => {
+      flushSync(() => {
+        createRoot(document.querySelector("#probe")).render(createElement(QueryClientProvider, {
+          client: new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+        }, createElement(HookProbe)));
+      });
+    };
+
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    flushSync(() => {
+      createRoot(document.querySelector("#chat")).render(createElement(QueryClientProvider, { client },
+        createElement(ChatStyles),
+        createElement(ChatHarness),
+      ));
+      createRoot(document.querySelector("#running")).render(createElement(QueryClientProvider, {
+        client: new QueryClient({ defaultOptions: { queries: { retry: false } } }),
+      }, createElement(SubagentsBar, { sessionId: "R", active: false })));
+    });
+
+    const box = (el) => {
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      return { top: r.top, left: r.left, right: r.right, bottom: r.bottom, width: r.width, height: r.height };
+    };
+    const bordered = (el) => {
+      let node = el?.parentElement ?? null;
+      while (node) {
+        const style = getComputedStyle(node);
+        if (parseFloat(style.borderTopWidth) >= 1 && parseFloat(style.borderLeftWidth) >= 1) return node;
+        node = node.parentElement;
+      }
+      return null;
+    };
+    window.inspect = () => {
+      const root = document.querySelector("#chat");
+      const bar = root.querySelector(".bar");
+      const card = root.querySelector(".card");
+      const fold = root.querySelector(".fold");
+      const list = root.querySelector(".list");
+      const view = root.querySelector(".view");
+      const frame = card ? bordered(card) : bordered(bar);
+      const chev = root.querySelector(".chev");
+      const chevStyle = chev ? getComputedStyle(chev) : null;
+      const foldStyle = fold ? getComputedStyle(fold) : null;
+      const hit = (el) => {
+        if (!el) return false;
+        const r = el.getBoundingClientRect();
+        const node = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        return !!node && (el === node || el.contains(node));
+      };
+      return {
+        titles: [...root.querySelectorAll(".title")].map((node) => node.textContent),
+        barText: bar?.textContent ?? "",
+        expanded: bar?.getAttribute("aria-expanded") ?? null,
+        barInsideFrame: !!(frame && bar && frame.contains(bar)),
+        frame: box(frame),
+        bar: box(bar),
+        card: box(card),
+        composer: box(document.querySelector("#composer")),
+        gapLeft: frame && card ? card.getBoundingClientRect().left - frame.getBoundingClientRect().left : -1,
+        gapRight: frame && card ? frame.getBoundingClientRect().right - card.getBoundingClientRect().right : -1,
+        listClient: list ? list.clientHeight : 0,
+        listMax: list ? getComputedStyle(list).maxHeight : "",
+        foldTransition: foldStyle?.transitionProperty ?? "",
+        foldDuration: foldStyle?.transitionDuration ?? "",
+        chevDuration: chevStyle?.transitionDuration ?? "",
+        chevTiming: chevStyle?.transitionTimingFunction ?? "",
+        inert: fold ? fold.hasAttribute("inert") : false,
+        barHit: hit(bar),
+        viewHit: hit(view),
+        scrollTop: log.scrollTop,
+        jumped: document.documentElement.dataset.jumped ?? "",
+        requests: window.harness.requests.map((item) => ({ ...item })),
+        runningExpanded: document.querySelector("#running .bar")?.getAttribute("aria-expanded") ?? null,
+        runningTitle: document.querySelector("#running .title")?.textContent ?? "",
+        probe: document.querySelector("#hook-probe")?.textContent ?? "",
+      };
+    };
+    window.ready = true;
+  </script>
+</body>
+</html>

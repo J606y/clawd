@@ -44,6 +44,10 @@ from tools.process_registry_wsl import _is_wsl_launcher_command
 
 logger = logging.getLogger(__name__)
 
+
+class ProcessRegistryUnavailable(RuntimeError):
+    """The live registry cannot be consulted. Callers must not treat this as an empty process list."""
+
 # Crash-recovery checkpoint (gateway only)
 CHECKPOINT_PATH = get_hermes_home() / "processes.json"
 _CHECKPOINT_PATH_AT_IMPORT = CHECKPOINT_PATH
@@ -2353,7 +2357,7 @@ class ProcessRegistry(ProcessTerminationMixin, ProcessCheckpointMixin, ProcessOu
         """O(1) running count for status-bar polling; dict ``len()`` is atomic, no lock."""
         return len(self._running)
 
-    def list_sessions(self, task_id: str | None = None, session_key: str | None = None, *, include_retained: bool = False) -> list:
+    def list_sessions(self, task_id: str | None = None, session_key: str | None = None, *, include_retained: bool = False, parent_session_id: str | None = None) -> list:
         """Running and recently-finished processes for ``task_id`` and/or ``session_key``;
         cross-task entries sharing the gateway session (a forgotten preview server
         blocking session reset) are flagged ``"session_scoped": true``.
@@ -2374,6 +2378,8 @@ class ProcessRegistry(ProcessTerminationMixin, ProcessCheckpointMixin, ProcessOu
                 self._refresh_detached_session(s) for s in sessions.values()
             ) if refreshed is not None and not self._uncollected_gone(refreshed)
         ]
+        if parent_session_id:
+            all_sessions = [s for s in all_sessions if s.parent_session_id == parent_session_id]
         if task_id or session_key:
             all_sessions = [
                 s for s in all_sessions
@@ -2418,6 +2424,39 @@ class ProcessRegistry(ProcessTerminationMixin, ProcessCheckpointMixin, ProcessOu
                 entry["detached"] = True
             result.append(entry)
         return result
+
+    def registry_adopted(self) -> bool:
+        """True after checkpoint recovery or once this process has tracked a process."""
+        if getattr(self, "_jobs_outlive_host", False):
+            return True
+        with self._lock:
+            return bool(self._running or self._finished)
+
+    def running_for_parent(self, parent_session_id: str) -> list[dict]:
+        """Alive host processes for one spawning session. Missing registry raises; it does not return []."""
+        from agent.redact import redact_sensitive_text
+
+        if not isinstance(parent_session_id, str) or not parent_session_id:
+            raise ValueError("invalid session")
+        if not self.registry_adopted():
+            raise ProcessRegistryUnavailable("process registry is not adopted in this process")
+        with self._lock:
+            sessions = list(self._running.values())
+        found = []
+        for session in sessions:
+            refreshed = self._refresh_detached_session(session)
+            if refreshed is None or refreshed.exited or refreshed.parent_session_id != parent_session_id:
+                continue
+            if refreshed.pid_scope != "host":
+                continue
+            started = refreshed.started_at
+            command = redact_sensitive_text(refreshed.command or "", code_file=True)
+            found.append({
+                "id": refreshed.id if isinstance(refreshed.id, str) else "",
+                "command": command[:300],
+                "startedAt": started if type(started) in (int, float) and started == started and 0 < started < 253402300800 else None,
+            })
+        return found
 
     # ----- Session/Task Queries (for gateway integration) -----
 

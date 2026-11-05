@@ -186,18 +186,28 @@ class MemoryStore:
     _MAX_CONSOLIDATION_FAILURES_PER_TURN = 3
 
     def __init__(self, memory_char_limit: int = 2200, user_char_limit: int = 1375, *,
-                 memory_enabled: bool = True, user_profile_enabled: bool = True):
+                 memory_enabled: bool = True, user_profile_enabled: bool = True,
+                 memory_dir: Optional[Path] = None):
         self.memory_entries: list[str] = []
         self.user_entries: list[str] = []
         self.memory_char_limit, self.user_char_limit = memory_char_limit, user_char_limit
         self.memory_enabled, self.user_profile_enabled = memory_enabled, user_profile_enabled
+        self.memory_dir = Path(memory_dir) if memory_dir is not None else None
         self._system_prompt_snapshot: dict[str, str] = {"memory": "", "user": ""}
         self._consolidation_failures = 0  # per turn; reset by reset_consolidation_failures()
 
     # Per-turn counter of failed at-capacity consolidation attempts; reset at each turn boundary by
     # reset_consolidation_failures() (#42405).
+    def accepted_targets(self) -> tuple[str, ...]:
+        targets: list[str] = []
+        if self.memory_enabled:
+            targets.append("memory")
+        if self.user_profile_enabled:
+            targets.append("user")
+        return tuple(targets)
+
     def target_enabled(self, target: str) -> bool:
-        return self.user_profile_enabled if target == "user" else self.memory_enabled
+        return target in self.accepted_targets()
 
     def reset_consolidation_failures(self) -> None:
         """Call at turn start."""
@@ -297,10 +307,17 @@ class MemoryStore:
                 with suppress(OSError):
                     _flock(True)
 
-    @staticmethod
-    def _path_for(target: str) -> Path:
+    def _path_for(self, target: str) -> Path:
+        if target == "user":
+            filename = "USER.md"
+        elif target == "memory":
+            filename = "MEMORY.md"
+        else:
+            raise ValueError(f"unknown memory target: {target}")
+        if self.memory_dir is not None:
+            return self.memory_dir / filename
         from tools import memory_tool  # get_memory_dir is monkeypatched there
-        return memory_tool.get_memory_dir() / ("USER.md" if target == "user" else "MEMORY.md")
+        return memory_tool.get_memory_dir() / filename
 
     def _entries_for(self, target: str) -> list[str]:
         return self.user_entries if target == "user" else self.memory_entries

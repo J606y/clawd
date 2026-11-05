@@ -249,7 +249,7 @@ _GENERIC_DESCRIPTION = (
     "reference-to-video. Video edit/extend workflows are not part of this "
     "unified surface; use a dedicated provider-specific tool when one is "
     "available. The backend and model family are user-configured via "
-    "`hermes tools` → Video Generation; the agent does not pick them. "
+    "`clawd tools` → Video Generation; the agent does not pick them. "
     "Long-running generations may take 30 seconds to several minutes — "
     "the call blocks until the video is ready. Returns the result in the "
     "`video` field — either an HTTP URL or an absolute file path; reference "

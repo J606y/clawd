@@ -102,19 +102,26 @@ class CDPSupervisor(DialogSupervisionMixin, FrameTrackingMixin):
     are sync, thread-safe bridges onto that loop; all CDP I/O lives on the loop."""
 
     def __init__(self, task_id: str, cdp_url: str, *, dialog_policy: str = DEFAULT_DIALOG_POLICY,
-                 dialog_timeout_s: float = DEFAULT_DIALOG_TIMEOUT_S) -> None:
+                 dialog_timeout_s: float = DEFAULT_DIALOG_TIMEOUT_S, owner: Optional[tuple[str, str, str]] = None,
+                 browser_id: Optional[str] = None, attach_target: Optional[str] = None) -> None:
         if dialog_policy not in _VALID_POLICIES:
             raise ValueError(f"Invalid dialog_policy {dialog_policy!r}; must be one of {sorted(_VALID_POLICIES)}")
         self.task_id = task_id
         self.cdp_url = cdp_url
         self.dialog_policy = dialog_policy
         self.dialog_timeout_s = float(dialog_timeout_s)
+        self.owner = owner
+        self.browser_id = browser_id
+        self.attach_target = attach_target
+        self.owned_target_id: Optional[str] = None
 
         # State protected by ``_state_lock`` for cross-thread reads.
         self._state_lock = threading.Lock()
         self._pending_dialogs: dict[str, PendingDialog] = {}
         self._recent_dialogs: list[DialogRecord] = []
         self._frames: dict[str, FrameInfo] = {}
+        self._owned: dict[str, dict[str, str]] = {}
+        self._top_targets: dict[str, str] = {}
         self._active = False
         # Supervisor loop machinery — populated in start().
         self._loop: Optional[asyncio.AbstractEventLoop] = None
@@ -438,7 +445,29 @@ class CDPSupervisor(DialogSupervisionMixin, FrameTrackingMixin):
             backoff = min(backoff * 2, 10.0)
 
     async def _attach_initial_page(self) -> None:
-        """Find (or create) a page target, attach flattened, enable domains, install dialog bridge."""
+        """Attach a page session. An owned start creates a blank page and registers that receipt.
+
+        An existing page is never registered. Without identity, a created blank page is also
+        not registered and is not treated as the user's page.
+        """
+        if self.attach_target:
+            await self._remember_created_async(self.attach_target)
+            self.owned_target_id = self.attach_target
+            return
+        if self.owner and self.browser_id:
+            created = (await self._cdp("Target.createTarget", {"url": "about:blank"}))["result"]
+            target_id = created.get("targetId")
+            if not isinstance(target_id, str) or not target_id:
+                raise RuntimeError("supervisor createTarget returned no target")
+            await self._remember_created_async(target_id)
+            try:
+                self._register_receipt(target_id)
+            except Exception:
+                with contextlib.suppress(Exception):
+                    await self._cdp("Target.closeTarget", {"targetId": target_id})
+                raise
+            self.owned_target_id = target_id
+            return
         targets = (await self._cdp("Target.getTargets")).get("result", {}).get("targetInfos", [])
         page_target = next((t for t in targets if t.get("type") == "page"), None)
         if page_target is None:
@@ -447,6 +476,152 @@ class CDPSupervisor(DialogSupervisionMixin, FrameTrackingMixin):
         self._page_session_id = sid = attach["result"]["sessionId"]
         await self._enable_page_domains(sid, timeout=10.0)
         await self._install_dialog_bridge(sid)
+
+    def _register_receipt(self, target_id: str) -> None:
+        if not self.owner or not self.browser_id:
+            return
+        task, session, turn = self.owner
+        from tools.browser_task_registry import register_created
+        register_created(task_id=task, session_id=session, turn_id=turn, target_id=target_id,
+                         browser_id=self.browser_id, endpoint=self.cdp_url)
+
+    async def _remember_created_async(self, target_id: str) -> None:
+        """Attach the target this process created and record its top frame. Does not list pages."""
+        attach = await self._cdp("Target.attachToTarget", {"targetId": target_id, "flatten": True})
+        sid = attach["result"]["sessionId"]
+        await self._enable_page_domains(sid, timeout=10.0)
+        await self._install_dialog_bridge(sid)
+        tree = await self._cdp("Page.getFrameTree", session_id=sid)
+        top = ((tree.get("result") or {}).get("frameTree") or {}).get("frame") or {}
+        top_id = top.get("id")
+        if not isinstance(top_id, str) or not top_id:
+            raise RuntimeError("created page has no frame id")
+        with self._state_lock:
+            self._page_session_id = sid
+            self._owned[target_id] = {"session_id": sid, "top_frame_id": top_id}
+            self._top_targets[top_id] = target_id
+
+    def create_blank_target(self) -> str:
+        """``Target.createTarget`` on the live socket. The receipt id is the only identity."""
+        loop = self._loop
+        if loop is None or not loop.is_running():
+            raise RuntimeError("supervisor loop is not running")
+
+        async def _create() -> str:
+            created = (await self._cdp("Target.createTarget", {"url": "about:blank"}))["result"]
+            target_id = created.get("targetId")
+            if not isinstance(target_id, str) or not target_id:
+                raise RuntimeError("Target.createTarget returned no target")
+            return target_id
+
+        return _schedule(_create(), loop, timeout=15.0)
+
+    def remember_created(self, target_id: str) -> None:
+        loop = self._loop
+        if loop is None or not loop.is_running():
+            raise RuntimeError("supervisor loop is not running")
+        _schedule(self._remember_created_async(target_id), loop, timeout=15.0)
+
+    def dialog_is_owned(self, dialog: PendingDialog, session_id: str, task_id: str) -> bool:
+        from tools.browser_supervisor_frames import dialog_target_ids
+        from tools.browser_task_registry import active_binding
+        with self._state_lock:
+            owned = dict(self._owned)
+            frames = dict(self._frames)
+        hits = dialog_target_ids(dialog.cdp_session_id, dialog.frame_id, owned, frames)
+        return any(active_binding(session_id, task_id, target_id) for target_id in hits)
+
+    def dialog_on_created_page(self, dialog: PendingDialog) -> bool:
+        """True when the dialog's session or frame chain is a page this supervisor created."""
+        from tools.browser_supervisor_frames import dialog_target_ids
+        with self._state_lock:
+            owned = dict(self._owned)
+            frames = dict(self._frames)
+        return bool(dialog_target_ids(dialog.cdp_session_id, dialog.frame_id, owned, frames))
+
+    def oopif_session(self, frame_id: str, session_id: str, task_id: str) -> Optional[str]:
+        from tools.browser_supervisor_frames import oopif_session_id
+        from tools.browser_task_registry import active_binding
+        with self._state_lock:
+            frames = dict(self._frames)
+            tops = {binding["top_frame_id"] for binding in self._owned.values() if binding.get("top_frame_id")}
+            top_targets = dict(self._top_targets)
+        child = oopif_session_id(frame_id, frames, tops)
+        if not child:
+            return None
+        from tools.browser_supervisor_frames import walk_to_top
+        top = walk_to_top(frames, frame_id)
+        target_id = top_targets.get(top or "")
+        if not target_id or active_binding(session_id, task_id, target_id) is None:
+            return None
+        return child
+
+    def capture_owned(self, target_id: str) -> tuple[str, str]:
+        """JPEG base64 and title for a page this supervisor attached from a create receipt."""
+        loop = self._loop
+        if loop is None or not loop.is_running():
+            raise RuntimeError("supervisor loop is not running")
+        with self._state_lock:
+            binding = dict(self._owned.get(target_id) or {})
+        session_id = binding.get("session_id")
+        if not session_id:
+            raise RuntimeError("target is not attached on the live supervisor")
+
+        async def _shot() -> tuple[str, str]:
+            frame = await self._cdp("Page.captureScreenshot", {
+                "format": "jpeg", "quality": 65, "captureBeyondViewport": False, "fromSurface": True,
+            }, session_id=session_id)
+            title_msg = await self._cdp("Runtime.evaluate", {
+                "expression": "document.title", "returnByValue": True,
+            }, session_id=session_id)
+            data = (frame.get("result") or {}).get("data")
+            title = ((title_msg.get("result") or {}).get("result") or {}).get("value") or ""
+            if not isinstance(data, str) or not data:
+                raise RuntimeError("task frame is invalid")
+            return data, str(title)[:300]
+
+        return _schedule(_shot(), loop, timeout=10.0)
+
+    def call_owned(self, target_id: str, method: str, params: Optional[dict[str, Any]] = None) -> dict[str, Any]:
+        loop = self._loop
+        if loop is None or not loop.is_running():
+            raise RuntimeError("supervisor loop is not running")
+        with self._state_lock:
+            session_id = (self._owned.get(target_id) or {}).get("session_id")
+        if not session_id:
+            raise RuntimeError("target is not attached on the live supervisor")
+        message = _schedule(self._cdp(method, params or {}, session_id=session_id, timeout=8.0), loop, timeout=10.0)
+        result = message.get("result") or {}
+        if not isinstance(result, dict):
+            raise RuntimeError("CDP result is not an object")
+        return result
+
+    def call_browser(self, method: str, params: Optional[dict[str, Any]] = None, timeout: float = 10.0) -> dict[str, Any]:
+        """Browser-level CDP on the live socket. Does not attach to a page."""
+        loop = self._loop
+        if loop is None or not loop.is_running():
+            raise RuntimeError("supervisor loop is not running")
+        message = _schedule(self._cdp(method, params or {}, timeout=timeout), loop, timeout=timeout + 2)
+        result = message.get("result") if isinstance(message, dict) else {}
+        return result if isinstance(result, dict) else {}
+
+    def close_exact(self, target_id: str, browser_id: str) -> None:
+        """Close one created target on the live socket. Does not select another page."""
+        if self.browser_id and self.browser_id != browser_id:
+            raise RuntimeError("browser identity changed")
+        loop = self._loop
+        if loop is None or not loop.is_running():
+            raise RuntimeError("supervisor loop is not running")
+
+        async def _close() -> None:
+            await self._cdp("Target.closeTarget", {"targetId": target_id})
+            try:
+                await self._cdp("Target.getTargetInfo", {"targetId": target_id})
+            except Exception:
+                return
+            raise RuntimeError("target still open")
+
+        _schedule(_close(), loop, timeout=10.0)
 
     async def _cdp(self, method: str, params: Optional[dict[str, Any]] = None, *,
                    session_id: Optional[str] = None, timeout: Optional[float] = 10.0) -> dict[str, Any]:
@@ -523,24 +698,61 @@ class _SupervisorRegistry:
         return capture(self, task_id, timeout=timeout)
 
     def get_or_start(self, task_id: str, cdp_url: str, *, dialog_policy: str = DEFAULT_DIALOG_POLICY,
-                     dialog_timeout_s: float = DEFAULT_DIALOG_TIMEOUT_S, start_timeout: float = 15.0) -> CDPSupervisor:
+                     dialog_timeout_s: float = DEFAULT_DIALOG_TIMEOUT_S, start_timeout: float = 15.0,
+                     owner: Optional[tuple[str, str, str]] = None, browser_id: Optional[str] = None,
+                     attach_target: Optional[str] = None) -> CDPSupervisor:
         """Idempotently ensure a supervisor runs for ``(task_id, cdp_url)``; one bound to a
-        different ``cdp_url`` or unhealthy (dead thread / stopped loop) is stopped and replaced."""
+        different ``cdp_url`` or unhealthy (dead thread / stopped loop) is stopped and replaced.
+
+        A signed cloud websocket is refused. That socket is already held by the
+        browser-harness daemon; opening another one is not a second transport
+        we are allowed to start.
+        """
+        if str(cdp_url or "").startswith("wss://"):
+            raise RuntimeError("refusing a second websocket to a signed cloud endpoint")
         from hermes_constants import hermes_home_key
         home = hermes_home_key()
+        owned_existing = None
+        attach_existing = None
         with self._lock:
             existing = self._by_task.get(task_id)
             if existing is not None:
                 thread, loop = existing._thread, existing._loop
                 healthy = thread is not None and thread.is_alive() and loop is not None and loop.is_running()
                 if existing.cdp_url == cdp_url and healthy:
-                    return existing
-                self._by_task.pop(task_id, None)
+                    if attach_target and attach_target not in existing._owned:
+                        attach_existing = existing
+                    elif owner and browser_id and not existing.owned_target_id:
+                        owned_existing = existing
+                    else:
+                        return existing
+                else:
+                    self._by_task.pop(task_id, None)
+        if attach_existing is not None and attach_target:
+            if browser_id:
+                attach_existing.browser_id = browser_id
+            attach_existing.remember_created(attach_target)
+            attach_existing.owned_target_id = attach_target
+            return attach_existing
+        if owned_existing is not None and browser_id:
+            owned_existing.owner = owner
+            owned_existing.browser_id = browser_id
+            target_id = owned_existing.create_blank_target()
+            try:
+                owned_existing._register_receipt(target_id)
+            except Exception:
+                with contextlib.suppress(Exception):
+                    owned_existing.close_exact(target_id, browser_id)
+                raise
+            owned_existing.remember_created(target_id)
+            owned_existing.owned_target_id = target_id
+            return owned_existing
         if existing is not None:
             existing.stop()
 
         supervisor = CDPSupervisor(task_id=task_id, cdp_url=cdp_url,
-                                   dialog_policy=dialog_policy, dialog_timeout_s=dialog_timeout_s)
+                                   dialog_policy=dialog_policy, dialog_timeout_s=dialog_timeout_s,
+                                   owner=owner, browser_id=browser_id, attach_target=attach_target)
         supervisor.start(timeout=start_timeout)
         with self._lock:
             # Guard against a concurrent get_or_start from another thread.
@@ -575,6 +787,24 @@ class _SupervisorRegistry:
 
 
 SUPERVISOR_REGISTRY = _SupervisorRegistry()
+
+
+def close_owned_target(task_id: str, target_id: str, browser_id: str, endpoint: str) -> str:
+    """Close one registered cloud page on the live supervisor. Missing supervisor is an error, not a guess."""
+    supervisor = SUPERVISOR_REGISTRY.get(task_id)
+    if supervisor is None or supervisor.cdp_url != endpoint:
+        return f"{target_id} (live supervisor unavailable)"
+    try:
+        supervisor.close_exact(target_id, browser_id)
+    except Exception as exc:
+        return f"{target_id} ({type(exc).__name__})"
+    return ""
+
+
+def open_owned_page(cdp_url: str, browser_id: str, task_id: str, session_id: str, turn_id: str) -> dict[str, str]:
+    """Retired. Cloud pages are created on the daemon socket, not a second signed websocket."""
+    del cdp_url, browser_id, task_id, session_id, turn_id
+    raise RuntimeError("refusing a second websocket to a signed cloud endpoint")
 
 
 __all__ = ["SUPERVISOR_REGISTRY", "CDPSupervisor", "SupervisorSnapshot", "_SupervisorRegistry"]

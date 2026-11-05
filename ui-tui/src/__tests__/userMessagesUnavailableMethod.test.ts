@@ -8,7 +8,7 @@ import { describeRpcError, isVersionSkewError } from '../app/userMessages.js'
 // that the versions differ, nor into update advice.
 describe('a method the backend says it does not provide', () => {
   const unavailable = new JsonRpcGatewayError(
-    'unknown method: groups.no_such_verb — not available on this Hermes backend',
+    'unknown method: groups.no_such_verb — not available on this clawd backend',
     { code: -32601 }
   )
 
@@ -18,7 +18,7 @@ describe('a method the backend says it does not provide', () => {
     const text = describeRpcError(unavailable)
 
     expect(text).toContain('groups.no_such_verb')
-    expect(text).not.toMatch(/out of sync|different versions|\/update|hermes update/)
+    expect(text).not.toMatch(/out of sync|different versions|\/update|hermes update|clawd update/)
   })
 
   it('keeps the skew warning for a schema the backend rejects', () => {

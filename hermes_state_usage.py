@@ -238,6 +238,8 @@ class SessionUsageMixin:
                     if value is not None:
                         # All-None runs stay None so COALESCE keeps the stored value.
                         merged[f] = (merged.get(f) or 0.0) + value
+                if kwargs.get("last_api_call") is not None:
+                    merged["last_api_call"] = kwargs["last_api_call"]
             else:
                 groups.append((key, session_id, dict(kwargs)))
         return [(sid, kw) for _, sid, kw in groups]
@@ -288,7 +290,7 @@ class SessionUsageMixin:
         actual_cost_usd: Optional[float]=None, cost_status: Optional[str]=None, cost_source: Optional[str]=None,
         pricing_version: Optional[str]=None, billing_provider: Optional[str]=None, billing_base_url: Optional[str]=None,
         billing_mode: Optional[str]=None, api_call_count: int=0, absolute: bool=False,
-        source: Optional[str]=None, task: str = "",
+        source: Optional[str]=None, task: str = "", last_api_call: Any=None,
     ) -> None:
         """Update totals and route attribution, ensuring the legacy missing-row backfill.
         *absolute*=False increments (per-API-call deltas, CLI path); *absolute*=True sets directly
@@ -300,13 +302,28 @@ class SessionUsageMixin:
         values.pop('self')
         values.pop('session_id')
         values.pop('source')
+        snapshot = values.pop('last_api_call', None)
+        try:
+            from hermes_state_last_call import normalize_last_call
+
+            snapshot = normalize_last_call(snapshot)
+        except ValueError:
+            logger.warning("last api call snapshot rejected for %s", session_id)
+            snapshot = None
         # Ensure the row exists: under concurrent load create_session() may have failed on
         # locking, and the UPDATE would silently affect 0 rows. When this guard is the first
         # writer it must carry the agent's real source: the turn lease treats an existing row as
         # proof the create already happened, so the creator never returns to repair an anonymous
         # ``unknown`` placeholder and the session stays a phantom for life (#111999).
         self._insert_session_row(session_id, source or "unknown", model=model)
-        self._execute_write(lambda conn: self._update_token_counts_in_transaction(conn, session_id, **values))
+        def _write(conn):
+            self._update_token_counts_in_transaction(conn, session_id, **values)
+            if snapshot is not None:
+                from hermes_state_last_call import write_last_call
+
+                write_last_call(conn, session_id, snapshot)
+
+        self._execute_write(_write)
 
     def _update_token_counts_in_transaction(
         self, conn, session_id: str, input_tokens: int=0, output_tokens: int=0, model: str | None=None, cache_read_tokens: int=0,

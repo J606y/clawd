@@ -72,7 +72,7 @@ boundary refreshes it, so a killed update leaves its own record. The next update
 `running` record whose processes are gone `interrupted` (naming its last stage) and reports
 it. Receipts and the `update.log` tee resolve to the root home
 (`hermes_constants.get_default_hermes_root()`), never a sticky profile's; so do their readers
-(`hermes logs update`, the debug bundle, the dashboard's update status, pm's sync receipts).
+(`clawd logs update`, the debug bundle, the dashboard's update status, pm's sync receipts).
 
 The completion bootstrap's dependency preparation (`ensure_tools_for_sync`, `pm.sync_venv`) also
 runs after the tree moved: its failure is a `dependencies` follow-up ("dependencies not installed
@@ -192,7 +192,7 @@ or user state is touched by this implementation's test runs.
 ## Crash-cell matrix
 
 Each cell kills a real `hermes update` (or the Desktop hand-off script) at one point
-of the update, then asserts what the user is owed: the next `hermes` launch is
+of the update, then asserts what the user is owed: the next `clawd` launch is
 runnable, right after that launch the checkout is exactly the pre-update commit or
 the target (HEAD plus every tracked byte: `git status` clean and `git diff --quiet
 HEAD`; each target edits modules every launch imports), and nothing the dead update

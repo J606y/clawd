@@ -1003,3 +1003,45 @@ def apply_worker_receipt(db, *, epoch, execution_id, session_id, generation, seq
             compact_terminal_receipts(conn, execution_id)
         return result
     return db._execute_write(write, patience_s=db._TRANSCRIPT_WRITE_PATIENCE_S)
+
+
+def api_input_origin(message: dict, admission: dict | None) -> str | None:
+    """Server origin for one already-loaded user row. Not an identity and not edit authorization."""
+    if not isinstance(message, dict) or message.get("role") != "user":
+        return None
+    mid = message.get("id")
+    session_id = message.get("session_id")
+    if type(mid) is not int or mid <= 0 or not isinstance(session_id, str) or not session_id:
+        return None
+    if not admission or admission.get("target_session_id") != session_id:
+        return None
+    if admission.get("principal_id") != "api" or admission.get("intent") not in {"queue", "steer"}:
+        return None
+    payload = admission.get("payload")
+    if isinstance(payload, str):
+        try:
+            payload = json.loads(payload)
+        except json.JSONDecodeError:
+            return None
+    if isinstance(payload, dict) and isinstance(payload.get("api_turn_v1"), dict):
+        return "api_" + str(admission["intent"])
+    return None
+
+
+def project_api_input_origins(db, messages) -> dict[int, str]:
+    """Origins for messages already scoped to one transcript. Uses ``get_session_admission``, not a private join.
+
+    Raises on store failure. Callers that must keep history should catch and omit origins.
+    """
+    origins: dict[int, str] = {}
+    for message in messages or ():
+        if not isinstance(message, dict) or message.get("role") != "user":
+            continue
+        admission_id = message.get("platform_message_id")
+        if not isinstance(admission_id, str) or not admission_id:
+            continue
+        admission = get_session_admission(db, admission_id=admission_id)
+        origin = api_input_origin(message, admission)
+        if origin is not None:
+            origins[message["id"]] = origin
+    return origins

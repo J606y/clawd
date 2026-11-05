@@ -12,5 +12,5 @@ if (-not (Test-Path -LiteralPath $target -PathType Leaf)) {
     Write-Error "The maintained Desktop updater is missing. Repair the Hermes installation before updating."
     exit 3
 }
-& $target @args
-exit $LASTEXITCODE
+Write-Error "refused: clawd does not run the official desktop update. This entry is unsupported."
+exit 2

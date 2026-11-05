@@ -1,0 +1,39 @@
+diff --git a/gateway/platforms/api_server_runs.py b/gateway/platforms/api_server_runs.py
+--- a/gateway/platforms/api_server_runs.py
++++ b/gateway/platforms/api_server_runs.py
+@@ -1081,6 +1081,8 @@
+             with observe_api_controls(run.admission, _control_cb):
+                 result, usage = await observe_api_turn(
+                     run.admission, stream_delta_callback=_text_cb,
++                    interim_assistant_callback=_interim_cb,
++                    reasoning_callback=lambda text: tool_cb("reasoning.available", preview=text),
+                     tool_start_callback=_tool_start, tool_complete_callback=_tool_complete)
+             # The canonical turn has no agent object here; the served pair rides on the
+             # committed usage/result runtime metadata when the turn recorded one.
+diff --git a/gateway/session_ingress.py b/gateway/session_ingress.py
+--- a/gateway/session_ingress.py
++++ b/gateway/session_ingress.py
+@@ -290,6 +290,9 @@
+                     # ``[Image attached ...]`` hints native transports persist), not only the caption.
+                     event.text = '\n'.join(part['text'] for part in prepared['content'] if part.get('type') == 'text')
+                 event.allow_gateway_control = False
++                # Preserve input provenance before the execution-only trust stamp. Never derive
++                # presentation from client metadata or relabel an existing machinery event.
++                event._api_admitted_user_input = not event.internal and 'api_turn_v1' in row['payload']
+                 event.internal = True  # trust comes from the private binding and preclaim, never client JSON
+             response = await authority.runner._handle_message(event)
+             result = captured.get('terminal_result', captured.get('result'))
+diff --git a/gateway/response_filters.py b/gateway/response_filters.py
+--- a/gateway/response_filters.py
++++ b/gateway/response_filters.py
+@@ -121,6 +121,10 @@
+         return kind
+     if getattr(event, "internal", False) and _producer_card(event):
+         return event.metadata["display_kind"]
++    if getattr(event, "_api_admitted_user_input", False) is True and not getattr(event, "_heartbeat_session_id", None):
++        # A private admission stamp distinguishes ordinary API input from self-injection;
++        # event.internal still guards execution, and hidden/producer kinds above still win.
++        return None
+     if getattr(event, "internal", False) or getattr(event, "_heartbeat_session_id", None):
+         return INTERNAL_NOTIFICATION_DISPLAY_KIND
+     return None

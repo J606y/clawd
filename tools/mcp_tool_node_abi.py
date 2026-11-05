@@ -63,7 +63,7 @@ def _remedy(root: Optional[Path], package: str, node: Path, npm: Path) -> str:
     if root.parent.name != "_npx":
         return rebuild
     delete = f"Remove-Item -Recurse -Force {q(root)}" if windows else f"rm -rf {q(root)}"
-    return f"{delete} (Hermes reinstalls it on the next start), or {rebuild}"
+    return f"{delete} (clawd reinstalls it on the next start), or {rebuild}"
 
 
 def node_abi_error(server_name: str, stderr_text: str) -> Optional[NodeAbiMismatchError]:

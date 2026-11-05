@@ -984,8 +984,26 @@ def route_launch_key(authority, policy, config):
     return launch_key(authority, policy)
 
 
+def _restorable_model(model) -> bool:
+    """``None`` is an unset launch, not a corrupt receipt.
+
+    ``stage_local_session`` persists ``None`` when the profile names no model.
+    That is not a credential check: a missing key must not become
+    ``invalid policy`` / ``storage_unavailable``. A present value must still be
+    a non-empty string. A missing key (not JSON null) stays a refused receipt.
+    """
+    if model is None:
+        return True
+    return isinstance(model, str) and bool(model.strip())
+
+
 def restore_policy(data):
-    """Reject incomplete private policy rather than rebuilding from current defaults."""
+    """Reject incomplete private policy rather than rebuilding from current defaults.
+
+    An explicit unset model (JSON null) is complete enough to restore: the
+    session keeps that unset name and does not pick up a later default. It is
+    not storage corruption.
+    """
     try:
         policy = LocalSessionPolicy(**data)
         from gateway.session_a2a import is_forward_policy
@@ -993,7 +1011,7 @@ def restore_policy(data):
         if ((not is_forward_policy(policy) and
              (policy.source not in surfaces or policy.platform != surfaces[policy.source]))
                 or not isinstance(policy.cwd, str) or not Path(policy.cwd).is_absolute()
-                or not isinstance(policy.model, str) or not policy.model.strip()
+                or not _restorable_model(policy.model)
                 or not isinstance(policy.toolsets, (list, tuple))
                 or any(not isinstance(name, str) for name in policy.toolsets)
                 or type(policy.safe_mode) is not bool or type(policy.ignore_user_config) is not bool

@@ -98,7 +98,7 @@ describe('settled connection lines', () => {
       targets: [{ ...target, state: 'connected' }]
     } as unknown as ConnectionUpdatePayload)
 
-    expect(lines).toEqual(['gmail (work): connected', 'Hermes named this gmail account work. Rename it anytime.'])
+    expect(lines).toEqual(['gmail (work): connected', 'clawd named this gmail account work. Rename it anytime.'])
   })
 })
 

@@ -6,6 +6,12 @@ description: "Browser-based administration panel for managing configuration, API
 
 # Hermes Web Dashboard
 
+<!-- clawd-docs-note -->
+:::warning Not a clawd product
+clawd does not ship official Desktop, the official web dashboard, or the commands `desktop`, `gui`, `webapp`, and `dashboard`. This page documents upstream Hermes Agent. The web UI in this checkout is `clawd panel`.
+:::
+
+
 The web dashboard is a browser-based UI for managing your Hermes Agent installation. Instead of editing YAML files or running CLI commands, you can configure settings, manage API keys, and monitor sessions from a clean web interface.
 
 :::tip

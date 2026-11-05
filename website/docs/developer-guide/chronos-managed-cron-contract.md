@@ -9,7 +9,7 @@ description: "Agent ↔ NAS wire contract for the Chronos cron provider"
 **Audience:** the NAS-side implementer of the `agent-cron` endpoints
 (`nous-account-service`) and anyone debugging the managed-cron path.
 
-Chronos lets a hosted Hermes gateway **scale to zero** while idle and still
+Chronos lets a hosted clawd gateway **scale to zero** while idle and still
 fire cron jobs. Instead of an in-process 60-second ticker, the agent asks NAS
 to arm exactly **one external one-shot per job at that job's real next-fire
 time**. NAS calls the agent back at fire time over an authenticated webhook;
@@ -229,7 +229,7 @@ maps to a provisioned instance (hop 1 above). When `provision` answers 403
 `invalid_client` — the token in `auth.json` is a plain `hermes-cli` user login
 rather than the `hermes-cli-vps` bootstrap session or an `agent:*` client — the
 rejection is deterministic for the life of that credential: every arm, re-arm
-and `list` would fail the same way, and a `hermes auth` re-login makes it
+and `list` would fail the same way, and a `clawd auth` re-login makes it
 permanent (it *replaces* the bootstrap session; only NAS can re-mint one). The
 provider therefore logs ONE warning naming that remedy, stops calling NAS, and
 starts the built-in ticker for the rest of the process so jobs keep firing on

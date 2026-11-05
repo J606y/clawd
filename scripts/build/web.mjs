@@ -88,8 +88,8 @@ async function ensureHeapCapForFreshProcess() {
 }
 
 if (isMain(import.meta.url)) {
-  applyThreadCap()
-  await ensureHeapCapForFreshProcess()
+  console.error('refused: clawd does not build the official web UI. This entry is unsupported.')
+  process.exit(2)
 }
 
 function typecheck(ts, root, scratch) {

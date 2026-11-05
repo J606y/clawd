@@ -1207,6 +1207,156 @@ def _memory_provider_init_kwargs(agent, platform) -> dict[str, Any]:
     return kwargs
 
 
+def _innermost_memory_store(store):
+    """Walk composite wrappers to the store that is not itself a project wrapper."""
+    seen: set[int] = set()
+    current = store
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        inner = getattr(current, "global_store", None)
+        if inner is None or inner is current:
+            return current
+        current = inner
+    return store
+
+
+def _memory_store_project_id(store):
+    if store is None or not hasattr(store, "project_store"):
+        return None
+    project_id = getattr(store, "project_id", None)
+    return str(project_id) if project_id else None
+
+
+def _release_unbound_project_memory(agent) -> None:
+    """Explicit unbind. Strip project composites and clear project identity here.
+
+    A later facade pass may verify this, but it must not be required for the
+    store and ``project_id`` to be correct.
+    """
+    store = _innermost_memory_store(getattr(agent, "_memory_store", None))
+    if _memory_store_project_id(store) is not None:
+        raise RuntimeError("explicit unbind left a project memory store installed")
+    agent._memory_store = store
+    agent.project_id = None
+    agent.project = None
+
+
+def _unwrap_project_memory_for_rebind(agent, session_id, project_id) -> None:
+    """Drop a previously wrapped project before installing another. Do not nest."""
+    current = getattr(agent, "_memory_store", None)
+    if current is None:
+        return
+    if _memory_store_project_id(current) is None and getattr(current, "global_store", None) in (None, current):
+        return
+    inner = _innermost_memory_store(current)
+    if _memory_store_project_id(inner) is not None:
+        raise RuntimeError(
+            f"session {session_id} is bound to project {project_id} but the installed memory store "
+            "could not be unwrapped to global memory; refusing to nest project stores"
+        )
+    agent._memory_store = inner
+
+
+def _attach_project_context(agent, mem_config: dict, *, memory_required: bool) -> None:
+    """Bind project identity and project memory. A bound session never degrades to global-only.
+
+    The first attach seals the scope. A later attach while ``_current_turn_id`` is set
+    does not replace the store, project id, or schema. Idle re-attach may retarget.
+
+    ``resolve_session_project`` returning None is an explicit unbind: this function
+    strips project composites and clears ``project_id`` / ``project`` itself.
+    """
+    sid = getattr(agent, "session_id", None)
+    if not sid:
+        return
+    from clawd_projects.memory_authorization import (
+        freeze_agent_memory_scope,
+        is_subagent_memory_actor,
+        mark_memory_store_readonly,
+        should_keep_running_memory_freeze,
+    )
+    from clawd_projects.project_memory import ProjectMemoryStore
+    from clawd_projects.service import get_project_memory_store, resolve_session_project
+    from hermes_constants import get_hermes_home
+
+    if should_keep_running_memory_freeze(agent):
+        return
+    from pathlib import Path
+
+    home = get_hermes_home()
+    readonly = is_subagent_memory_actor(agent)
+    # Do not let connect() create projects.db and then read that empty file as an
+    # unbind. A missing store cannot prove a binding. The idle facade keeps a
+    # sealed matching freeze without calling here.
+    if not (Path(home) / "projects.db").is_file() and (
+        _memory_store_project_id(getattr(agent, "_memory_store", None)) is not None
+        or getattr(agent, "project_id", None)
+        or getattr(agent, "project", None) is not None
+    ):
+        raise RuntimeError(
+            "projects.db is missing and project memory is not proven; "
+            "refusing to create a project database or continue with an unproven project scope"
+        )
+    proj = resolve_session_project(sid, hermes_home=home)
+    if proj is None:
+        _release_unbound_project_memory(agent)
+        if readonly:
+            mark_memory_store_readonly(getattr(agent, "_memory_store", None))
+        freeze_agent_memory_scope(
+            agent, home=home, session_id=str(sid), project_id=None, writable=not readonly,
+        )
+        return
+    agent.project_id = proj.id
+    agent.project = proj
+    if not getattr(agent, "session_cwd", None) and proj.primary_path:
+        agent.session_cwd = proj.primary_path
+    _unwrap_project_memory_for_rebind(agent, sid, proj.id)
+    # Subagents block the memory write tool, but a bound session still needs the
+    # frozen global+project snapshot. A load failure must not leave global-only memory.
+    if agent._memory_store is None:
+        from tools.memory_tool import MemoryStore, get_builtin_memory_config, get_builtin_memory_store_flags
+        limits = mem_config or get_builtin_memory_config()
+        agent._memory_enabled, agent._user_profile_enabled = get_builtin_memory_store_flags()
+        if agent._memory_enabled or agent._user_profile_enabled:
+            agent._memory_store = MemoryStore(
+                memory_char_limit=limits.get("memory_char_limit", 2200),
+                user_char_limit=limits.get("user_char_limit", 1375),
+                memory_enabled=agent._memory_enabled,
+                user_profile_enabled=agent._user_profile_enabled,
+            )
+            agent._memory_store.load_from_disk()
+        mem_config = limits
+    if agent._memory_store is None:
+        raise RuntimeError(
+            f"session {sid} is bound to project {proj.id} but the memory store failed to initialize; "
+            "refusing to continue with global-only memory"
+        )
+    limits = mem_config or {}
+    try:
+        project_store = get_project_memory_store(
+            proj.id,
+            memory_char_limit=limits.get("memory_char_limit", 2200),
+            memory_enabled=agent._memory_enabled,
+            hermes_home=home,
+        )
+        wrapped = ProjectMemoryStore(
+            global_store=agent._memory_store,
+            project_store=project_store,
+            project_id=proj.id,
+            project_name=proj.name,
+        )
+        wrapped.load_from_disk()
+    except Exception:
+        agent._memory_store = None
+        raise
+    if readonly:
+        mark_memory_store_readonly(wrapped)
+    agent._memory_store = wrapped
+    freeze_agent_memory_scope(
+        agent, home=home, session_id=str(sid), project_id=proj.id, writable=not readonly,
+    )
+
+
 def _init_memory(agent, _agent_cfg, skip_memory, platform, memory_manager=None):
     # Persistent memory (MEMORY.md + USER.md) — loaded from disk
     agent._memory_store = None
@@ -1231,8 +1381,11 @@ def _init_memory(agent, _agent_cfg, skip_memory, platform, memory_manager=None):
         "memory" in (agent.enabled_toolsets or [])
         and "memory" not in (agent.disabled_toolsets or [])
     )
-    if not skip_memory or _memory_toolset_requested:
-        # Memory is optional — don't break agent init
+    memory_required = not skip_memory or _memory_toolset_requested
+    mem_config: dict = {}
+    if memory_required:
+        # Built-in memory is optional — don't break agent init when no project is bound.
+        # A bound project is attached below and must not be swallowed into global-only.
         with suppress(Exception):
             from tools.memory_tool import (
                 MemoryStore, get_builtin_memory_config, get_builtin_memory_store_flags,
@@ -1250,6 +1403,9 @@ def _init_memory(agent, _agent_cfg, skip_memory, platform, memory_manager=None):
                     user_profile_enabled=agent._user_profile_enabled,
                 )
                 agent._memory_store.load_from_disk()
+    _attach_project_context(agent, mem_config, memory_required=memory_required)
+    from tools.memory_tool import apply_memory_schema_to_agent
+    apply_memory_schema_to_agent(agent)
 
     # External memory provider plugin (one at a time, alongside built-in): memory.provider.
     agent._memory_manager = None
@@ -2159,6 +2315,8 @@ def init_agent(
     for _name in _GATEWAY_IDENTITY_PARAMS:
         setattr(agent, f"_{_name}", _params[_name])
     agent.session_cwd = cwd or None
+    # Project cwd is applied after session_id exists (_attach_project_context). Do not
+    # resolve it here: session_id is not assigned yet, and a lookup failure must not be swallowed.
     # Shared iteration budget: parent creates, children inherit.
     agent.iteration_budget = iteration_budget or IterationBudget(max_iterations)
     # CLI replaces this with _cprint so raw ANSI status lines go through prompt_toolkit's

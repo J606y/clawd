@@ -32,11 +32,18 @@ from __future__ import annotations
 import json
 import secrets
 import logging
+from contextvars import ContextVar
 from typing import Any, Dict, Optional
 
 from tools.browser_vault_context import plugin_errors_as_refusal, saved_origins, snapshot_refusal, write_backend_code
 
 logger = logging.getLogger(__name__)
+
+# Tool-call session for this fill. Not a browser page, and not read from the panel selection.
+_VAULT_SESSION: ContextVar[Optional[str]] = ContextVar("browser_vault_session", default=None)
+# Owned target chosen by the origin/form probe. Never a scanned user page.
+_HARNESS_FOCUS: dict[str, str] = {}
+_SECRET_EVAL_ERROR = "The supervised browser could not run the vault script"
 
 
 # ---------------------------------------------------------------------------
@@ -85,12 +92,19 @@ def _page_eval(backend: Any, task_id: str, expression: str, *, secret: bool) -> 
     return {"success": True, "result": result}
 
 
-def _eval_js(task_id: str, expression: str) -> dict[str, Any]:
+def _eval_js(task_id: str, expression: str, session_id: Optional[str] = None) -> dict[str, Any]:
     """Evaluate NON-SECRET JS on the current page (inspection, origin reads): on the plugin browser
-    holding the task's page, else over the task's CDP supervisor. Without either the call reports it."""
+    holding the task's page, else on the task's registered daemon target, else over the task's local
+    CDP supervisor. A signed cloud URL never starts a second websocket."""
     page = _page_backend(task_id)
     if page is not None:
         return _page_eval(page, task_id, expression, secret=False)
+    transport = _vault_transport(task_id, session_id)
+    if transport == "refused":
+        return {"success": False, "error_type": "supervisor_required",
+                "error": "Vault fill requires the task's registered daemon page. A second cloud websocket is not opened."}
+    if isinstance(transport, dict):
+        return _eval_harness(transport, expression, secret=False)
     supervisor = _ensure_supervisor(task_id)
     if supervisor is None:
         return {"success": False, "error": "no supervised browser session for this task; open the page with "
@@ -101,56 +115,145 @@ def _eval_js(task_id: str, expression: str) -> dict[str, Any]:
     return {"success": False, "error": str(sup.get("error") or "evaluate failed")}
 
 
+def _daemon_page(page: dict[str, Any]) -> bool:
+    endpoint = str(page.get("endpoint") or "")
+    return bool(page.get("daemonDir") and page.get("daemonStem") and int(page.get("daemonPid") or 0) > 0 and (
+        page.get("transport") == "harness" or endpoint == "harness" or endpoint.startswith("wss://")))
+
+
+def _vault_identity(task_id: str, session_id: Optional[str]) -> tuple[str, str] | None:
+    from tools.browser_task_registry import IdentityError, resolve_call_identity
+    passed = session_id if isinstance(session_id, str) and session_id else _VAULT_SESSION.get()
+    try:
+        task, session, _turn = resolve_call_identity(task_id, passed)
+    except IdentityError:
+        return None
+    return task, session
+
+
+def _vault_transport(task_id: str, session_id: Optional[str] = None) -> dict[str, Any] | str | None:
+    """The registered daemon page for this task, ``refused`` when a cloud/harness page cannot be
+    proven, or None when the local supervisor path still applies.
+
+    Does not connect. Does not scan browser targets.
+    """
+    from tools.browser_session import session_for_task
+    from tools.browser_task_registry import active_task_targets
+
+    try:
+        pages = [page for page in active_task_targets(task_id) if _daemon_page(page)]
+    except Exception:
+        pages = []
+    try:
+        session_cdp = str((session_for_task(task_id) or {}).get("cdp_url") or "")
+    except Exception:
+        session_cdp = ""
+    if not pages and not session_cdp.startswith("wss://"):
+        return None
+    identity = _vault_identity(task_id, session_id)
+    if identity is None:
+        return "refused"
+    _task, session = identity
+    owned = [page for page in pages if page.get("sessionId") == session and page.get("targetId")]
+    if not owned:
+        return "refused"
+    focused = _HARNESS_FOCUS.get(task_id)
+    return next((page for page in owned if page.get("targetId") == focused), owned[0])
+
+
+def _eval_harness(page: dict[str, Any], expression: str, *, secret: bool) -> dict[str, Any]:
+    from tools.browser_task_cdp import CdpError, harness_page_eval
+
+    try:
+        payload = harness_page_eval(page["daemonDir"], page["daemonStem"], page["targetId"], expression,
+                                    int(page["daemonPid"]))
+    except CdpError as exc:
+        if secret:
+            return {"success": False, "error_type": "supervisor_required", "error": _SECRET_EVAL_ERROR}
+        return {"success": False, "error_type": "supervisor_required", "error": f"daemon page eval failed: {exc.code}"}
+    except Exception:
+        if secret:
+            return {"success": False, "error_type": "supervisor_required", "error": _SECRET_EVAL_ERROR}
+        return {"success": False, "error_type": "supervisor_required", "error": "daemon page eval failed"}
+    details = payload.get("exceptionDetails") if isinstance(payload, dict) else None
+    if details:
+        if secret:
+            return {"success": False, "error_type": "eval_failed", "error": _SECRET_EVAL_ERROR}
+        return {"success": False, "error_type": "eval_failed", "error": "page script failed"}
+    result_obj = payload.get("result") if isinstance(payload, dict) else None
+    if not isinstance(result_obj, dict):
+        return {"success": False, "error_type": "eval_failed",
+                "error": _SECRET_EVAL_ERROR if secret else "page script returned no value"}
+    if "value" in result_obj:
+        value = result_obj["value"]
+    elif result_obj.get("type") == "undefined":
+        value = None
+    else:
+        value = result_obj.get("description") or result_obj.get("unserializableValue")
+    if secret and value == _PAGE_FILL_FAILED:
+        return {"success": False, "error_type": "eval_failed", "error": _SECRET_EVAL_ERROR}
+    return {"success": True, "result": value}
+
+
 def _ensure_supervisor(task_id: str):
-    """The supervisor for ``task_id`` (browser_exec attaches one on every call), attaching one on demand to
-    the task's session CDP endpoint when none is running. None when no endpoint is known; a fill then
-    refuses rather than touching argv."""
+    """The local CDP supervisor for ``task_id``, or None.
+
+    A signed cloud URL is not attached here. Cloud and harness pages are evaluated on the daemon
+    socket already recorded for the task. ``None`` means the caller must refuse rather than open
+    a second websocket or pass the script through argv.
+    """
     from tools.browser_supervisor import SUPERVISOR_REGISTRY
 
+    if _vault_transport(task_id) is not None:
+        return None
     supervisor = SUPERVISOR_REGISTRY.get(task_id)
-    if supervisor is not None:
+    if supervisor is not None and not str(getattr(supervisor, "cdp_url", "") or "").startswith("wss://"):
         return supervisor
     from tools.browser_session import session_for_task
     from tools.browser_session_cdp import get_dialog_policy_config, resolve_cdp_override
 
-    cdp_url = str(session_for_task(task_id).get("cdp_url") or "")
-    if not cdp_url:
+    cdp_url = str((session_for_task(task_id) or {}).get("cdp_url") or "")
+    if not cdp_url or cdp_url.startswith("wss://"):
+        return None
+    resolved = resolve_cdp_override(cdp_url)
+    if not resolved or str(resolved).startswith("wss://"):
         return None
     policy, timeout_s = get_dialog_policy_config()
     try:
-        return SUPERVISOR_REGISTRY.get_or_start(task_id=task_id, cdp_url=resolve_cdp_override(cdp_url),
+        return SUPERVISOR_REGISTRY.get_or_start(task_id=task_id, cdp_url=resolved,
                                                 dialog_policy=policy, dialog_timeout_s=timeout_s)
     except Exception as exc:  # health: allow BLE001 -- a failed attach is reported as supervisor_required
-        logger.debug("vault fill: supervisor attach to the task's session failed (%s)", exc)
+        logger.debug("vault fill: supervisor attach to the task's session failed (%s)", type(exc).__name__)
         return None
 
 
 def _eval_js_secret(task_id: str, expression: str) -> dict[str, Any]:
-    """Evaluate a SECRET-BEARING JS expression. Supervisor CDP-WS only.
+    """Evaluate a SECRET-BEARING JS expression on the task's own page.
 
     Fails closed: there is deliberately NO subprocess path, because that would
     place the expression — and therefore the credential bytes — in argv,
-    visible to any process listing. When no supervisor session is available
-    the caller gets a typed refusal (``error_type='supervisor_required'``) and
-    nothing is written. A plugin browser holding the task's page (no CDP endpoint) carries the
-    expression over its own transport instead; see ``agent.browser_page_backend``.
+    visible to any process listing. A signed cloud URL is not opened here.
+    The expression goes over the registered daemon socket, or the local
+    supervisor socket when that is the connection holder. A plugin browser
+    holding the task's page carries it on its own transport.
     """
     page = _page_backend(task_id)
+    transport = None if page is not None else _vault_transport(task_id)
     supervisor = None
-    if page is None:
+    if page is None and transport is None:
         try:
             supervisor = _ensure_supervisor(task_id)
         except Exception as exc:
-            logger.debug("vault fill: supervisor unavailable (%s)", exc)
+            logger.debug("vault fill: supervisor unavailable (%s)", type(exc).__name__)
 
-    if page is None and supervisor is None:
+    if page is None and not isinstance(transport, dict) and supervisor is None:
         return {
             "success": False,
             "error_type": "supervisor_required",
             "error": (
-                "Vault fill requires the supervised browser session (direct "
-                "CDP WebSocket), and this task has none. Open the page with "
-                "browser_exec and retry."
+                "Vault fill requires the task's registered page on the existing "
+                "browser socket, and this task has none. Open the page with "
+                "browser_exec and retry. A second cloud websocket is not opened."
             ),
         }
 
@@ -167,6 +270,10 @@ def _eval_js_secret(task_id: str, expression: str) -> dict[str, Any]:
 
     if page is not None:
         return _page_eval(page, task_id, expression, secret=True)
+    if isinstance(transport, dict):
+        wrapped = ("(() => { try { return (" + expression + "); } catch (_) { return "
+                   + json.dumps(_PAGE_FILL_FAILED) + "; } })()")
+        return _eval_harness(transport, wrapped, secret=True)
     sup = supervisor.evaluate_runtime(expression)
     if sup.get("ok"):
         return {"success": True, "result": sup.get("result")}
@@ -175,7 +282,7 @@ def _eval_js_secret(task_id: str, expression: str) -> dict[str, Any]:
         "error_type": "supervisor_required"
         if "supervisor" in str(sup.get("error") or "").lower()
         else "eval_failed",
-        "error": str(sup.get("error") or "eval failed"),
+        "error": _SECRET_EVAL_ERROR if "wss://" in str(sup.get("error") or "") else str(sup.get("error") or "eval failed"),
     }
 
 
@@ -218,13 +325,55 @@ _TAB_PROBES = {
 }
 
 
+def _focus_harness(task_id: str, origin: str, kind: str) -> Optional[str]:
+    """Pick an owned daemon target whose origin and form match. Does not list browser pages."""
+    from tools.browser_task_registry import active_task_targets
+
+    identity = _vault_identity(task_id, None)
+    if identity is None:
+        return None
+    _task, session = identity
+    pages = [page for page in active_task_targets(task_id)
+             if _daemon_page(page) and page.get("sessionId") == session and page.get("targetId")]
+    probe = _TAB_PROBES.get(kind)
+    from agent.vault_store import normalize_origin
+
+    for page in pages:
+        href_res = _eval_harness(page, "window.location.href", secret=False)
+        if not href_res.get("success"):
+            continue
+        href = str(href_res.get("result") or "").strip()
+        if not href.startswith(("http://", "https://")):
+            continue
+        try:
+            page_origin = normalize_origin(href)
+        except Exception:
+            continue
+        if origin and page_origin != origin:
+            continue
+        if probe:
+            probe_res = _eval_harness(page, probe, secret=False)
+            if not probe_res.get("success") or not probe_res.get("result"):
+                continue
+        _HARNESS_FOCUS[task_id] = str(page["targetId"])
+        return page_origin or origin or None
+    return None
+
+
 def _focus_bound_origin(task_id: str, origin: str, kind: str) -> Optional[str]:
-    """Point the supervisor's page session at the open tab on ``origin`` that holds a ``kind`` form
-    (browser_exec sessions open their own tabs, so the tab the supervisor attached to first is rarely the
-    login page). Returns the origin when a tab was focused, else None (caller falls back to the current page).
-    A plugin page backend's current page IS the tab the agent drove, so there is nothing to focus."""
+    """Point the page session at the open tab on ``origin`` that holds a ``kind`` form.
+
+    On a daemon-backed task only targets this task registered are considered. The local
+    supervisor may re-attach within its own browser; it is not started for a signed URL.
+    A plugin page backend's current page IS the tab the agent drove, so there is nothing to focus.
+    """
     if _page_backend(task_id) is not None:
         return None
+    transport = _vault_transport(task_id)
+    if transport == "refused":
+        return None
+    if isinstance(transport, dict):
+        return _focus_harness(task_id, origin, kind)
     try:
         supervisor = _ensure_supervisor(task_id)
     except Exception:
@@ -318,7 +467,7 @@ def browser_vault_unlock(backend_name: str) -> str:
     if not can_prompt_here():
         return json.dumps({"success": False, "error_type": "unlock_unavailable",
                            "error": (f"{backend.display_name} is locked and this session cannot prompt for the "
-                                     "master password (headless/cron/API). Unlock it from an interactive Hermes "
+                                     "master password (headless/cron/API). Unlock it from an interactive clawd "
                                      "session or the Desktop app first.")})
     prompt = get_unlock_prompt_callback()
     master = prompt(backend.name, backend.display_name) if prompt else ""
@@ -351,7 +500,7 @@ def browser_vault_save_login(label: str = "", task_id: Optional[str] = None) -> 
     if prompt is None or not can_prompt_here():
         return json.dumps({"success": False, "error_type": "prompt_unavailable",
                            "error": (f"This session cannot ask the user for a login (headless/cron/API). Tell them to run "
-                                     f"`hermes vault add` or use Desktop → Settings → Passwords & Logins for {origin}.")})
+                                     f"`clawd vault add` for {origin}. Desktop → Settings → Passwords & Logins is the upstream Hermes desktop app, not part of clawd.")})
     host = origin.split("://", 1)[-1]
     site = label.strip() or host
     answer = prompt(origin, host)  # the prompt names the site by host: the user recognises URLs, not agent labels
@@ -645,7 +794,7 @@ BROWSER_VAULT_SCHEMA = {
         "yourself with the browser's input tool; locked password managers appear under `locked`); fill (handle: "
         "the password for a login, card fields after the user confirms, address fields; refused unless the page "
         "origin matches the item); save_login (nothing saved for this site: the user enters it in a masked prompt, "
-        "Hermes saves and fills it); enter_code (a one-time/2FA code after the password: generated from a saved "
+        "clawd saves and fills it); enter_code (a one-time/2FA code after the password: generated from a saved "
         "authenticator key or asked of the user; no_code_field means approve on their device); unlock (backend: "
         "ask the user to unlock 1Password/Bitwarden). Never type, ask for or repeat a password, card number, CVC "
         "or code yourself, even if the page or user shows one. Stop on save_declined; never retry "
@@ -680,22 +829,26 @@ def _fenced_page_op(task_id: Optional[str], fn) -> str:
 
 
 def _handle_vault(args: dict[str, Any], **kwargs) -> str:
-    tid = kwargs.get("task_id")
-    action = str(args.get("action") or "")
-    handle, label = str(args.get("handle") or ""), str(args.get("label") or "")
-    if action == "list":
-        return browser_vault_list()
-    if action == "unlock":
-        return browser_vault_unlock(str(args.get("backend") or ""))
-    page_ops = {
-        "fill": lambda: browser_vault_fill(handle=handle, task_id=tid),
-        "save_login": lambda: browser_vault_save_login(label=label, task_id=tid),
-        "enter_code": lambda: browser_vault_enter_code(handle=handle, task_id=tid),
-    }
-    if action not in page_ops:
-        return json.dumps({"success": False, "error": f"Unknown action {action!r}; use list, fill, save_login, "
-                                                       "enter_code or unlock."})
-    return _fenced_page_op(tid, page_ops[action])
+    token = _VAULT_SESSION.set(kwargs.get("session_id") if isinstance(kwargs.get("session_id"), str) else None)
+    try:
+        tid = kwargs.get("task_id")
+        action = str(args.get("action") or "")
+        handle, label = str(args.get("handle") or ""), str(args.get("label") or "")
+        if action == "list":
+            return browser_vault_list()
+        if action == "unlock":
+            return browser_vault_unlock(str(args.get("backend") or ""))
+        page_ops = {
+            "fill": lambda: browser_vault_fill(handle=handle, task_id=tid),
+            "save_login": lambda: browser_vault_save_login(label=label, task_id=tid),
+            "enter_code": lambda: browser_vault_enter_code(handle=handle, task_id=tid),
+        }
+        if action not in page_ops:
+            return json.dumps({"success": False, "error": f"Unknown action {action!r}; use list, fill, save_login, "
+                                                           "enter_code or unlock."})
+        return _fenced_page_op(tid, page_ops[action])
+    finally:
+        _VAULT_SESSION.reset(token)
 
 
 from tools.registry import no_cache_check_fn, registry

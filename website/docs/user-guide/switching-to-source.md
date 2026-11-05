@@ -13,8 +13,8 @@ User data normally lives outside the application:
 
 | Host | Default data location |
 |---|---|
-| Linux, macOS, WSL, Termux | `~/.hermes/` |
-| Native Windows | `%LOCALAPPDATA%\hermes\` |
+| Linux, macOS, WSL, Termux | `~/.clawd/` |
+| Native Windows | `%LOCALAPPDATA%\clawd\` |
 | Official Docker container | `/opt/data/`, mapped to host storage |
 
 `HERMES_HOME` and the selected profile can override these defaults. Record the
@@ -25,15 +25,15 @@ actual source and destination homes before changing installations.
 From the existing installation, run:
 
 ```bash
-hermes backup
-hermes gateway status
+clawd backup
+clawd gateway status
 ```
 
 Keep the backup outside any directory you plan to remove. Backups can contain
 credentials, so protect them accordingly.
 
 Quit the desktop and stop gateways/services that you own before the handoff.
-Desktop quit and `hermes gateway stop` are different operations: quitting the
+Desktop quit and `clawd gateway stop` are different operations: quitting the
 app does not necessarily stop an independently managed messaging gateway.
 
 The per-profile gateway lock prevents duplicate gateways. Session locks and
@@ -61,14 +61,14 @@ bootstrap itself:
 
 ```bash
 source ./activate
-hermes --version
+clawd --version
 ```
 
 On native Windows, use PowerShell:
 
 ```powershell
 . .\activate.ps1
-hermes --version
+clawd --version
 ```
 
 The bootstrap reads tool pins from `pm/lock.json` and delegates installation
@@ -77,8 +77,8 @@ to PM. Current first-party code runs on Python 3.14. The wider
 before PM switches them to 3.14; it is not a runtime support range.
 The source default is the `all` extra, not the desktop bundle's `--all-extras`.
 
-Activation composes the installed tool environment and defines `hermes` as this
-worktree's CLI. The function hides an older `hermes` command or MSIX alias and
+Activation composes the installed tool environment and defines `clawd` as this
+worktree's CLI. The function hides an older `clawd` command or MSIX alias and
 refuses outside the worktree.
 `deactivate` restores the shell environment and removes the function when you finish.
 
@@ -97,16 +97,16 @@ POSIX example:
 
 ```bash
 export HERMES_HOME="$HOME/hermes-source-data"
-hermes setup
-hermes
+clawd setup
+clawd
 ```
 
 PowerShell example:
 
 ```powershell
 $env:HERMES_HOME = Join-Path $HOME 'hermes-source-data'
-hermes setup
-hermes
+clawd setup
+clawd
 ```
 
 If you change the home after preparing PM state, run the bootstrap for that
@@ -141,13 +141,13 @@ bootstrap is not its supported development or repair route. Use the
 ## Switch back without assuming a downgrade is safe
 
 Stop the source runtime, leave its activation, and open the packaged app.
-Inspect which CLI command resolves before using `hermes` again:
+Inspect which CLI command resolves before using `clawd` again:
 
 ```bash
-command -v hermes
+command -v clawd
 ```
 
-On Windows, use `Get-Command hermes -All`. Do not replace an unrelated command
+On Windows, use `Get-Command clawd -All`. Do not replace an unrelated command
 or execution alias without checking its owner.
 
 A newer source revision can change data formats. Returning to an older package
@@ -160,11 +160,11 @@ diagnostics and garbage collection rather than deleting the shared data root.
 
 ## Troubleshooting
 
-- **Wrong version:** inspect command resolution, then use `hermes --version`
+- **Wrong version:** inspect command resolution, then use `clawd --version`
   from the activated checkout.
 - **Missing dependencies:** run `python -m pm.cli install` from the intended
-  source environment, then restart the affected Hermes process.
-- **Gateway already running:** inspect `hermes gateway status` for the
+  source environment, then restart the affected clawd process.
+- **Gateway already running:** inspect `clawd gateway status` for the
   selected profile. Stop the identified owner; do not kill unrelated processes.
 - **Different skills after first run:** newer code can sync bundled skills into
   the data home. A source checkout is not a read-only view of that home.

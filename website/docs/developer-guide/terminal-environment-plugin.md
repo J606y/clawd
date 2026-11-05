@@ -1,12 +1,12 @@
 # Terminal Environment Provider Plugins
 
-Hermes runs shell commands through a pluggable set of **terminal backends**.
+clawd runs shell commands through a pluggable set of **terminal backends**.
 The built-in backends (local, Docker, Modal, Daytona, Vercel Sandbox, SSH)
 live in the core repo under `tools/environments/`. The official
 [Singularity/Apptainer plugin](https://github.com/NousResearch/hermes-official-plugins/tree/main/singularity)
 is a complete worked example of this page. Third-party
 sandbox vendors integrate as **plugins** instead — a standalone plugin repo
-installed under `~/.hermes/plugins/`, registering a backend the user selects
+installed under `~/.clawd/plugins/`, registering a backend the user selects
 exactly like a built-in one via `terminal.backend` in `config.yaml`.
 
 This page mirrors the [Browser Provider Plugins](./browser-provider-plugin.md)
@@ -19,9 +19,9 @@ A registered backend automatically participates in every core surface:
 | Surface | Driven by |
 |---|---|
 | Command dispatch (`terminal`, `execute_code`, file tools) | `create_environment()` |
-| `hermes setup` backend picker | `display_name`, `description`, `setup_instructions()`, `post_setup()` |
+| `clawd setup` backend picker | `display_name`, `description`, `setup_instructions()`, `post_setup()` |
 | Dashboard terminal-backend picker (probe status) | `probe()` |
-| `hermes status` / `hermes doctor` | `doctor_checks()` |
+| `clawd status` / `clawd doctor` | `doctor_checks()` |
 | System-prompt environment hints | `is_remote`, `env_description` |
 | Dangerous-command approval skipping | `skip_container_guards` |
 | Container path/cwd handling | `is_container` |
@@ -37,7 +37,7 @@ site instead of a hardcoded list of names.
 
 ## Minimal provider
 
-```python title="~/.hermes/plugins/acmebox/__init__.py"
+```python title="~/.clawd/plugins/acmebox/__init__.py"
 from agent.terminal_env_provider import TerminalEnvironmentProvider
 
 
@@ -67,7 +67,7 @@ class AcmeBoxProvider(TerminalEnvironmentProvider):
 
     @property
     def cache_path_base(self):
-        return "~/.hermes"    # where synced cache files land, or None
+        return "~/.clawd"    # where synced cache files land, or None
 
     @property
     def strip_env_keys(self):
@@ -89,7 +89,7 @@ def register(ctx):
     ctx.register_terminal_environment_provider(AcmeBoxProvider())
 ```
 
-```yaml title="~/.hermes/plugins/acmebox/plugin.yaml"
+```yaml title="~/.clawd/plugins/acmebox/plugin.yaml"
 name: acmebox
 version: 0.1.0
 description: AcmeBox cloud sandbox terminal backend
@@ -99,8 +99,8 @@ kind: backend
 Enable it, select it, run:
 
 ```bash
-hermes plugins enable acmebox
-hermes config set terminal.backend acmebox
+clawd plugins enable acmebox
+clawd config set terminal.backend acmebox
 ```
 
 ## Rules
@@ -142,7 +142,7 @@ The one exception is an environment that declares
 `uses_host_filesystem = True` (only the built-in `LocalEnvironment` does): there
 the file tools read, write and search the host directly, run the bundled
 ripgrep, stat paths on the host, write oversized tool output straight to
-`~/.hermes/cache/spillover` and enable LSP diagnostics.
+`~/.clawd/cache/spillover` and enable LSP diagnostics.
 
 A backend that subclasses `LocalEnvironment` to confine its commands (a
 bubblewrap or other host sandbox that hides paths, mounts them read-only or
@@ -158,14 +158,14 @@ class AcmeJailEnvironment(LocalEnvironment):
 ```
 
 Leave it unset on backends that don't subclass `LocalEnvironment`; the default
-is `False`. Hermes v0.22.5 and earlier ignore the attribute and use the host
+is `False`. clawd v0.22.5 and earlier ignore the attribute and use the host
 fast path for every `LocalEnvironment` subclass, so pin `requires_hermes` past
 that.
 
 ## Images
 
 Your backend reads its own image setting (a `config_schema` key, or a
-`terminal.<name>_image` key you document). Hermes passes `image=` only for a
+`terminal.<name>_image` key you document). clawd passes `image=` only for a
 per-task override: a batch run (`batch_runner.py`) giving each prompt its own
 container registers it as `<name>_image` for the active backend, and that value
 reaches `create_environment(image=...)`. Otherwise `image` is `""`; fall back to
@@ -184,7 +184,7 @@ absolute in-sandbox path to start somewhere else:
 ```
 
 When the home directory is only known once the sandbox is up, return `"~"`
-instead. Hermes then passes `cwd="~"` to `create_environment()` (it never
+instead. clawd then passes `cwd="~"` to `create_environment()` (it never
 expands it on the host), and your environment sets `self.cwd` to the absolute
 home it resolved:
 
@@ -196,7 +196,7 @@ class AcmeBoxEnvironment(BaseEnvironment):
         super().__init__(cwd=cwd, timeout=timeout)
 ```
 
-Hermes keeps `~` as the backend default, so every new sandbox resolves its
+clawd keeps `~` as the backend default, so every new sandbox resolves its
 own home, and records the path each environment resolved on that environment.
 Commands can also arrive with `cwd="~"`; `BaseEnvironment` already `cd`s
 there correctly. A `cd` anywhere under that home is kept for later commands
@@ -205,7 +205,7 @@ sandbox path like `/home/acme/project` would be discarded as if it were a
 host path.
 
 `default_cwd` is read on every command, so keep it cheap (no network calls).
-Relative paths are ignored, because Hermes would anchor them on the host.
+Relative paths are ignored, because clawd would anchor them on the host.
 
 ## Bot Desktop and `computer_use`
 
@@ -218,7 +218,7 @@ stdout left open. A plugin backend can opt in the same way:
 2. Give the environment an `exec_prefix(*, user=None, interactive=True)` method.
    It returns a local argv that runs whatever follows it inside the sandbox,
    with stdin and stdout open (the shape of `docker exec -i <container>`), or
-   `None` when it can't right now. Hermes appends `bash -c <script>` as
+   `None` when it can't right now. clawd appends `bash -c <script>` as
    separate words, so the client must pass them through unchanged and the
    sandbox needs `bash`. `user` names the account to run as; ignore it if your
    backend can't switch users. Return a list, not a single command string.

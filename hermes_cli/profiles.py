@@ -24,7 +24,7 @@ from hermes_cli.home_data_layout import PM_RUNTIME_ROOT_DIRS, SECRET_CACHE_STORE
 from hermes_cli.profiles_remove import _rmtree_make_writable, _rmtree_with_retry, wait_profile_unowned
 from hermes_constants import (
     LOCAL_RUNTIME_ROOT_DIRS, PROFILE_ID_RE, clear_named_profile_deleted, mark_named_profile_deleted,
-    named_profile_has_identity, named_profile_is_deleted, named_profile_is_live,
+    named_profile_has_identity, named_profile_is_deleted, named_profile_is_live, profile_tombstone_path,
 )
 from hermes_cli.config_backend import (
     config_cache_version, config_cache_version_or_none, config_exists, require_file_tooling)
@@ -1687,6 +1687,43 @@ class ProfileIdentitySettlementPending(RuntimeError):
         super().__init__(
             f"Profile '{profile}' was deleted, but its session/routing identity settlement is "
             f"still pending — run: {self.retry_command}")
+
+
+def profile_removal_paths(name: str) -> dict:
+    """Concrete paths a confirmed delete may remove, rewrite, or create.
+
+    Read-only. Does not print, delete, or assign ``os.environ``. Service units are
+    not named here: ``_cleanup_gateway_service`` discovers them by rewriting the
+    process-global home, which a panel thread must not do.
+    """
+    canon, profile_dir = _existing_profile_dir(name)
+    if canon == "default":
+        raise ValueError("Cannot delete the default profile")
+    if profile_dir.is_symlink():
+        raise ValueError("profile directory is a symlink")
+    resolved = profile_dir.resolve()
+    root = _get_profiles_root().resolve()
+    if resolved != root and root not in resolved.parents:
+        raise ValueError("profile directory is outside the profiles root")
+    remove = [str(resolved)]
+    wrapper = _find_our_wrapper(canon)
+    if wrapper is not None and wrapper.is_file() and not wrapper.is_symlink():
+        wrapper_resolved = wrapper.resolve()
+        wrapper_root = _get_wrapper_dir().resolve()
+        if wrapper_root == wrapper_resolved.parent:
+            remove.append(str(wrapper_resolved))
+    sticky_path = _get_active_profile_path()
+    rewrite = [str(sticky_path)] if get_active_profile() == canon else []
+    return {
+        "name": canon,
+        "directory": str(resolved),
+        "remove": remove,
+        "rewrite": rewrite,
+        "create": [str(profile_tombstone_path(resolved))],
+        "gateway_running": bool(
+            _check_gateway_running(resolved) or _served_by_running_multiplexer(canon)
+        ),
+    }
 
 
 def delete_profile(name: str, yes: bool = False) -> Path:

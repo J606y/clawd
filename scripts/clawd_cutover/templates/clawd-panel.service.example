@@ -1,0 +1,22 @@
+# STATUS: NOT_APPLIED
+# 这是未应用示例。不要安装到系统单元目录，不要启用，不要重载。
+# 占位符不会被本工具替换。
+# 契约来自 clawd_server 只读核对：loopback、显式 home、拒绝生产 home。
+# 入口是 python -m clawd_server ，默认子命令 serve。
+# CLAWD_HOME 必须与 HERMES_HOME 相同。不要填生产数据目录。
+
+[Unit]
+Description=clawd panel TEMPLATE NOT_APPLIED
+Documentation=file:docs/clawd/cutover-runbook.md
+
+[Service]
+Type=simple
+Environment=CLAWD_HOME=@CLAWD_HOME@
+Environment=HERMES_HOME=@CLAWD_HOME@
+ExecStart=@PYTHON@ -m clawd_server serve --home @CLAWD_HOME@ --host 127.0.0.1 --port 8787
+WorkingDirectory=@REPO_ROOT@
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

@@ -16,6 +16,332 @@ from agent.lazy_forward import forward as _forward
 logger = logging.getLogger("run_agent")
 
 
+def _proven_session_home(agent):
+    """Profile home proven by this agent's session database, or None.
+
+    ``state.db``'s parent is the only proof. A missing path, a path that does
+    not resolve, a previously frozen home, and the process environment are not
+    proof. This never calls ``get_hermes_home()``.
+    """
+    from pathlib import Path
+
+    db = getattr(agent, "_session_db", None)
+    db_path = getattr(db, "db_path", None) if db is not None else None
+    if not isinstance(db_path, (str, Path)) or not str(db_path).strip():
+        return None
+    try:
+        from clawd_projects.inheritance import state_db_profile_home
+
+        home = state_db_profile_home(Path(db_path))
+    except Exception:
+        logger.debug("session db path is not a profile home", exc_info=True)
+        return None
+    if not isinstance(home, Path) or not str(home):
+        return None
+    return home
+
+
+def _homes_match(freeze, home) -> bool:
+    recorded = getattr(freeze, "hermes_home", None) if freeze is not None else None
+    if not recorded or home is None:
+        return True
+    from pathlib import Path
+
+    from hermes_constants import hermes_home_key
+
+    return hermes_home_key(Path(recorded)) == hermes_home_key(Path(home))
+
+
+def _global_memory_store(store):
+    """Innermost non-composite store. Re-attach must not nest the previous project."""
+    seen: set[int] = set()
+    current = store
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        inner = getattr(current, "global_store", None)
+        if inner is None or inner is current:
+            return current
+        current = inner
+    return store
+
+
+def _store_project_id(store):
+    if store is None or not hasattr(store, "project_store"):
+        return None
+    project_id = getattr(store, "project_id", None)
+    return str(project_id) if project_id else None
+
+
+def _nested_project_store(store) -> bool:
+    inner = getattr(store, "global_store", None) if store is not None else None
+    return inner is not None and inner is not store and _store_project_id(inner) is not None
+
+
+def _capture_memory_scope(agent) -> dict:
+    return {
+        "store": getattr(agent, "_memory_store", None),
+        "freeze": getattr(agent, "_memory_scope_freeze", None),
+        "project_id": getattr(agent, "project_id", None),
+        "project": getattr(agent, "project", None),
+        "prompt": getattr(agent, "_cached_system_prompt", None),
+        "static": getattr(agent, "_cached_system_prompt_static", None),
+    }
+
+
+def _restore_memory_scope(agent, saved: dict) -> None:
+    agent._memory_store = saved["store"]
+    agent._memory_scope_freeze = saved["freeze"]
+    agent.project_id = saved["project_id"]
+    agent.project = saved["project"]
+    agent._cached_system_prompt = saved["prompt"]
+    agent._cached_system_prompt_static = saved["static"]
+
+
+def _rebuild_idle_prompt(agent) -> None:
+    """Install the new scope's prompt bytes before the loop can restore the old row.
+
+    Clearing the cache is not enough: a continuing session restores the stored
+    prompt when the cache is missing. The rebuilt bytes stay on the agent so
+    ``build_turn_context`` does not replace them, and a later fresh agent
+    restores the same bytes.
+    """
+    try:
+        from agent.system_prompt import invalidate_system_prompt
+
+        invalidate_system_prompt(agent)
+    except Exception:
+        logger.debug("idle prompt invalidate failed", exc_info=True)
+        agent._cached_system_prompt = None
+        agent._cached_system_prompt_static = None
+    builder = getattr(agent, "_build_system_prompt", None)
+    if callable(builder):
+        prompt = builder(None)
+    else:
+        from agent.system_prompt import build_system_prompt
+
+        prompt = build_system_prompt(agent)
+    if not isinstance(prompt, str):
+        raise RuntimeError("idle project rebind did not produce a system prompt")
+    agent._cached_system_prompt = prompt
+    if getattr(agent, "_persist_disabled", False):
+        return
+    db = getattr(agent, "_session_db", None)
+    session_id = getattr(agent, "session_id", None)
+    updater = getattr(db, "update_system_prompt", None)
+    getter = getattr(db, "get_session", None)
+    if not callable(updater) or not callable(getter) or not session_id:
+        return
+    try:
+        if getter(session_id) is None:
+            return
+        updater(session_id, prompt)
+    except Exception:
+        logger.warning(
+            "idle project rebind could not persist the system prompt for session=%s; "
+            "this turn keeps the rebuilt bytes, a later fresh agent may restore the previous row",
+            session_id,
+            exc_info=True,
+        )
+    try:
+        from tools.mcp_tool_agent import persist_agent_tool_names
+
+        persist_agent_tool_names(agent)
+    except Exception:
+        logger.debug("idle project rebind did not persist tool names", exc_info=True)
+
+
+def _install_idle_memory_scope(agent, *, wanted, readonly: bool) -> None:
+    """Point a reused agent at the current binding without nesting project stores.
+
+    Unwrap a previous composite before re-attach so the old project cannot
+    become the new store's global memory. ``_attach_project_context`` strips an
+    explicit unbind itself; this pass still verifies that no project store or
+    ``project_id`` remains. This does not walk parent sessions.
+    """
+    from agent.agent_init import _attach_project_context
+    from clawd_projects.memory_authorization import (
+        is_subagent_memory_actor,
+        mark_memory_store_readonly,
+    )
+
+    current = getattr(agent, "_memory_store", None)
+    if _store_project_id(current) is not None or _nested_project_store(current):
+        agent._memory_store = _global_memory_store(current)
+    _attach_project_context(agent, {}, memory_required=wanted is not None)
+    installed = getattr(agent, "_memory_scope_freeze", None)
+    installed_pid = getattr(installed, "project_id", None) if installed is not None else None
+    if installed_pid != wanted:
+        raise RuntimeError("idle rebind did not install the current project binding")
+    if wanted is None:
+        agent._memory_store = _global_memory_store(getattr(agent, "_memory_store", None))
+        agent.project_id = None
+        agent.project = None
+        if _store_project_id(getattr(agent, "_memory_store", None)) is not None:
+            raise RuntimeError("explicit unbind left a project memory store installed")
+    if readonly or is_subagent_memory_actor(agent):
+        mark_memory_store_readonly(getattr(agent, "_memory_store", None))
+        if installed is not None and installed.writable is not False:
+            from pathlib import Path
+
+            from clawd_projects.memory_authorization import freeze_agent_memory_scope
+
+            freeze_agent_memory_scope(
+                agent,
+                home=Path(installed.hermes_home),
+                session_id=installed.session_id,
+                project_id=installed.project_id,
+                writable=False,
+            )
+    from tools.memory_tool import apply_memory_schema_to_agent
+
+    apply_memory_schema_to_agent(agent)
+    _rebuild_idle_prompt(agent)
+
+
+def _project_scope_risk(agent) -> bool:
+    """True when continuing could keep or apply an unproven project scope."""
+    store = getattr(agent, "_memory_store", None)
+    if _store_project_id(store) is not None or _nested_project_store(store):
+        return True
+    if getattr(agent, "project_id", None):
+        return True
+    if getattr(agent, "project", None) is not None:
+        return True
+    freeze = getattr(agent, "_memory_scope_freeze", None)
+    return bool(getattr(freeze, "project_id", None))
+
+
+def _refuse_unproven_project_scope(agent, reason: str) -> None:
+    """Fail closed only when project memory is at risk. Ordinary global continues."""
+    if not _project_scope_risk(agent):
+        return
+    raise RuntimeError(
+        "idle project memory refused: "
+        f"{reason}; refusing to guess a profile home or continue with an unproven project scope"
+    )
+
+
+def _sealed_freeze_matches(agent, home, freeze, frozen) -> bool:
+    """A missing projects.db is not an unbind when this freeze still matches the store."""
+    if not frozen or freeze is None or not _homes_match(freeze, home):
+        return False
+    store = getattr(agent, "_memory_store", None)
+    if _nested_project_store(store) or _store_project_id(store) != str(frozen):
+        return False
+    agent_pid = getattr(agent, "project_id", None)
+    if agent_pid not in (None, "") and str(agent_pid) != str(frozen):
+        return False
+    project = getattr(agent, "project", None)
+    project_obj_id = getattr(project, "id", None) if project is not None else None
+    if project_obj_id not in (None, "") and str(project_obj_id) != str(frozen):
+        return False
+    return True
+
+
+def _keep_or_refuse_without_projects_db(agent, home, freeze, frozen) -> None:
+    if _sealed_freeze_matches(agent, home, freeze, frozen):
+        logger.debug("idle project resolve skipped; %s has no projects.db", home)
+        return
+    if _project_scope_risk(agent):
+        raise RuntimeError(
+            "projects.db is missing and project memory is not a sealed matching freeze; "
+            "refusing to keep an unproven project scope or treat the missing file as an unbind"
+        )
+
+
+def _idle_project_memory_retarget(agent) -> None:
+    """Refresh a reused agent's project memory before the next turn id and prompt snapshot.
+
+    Called only from an idle facade entry, after that entry has been admitted and
+    before ``conversation_loop`` assigns ``_current_turn_id`` or restores the
+    system prompt. A live facade entry is not retargeted and its turn id is not
+    cleared. The profile is the session database path, never the process home.
+    Ordinary global mode is not blocked when that path cannot be proven and no
+    project store is installed. An unproven project scope, a failed resolve, or
+    an unfrozen composite without ``projects.db`` refuses the turn. An explicit
+    unbind does not copy an ancestor. A child stays read-only.
+    """
+    if getattr(agent, "_turn_facade_entered", False):
+        return
+    # The previous facade turn has returned. Its leftover id would make
+    # ``_attach_project_context`` keep the old store. This is not a live turn.
+    if str(getattr(agent, "_current_turn_id", "") or ""):
+        agent._current_turn_id = ""
+    session_id = getattr(agent, "session_id", None)
+    if not session_id:
+        _refuse_unproven_project_scope(agent, "session id is missing")
+        return
+    home = _proven_session_home(agent)
+    if home is None:
+        _refuse_unproven_project_scope(agent, "session identity is not proven")
+        return
+    from pathlib import Path
+
+    from hermes_constants import reset_hermes_home_override, set_hermes_home_override
+
+    projects_db = Path(home) / "projects.db"
+    freeze = getattr(agent, "_memory_scope_freeze", None)
+    frozen = getattr(freeze, "project_id", None) if freeze is not None else None
+    if not projects_db.is_file():
+        _keep_or_refuse_without_projects_db(agent, home, freeze, frozen)
+        return
+    token = set_hermes_home_override(str(home))
+    try:
+        _retarget_idle_memory(agent, str(session_id), home, freeze, frozen)
+    finally:
+        reset_hermes_home_override(token)
+
+
+def _retarget_idle_memory(agent, session_id: str, home, freeze, frozen) -> None:
+    from clawd_projects.memory_authorization import is_subagent_memory_actor
+    from clawd_projects.service import resolve_session_project
+
+    try:
+        project = resolve_session_project(session_id, hermes_home=home)
+    except Exception as exc:
+        raise RuntimeError(
+            "idle project resolve failed; refusing to continue with the previous project scope"
+        ) from exc
+    wanted = None if project is None else getattr(project, "id", None)
+    store = getattr(agent, "_memory_store", None)
+    homes_match = _homes_match(freeze, home)
+    store_pid = _store_project_id(store)
+    store_matches = store_pid == wanted
+    nested = _nested_project_store(store)
+    if (
+        freeze is not None
+        and frozen == wanted
+        and homes_match
+        and store_matches
+        and not nested
+        and (store is not None or wanted is None)
+    ):
+        return
+    project_change = frozen != wanted or not homes_match or not store_matches or nested
+    if not project_change:
+        # Already global, with nothing to seal or a seal that must not block the turn.
+        if freeze is not None:
+            return
+        try:
+            from agent.agent_init import _attach_project_context
+
+            _attach_project_context(agent, {}, memory_required=False)
+        except Exception:
+            logger.debug("idle memory seal failed; keeping the current global scope", exc_info=True)
+        return
+    saved = _capture_memory_scope(agent)
+    try:
+        _install_idle_memory_scope(
+            agent,
+            wanted=wanted,
+            readonly=is_subagent_memory_actor(agent),
+        )
+    except Exception:
+        _restore_memory_scope(agent, saved)
+        logger.debug("idle project rebind failed; restored the previous scope and refusing the turn", exc_info=True)
+        raise
+
+
 class TurnFacadeMixin:
     """run_conversation()/chat() (see module docstring)."""
 
@@ -76,6 +402,7 @@ class TurnFacadeMixin:
         token = affinity_token = acct_token = None
         task_started = task_finished = False
         relay_outcome = "failed"
+        facade_owner = not getattr(self, "_turn_facade_entered", False)
 
         try:
             # First statement of the try so the finally's note_turn_finished balances every exit.
@@ -96,6 +423,13 @@ class TurnFacadeMixin:
                 return admission.early_result
             lease = admission.lease
             conversation_history = admission.conversation_history
+            # Reused agents keep the previous turn id. Refresh project memory
+            # and the prompt bytes before conversation_loop assigns this turn's
+            # id and before it can restore the stored prompt. A nested entry
+            # must not clear the outer turn's freeze or its entered flag.
+            if facade_owner:
+                _idle_project_memory_retarget(self)
+                self._turn_facade_entered = True
 
             relay_session_cwd, relay_turn_cwd = resolve_relay_scope_cwds(
                 self,
@@ -216,6 +550,8 @@ class TurnFacadeMixin:
                     # Balance note_turn_started so the idle queue's live-turn count cannot leak.
                     with suppress(Exception):
                         _review_queue.note_turn_finished()
+                    if facade_owner:
+                        self._turn_facade_entered = False
 
     def chat(self, message: str, stream_callback: Optional[callable] = None) -> str:
         """Final response string of one turn; ``stream_callback`` receives each text delta."""

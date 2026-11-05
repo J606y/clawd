@@ -47,6 +47,10 @@
 
 set -u
 
+# Official desktop update is not a clawd entry. Refuse before any marker, update, or relaunch.
+echo "refused: clawd does not run the official desktop update. This entry is unsupported." >&2
+exit 2
+
 ORIGINAL_ARGS=("$@")
 INSTALL_ROOT="" BRANCH="main" CHANNEL="" DESKTOP_PID=0 RELAUNCH_TARGET=""
 BRANCH_EXPLICIT=0

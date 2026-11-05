@@ -1243,6 +1243,88 @@ def _summary_notes(
     return notes
 
 
+# Path-taking pytest options. The value is not a discovery root. Equals form is
+# one token; space form is rejoined so the path cannot be collected as tests.
+_PYTEST_PATH_FLAGS = frozenset({
+    "--basetemp",
+    "--confcutdir",
+    "--rootdir",
+    "--junitxml",
+    "--junit-xml",
+    "--log-file",
+    "--ignore",
+})
+_DISCOVERY_ROOT_TOKENS = frozenset({"tests", "tests/", "tests\\"})
+_PYTEST_SHORT_VALUE_FLAGS = frozenset({"-k", "-m", "-p", "-o", "-c", "-r", "-W"})
+
+
+def attach_pytest_path_value(flag: str, nxt: str | None) -> str | None:
+    """Return ``flag=path`` or None when ``nxt`` must stay a positional.
+
+    A bare discovery root is never consumed. ``tests`` after a missing path
+    stays the suite root instead of becoming the option value.
+    """
+    if flag not in _PYTEST_PATH_FLAGS or "=" in flag:
+        return None
+    if nxt is None or nxt.startswith("-") or nxt in _DISCOVERY_ROOT_TOKENS:
+        return None
+    return f"{flag}={nxt}"
+
+
+def split_forwarded_argv(
+    argv: list[str],
+    our_flags: set[str] | frozenset[str],
+    short_value_flags: set[str] | frozenset[str] | None = None,
+) -> tuple[list[str], list[str], list[str]]:
+    """Return runner args, bare pytest args, and explicit ``--`` args.
+
+    Does not invoke pytest. Path options are forwarded as ``--flag=value``.
+    """
+    short_values = _PYTEST_SHORT_VALUE_FLAGS if short_value_flags is None else short_value_flags
+    tokens = list(argv)
+    if "--files-from" in tokens:
+        index = tokens.index("--files-from")
+        if index + 1 < len(tokens) and tokens[index + 1] == "-":
+            tokens[index : index + 2] = ["--files-from=-"]
+    if "--" in tokens:
+        sep = tokens.index("--")
+        before, explicit = tokens[:sep], tokens[sep + 1 :]
+    else:
+        before, explicit = tokens, []
+
+    def is_our(tok: str) -> bool:
+        if tok in our_flags:
+            return True
+        head = tok.split("=", 1)[0]
+        if head in our_flags:
+            return True
+        if len(tok) > 2 and tok[:2] in our_flags and tok[1] != "-":
+            return True
+        return False
+
+    our_args: list[str] = []
+    bare: list[str] = []
+    index = 0
+    while index < len(before):
+        tok = before[index]
+        nxt = before[index + 1] if index + 1 < len(before) else None
+        if tok.startswith("-") and not is_our(tok):
+            attached = attach_pytest_path_value(tok, nxt) if "=" not in tok else None
+            if attached is not None:
+                bare.append(attached)
+                index += 2
+                continue
+            bare.append(tok)
+            if tok in short_values and nxt is not None:
+                bare.append(nxt)
+                index += 2
+                continue
+        else:
+            our_args.append(tok)
+        index += 1
+    return our_args, bare, explicit
+
+
 def main() -> int:
     _make_stdio_glyph_safe()
     parser = argparse.ArgumentParser(
@@ -1382,50 +1464,12 @@ def main() -> int:
         "--files-from", "--fail-on-skip",
     }
     # pytest short flags that consume the NEXT token as their value.
+    # Path-taking long options are joined by split_forwarded_argv, which runs
+    # before this parser. The discovery root is not consumed as a path value.
     PYTEST_VALUE_FLAGS = {"-k", "-m", "-p", "-o", "-c", "-r", "-W"}
-
-    def _is_our_flag(tok: str) -> bool:
-        # Match exact (``-j``, ``--paths``), ``=``-joined (``--paths=x``),
-        # and attached short-value (``-j4``) forms of our own options.
-        if tok in OUR_FLAGS:
-            return True
-        head = tok.split("=", 1)[0]
-        if head in OUR_FLAGS:
-            return True
-        # Attached short value, e.g. ``-j4`` → ``-j``.
-        if len(tok) > 2 and tok[:2] in OUR_FLAGS and not tok[1] == "-":
-            return True
-        return False
-
-    argv = sys.argv[1:]
-    # argparse treats a bare "-" as a positional, so "--files-from -"
-    # would die with "expected one argument" before our code ever runs.
-    # Normalize to the "="-joined form, which argparse accepts.
-    if "--files-from" in argv:
-        i = argv.index("--files-from")
-        if i + 1 < len(argv) and argv[i + 1] == "-":
-            argv[i : i + 2] = ["--files-from=-"]
-    if "--" in argv:
-        sep = argv.index("--")
-        before, explicit_passthrough = argv[:sep], argv[sep + 1 :]
-    else:
-        before, explicit_passthrough = argv, []
-
-    our_args: list[str] = []
-    bare_passthrough: list[str] = []
-    i = 0
-    while i < len(before):
-        tok = before[i]
-        if tok.startswith("-") and not _is_our_flag(tok):
-            bare_passthrough.append(tok)
-            # Pull the value token for space-separated value flags.
-            if tok in PYTEST_VALUE_FLAGS and i + 1 < len(before):
-                bare_passthrough.append(before[i + 1])
-                i += 2
-                continue
-        else:
-            our_args.append(tok)
-        i += 1
+    our_args, bare_passthrough, explicit_passthrough = split_forwarded_argv(
+        sys.argv[1:], OUR_FLAGS, PYTEST_VALUE_FLAGS
+    )
 
     args = parser.parse_args(our_args)
 

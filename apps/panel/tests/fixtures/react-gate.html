@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <base href="/" />
+    <script>
+      window.addEventListener("error", (event) => { window.fixtureError = String(event.error || event.message); });
+      window.addEventListener("unhandledrejection", (event) => { window.fixtureError = String(event.reason); });
+    </script>
+    <title>react gate</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/tests/fixtures/react-gate-fixture.tsx"></script>
+  </body>
+</html>

@@ -119,7 +119,7 @@ class _CatalogBackend:
 
     def installs_with_oauth(self, name: str) -> bool:
         """A catalog entry whose own OAuth the card must run. Provider-mediated OAuth is not one:
-        its token comes from ``hermes auth <provider>``, so the plain probe covers it."""
+        its token comes from ``clawd auth <provider>``, so the plain probe covers it."""
         auth = _catalog_entry(name).auth
         return auth.type == "oauth" and not auth.provider
 

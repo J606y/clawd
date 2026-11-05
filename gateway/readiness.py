@@ -100,6 +100,7 @@ def _probe_session_store(runtime_status: dict[str, Any], state_db_probe: dict[st
 def collect_runtime_readiness(
     *, configured_model: str, runtime_status: dict[str, Any] | None, active_api_runs: int = 0,
     process_completion_queue_depth: int = 0, active_delegations: int = 0,
+    active_children: int | None = None,
 ) -> dict[str, Any]:
     """Bounded readiness diagnostics, no runtime mutation.  Even authenticated, probes
     expose status and counts only: never config values, credentials, paths, payloads."""
@@ -117,6 +118,7 @@ def collect_runtime_readiness(
             "ok", active_api_runs=max(0, int(active_api_runs)),
             process_completions=max(0, int(process_completion_queue_depth)),
             active_delegations=max(0, int(active_delegations)),
+            active_children=None if active_children is None else max(0, int(active_children)),
         ),
     }
     return {"status": "ok" if all(c.get("status") == "ok" for c in checks.values()) else "degraded", "checks": checks}

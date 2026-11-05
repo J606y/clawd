@@ -1,0 +1,230 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "clawd-cutover-manifest.schema.json",
+  "title": "clawd cutover manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "tool",
+    "mode",
+    "executed",
+    "dry_run",
+    "created_at",
+    "source",
+    "target",
+    "allow_roots",
+    "resources",
+    "resource_summary",
+    "versions",
+    "backup",
+    "migration",
+    "secrets",
+    "profiles",
+    "gates",
+    "acceptance",
+    "systemd_nginx",
+    "verification",
+    "actions",
+    "recovery",
+    "result"
+  ],
+  "properties": {
+    "schema_version": {"const": "1"},
+    "tool": {"const": "clawd-cutover-prepare"},
+    "mode": {
+      "enum": ["inventory", "plan", "backup", "restore", "apply", "rollback", "render-templates", "gates"]
+    },
+    "executed": {"type": "boolean"},
+    "dry_run": {"type": "boolean"},
+    "created_at": {"type": "string"},
+    "source": {"$ref": "#/$defs/endpoint"},
+    "target": {"$ref": "#/$defs/endpoint"},
+    "allow_roots": {"type": "array", "items": {"type": "string"}},
+    "resources": {"type": "array", "items": {"$ref": "#/$defs/resource"}},
+    "resource_summary": {"type": "object"},
+    "versions": {"$ref": "#/$defs/versions"},
+    "backup": {"$ref": "#/$defs/backup"},
+    "migration": {"$ref": "#/$defs/migration"},
+    "secrets": {"$ref": "#/$defs/secrets"},
+    "profiles": {"$ref": "#/$defs/profiles"},
+    "gates": {"type": "array", "items": {"$ref": "#/$defs/gate"}},
+    "acceptance": {"$ref": "#/$defs/acceptance"},
+    "systemd_nginx": {"$ref": "#/$defs/systemd_nginx"},
+    "verification": {"$ref": "#/$defs/verification"},
+    "actions": {"type": "array", "items": {"type": "string"}},
+    "recovery": {"$ref": "#/$defs/recovery"},
+    "result": {"type": "object"}
+  },
+  "$defs": {
+    "endpoint": {
+      "type": "object",
+      "required": ["path", "missing"],
+      "properties": {
+        "path": {"type": ["string", "null"]},
+        "missing": {"type": ["boolean", "null"]}
+      }
+    },
+    "resource": {
+      "type": "object",
+      "required": ["relpath", "kind", "redacted", "skipped"],
+      "properties": {
+        "role": {"enum": ["source", "target"]},
+        "relpath": {"type": "string"},
+        "kind": {"enum": ["file", "dir", "symlink", "special", "unreadable"]},
+        "bytes": {"type": ["integer", "null"]},
+        "sha256": {"type": ["string", "null"]},
+        "mode": {"type": ["string", "null"]},
+        "redacted": {"type": "boolean"},
+        "skipped": {"type": "boolean"},
+        "skip_reason": {"type": ["string", "null"]}
+      },
+      "description": "文件内容不得出现在资源项中。redacted 为 true 时不得带秘密值。"
+    },
+    "versions": {
+      "type": "object",
+      "required": ["schema", "policy", "compatible", "blocks_apply"],
+      "properties": {
+        "schema": {"const": "1"},
+        "policy": {"const": "equal_or_explicit_override"},
+        "compatible": {"enum": [true, false, "unknown"]},
+        "blocks_apply": {"type": "boolean"},
+        "source_pyproject": {"type": ["string", "null"]},
+        "target_pyproject": {"type": ["string", "null"]},
+        "source_git_head": {"type": ["string", "null"]},
+        "target_git_head": {"type": ["string", "null"]},
+        "source_declared": {"type": ["string", "null"]},
+        "target_declared": {"type": ["string", "null"]}
+      }
+    },
+    "backup": {
+      "type": "object",
+      "required": ["prepared", "path"],
+      "properties": {
+        "prepared": {"type": "boolean"},
+        "path": {"type": ["string", "null"]},
+        "absent": {"type": "boolean"},
+        "file_count": {"type": "integer"},
+        "credentials_copied": {"type": "boolean"},
+        "directories_removed": {"const": false}
+      }
+    },
+    "migration": {
+      "type": "object",
+      "required": ["implemented_here", "module", "functions"],
+      "properties": {
+        "owner": {"const": "project-agent"},
+        "implemented_here": {"const": false},
+        "module": {"const": "clawd_projects/migration.py"},
+        "functions": {
+          "type": "array",
+          "items": {
+            "enum": ["preview_folder_migration", "plan_folder_migration", "execute_folder_migration", "rollback_folder_migration"]
+          }
+        },
+        "choice": {"enum": ["yes", "no", null]},
+        "status": {
+          "enum": ["unset", "explicitly_skipped", "pending_project_agent", "interface_present_not_called", "invalid"]
+        },
+        "blocks_apply": {"type": "boolean"}
+      },
+      "description": "本工具只记录接口是否出现，不调用迁移。"
+    },
+    "secrets": {
+      "type": "object",
+      "required": ["copied", "values_written", "auto_copy"],
+      "properties": {
+        "copied": {"type": "boolean"},
+        "values_written": {"const": false},
+        "auto_copy": {"const": false},
+        "copy_requested": {"type": "boolean"},
+        "confirm_present": {"type": "boolean"}
+      }
+    },
+    "profiles": {
+      "type": "object",
+      "required": ["selection", "guessed", "sibling_names_recorded"],
+      "properties": {
+        "selection": {"type": "string"},
+        "guessed": {"const": false},
+        "sibling_names_recorded": {"const": false}
+      }
+    },
+    "gate": {
+      "type": "object",
+      "required": ["id", "ok", "blocks_apply", "detail"],
+      "properties": {
+        "id": {
+          "enum": [
+            "explicit_paths",
+            "paths_checked",
+            "distinct_trees",
+            "target_parent",
+            "migration_choice",
+            "credentials_policy",
+            "profile_policy",
+            "version_compatible",
+            "acceptance_passed",
+            "confirm_token",
+            "backup_slot",
+            "tree_complete",
+            "source_nonempty",
+            "systemd_nginx_not_applied",
+            "folder_migration_not_invoked"
+          ]
+        },
+        "ok": {"type": "boolean"},
+        "blocks_apply": {"type": "boolean"},
+        "detail": {"type": "string"}
+      }
+    },
+    "acceptance": {
+      "type": "object",
+      "required": ["required_for_apply", "status", "blocks_apply"],
+      "properties": {
+        "required_for_apply": {"const": true},
+        "status": {"enum": ["missing", "passed", "rejected", "malformed"]},
+        "blocks_apply": {"type": "boolean"},
+        "producer_seen": {"type": ["string", "null"]},
+        "final_acceptance": {"type": "boolean"},
+        "covers_cutover": {"type": "boolean"},
+        "plan_only": {"type": ["boolean", "null"]},
+        "generated_at": {"type": ["string", "null"]},
+        "source_fingerprint": {"type": ["string", "null"]},
+        "artifact_match": {"type": ["boolean", "null"]},
+        "reasons": {"type": "array", "items": {"type": "string"}},
+        "note": {"type": "string"}
+      },
+      "description": "scripts/clawd_acceptance 由另一代理准备。本清单不得假定该编排已验证。"
+    },
+    "systemd_nginx": {
+      "type": "object",
+      "required": ["applied", "templates_only", "systemctl_invoked", "nginx_invoked"],
+      "properties": {
+        "applied": {"const": false},
+        "templates_only": {"const": true},
+        "systemctl_invoked": {"const": false},
+        "nginx_invoked": {"const": false},
+        "note": {"type": "string"}
+      }
+    },
+    "verification": {
+      "type": "object",
+      "required": ["tool_tests", "authoring_executed", "acceptance_assumed", "note"],
+      "properties": {
+        "tool_tests": {"const": "not_run"},
+        "authoring_executed": {"const": false},
+        "acceptance_assumed": {"const": false},
+        "note": {"type": "string"}
+      }
+    },
+    "recovery": {
+      "type": "object",
+      "required": ["phase", "directories_removed"],
+      "properties": {
+        "phase": {"type": "string"},
+        "directories_removed": {"const": false}
+      }
+    }
+  }
+}

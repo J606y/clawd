@@ -289,7 +289,47 @@ def _http_routes(self) -> list[tuple[str, str, Any]]:
         ("POST", "/v1/runs/{run_id}/clarify", self._handle_run_clarify),
         ("POST", "/v1/runs/{run_id}/steer", self._handle_steer_run),
         ("POST", "/v1/runs/{run_id}/resolve-unknown", self._handle_resolve_unknown_run),
-        ("POST", "/v1/runs/{run_id}/stop", self._handle_stop_run)]
+        ("POST", "/v1/runs/{run_id}/stop", self._handle_stop_run),
+        ("GET", "/api/sessions/{session_id}/continuation", _continuation_status_handler(self))]
+
+
+async def finish_api_connect(self) -> bool:
+    """Heartbeat plus continuation ownership. Called only after the listener is bound."""
+    self._track_background_task(asyncio.create_task(self._heartbeat_loop()))
+    from gateway.clawd_continuation import arm_adapter
+    arm_adapter(self)
+    logger.info(
+        "[%s] API server listening on http://%s:%d (model: %s)",
+        self.name, self._host, self._port, self._model_name)
+    return True
+
+
+async def shutdown_api_runtime(self) -> None:
+    """Stop continuation before run state and session stores. After site.stop()."""
+    from gateway.clawd_continuation import disarm_adapter, service_for
+    service = service_for(self)
+    if service is not None:
+        await service.drain()
+    disarm_adapter(self)
+    _close_run_state(self)
+    self._close_cached_session_dbs()
+
+
+def _continuation_status_handler(self):
+    async def handler(request: web.Request) -> web.Response:
+        from gateway.clawd_continuation import continuation_status_response
+        return continuation_status_response(self, request)
+    return handler
+
+
+def _notify_continuation_settled(self, session_id: Any) -> None:
+    if not session_id:
+        return
+    try:
+        from gateway.clawd_continuation import note_run_settled
+        note_run_settled(self, str(session_id))
+    except Exception:
+        logger.exception("clawd continuation settle notify failed")
 
 
 def _idempotency_capabilities(self, *, store_type) -> dict[str, Any]:
@@ -333,6 +373,8 @@ def _set_run_status(self, run_id: str, status: str, **fields: Any) -> dict[str, 
             self._run_idempotency_store.update_status(run_id, current)
         except Exception:
             logger.exception("[api_server] failed to persist idempotent run status %s", run_id)
+    if status != previous_status and status in TERMINAL_STATUSES:
+        _notify_continuation_settled(self, current.get("session_id"))
     return current
 
 
@@ -834,6 +876,19 @@ async def _handle_runs(self, request: web.Request, *, _api_server) -> web.Respon
     if selected_session_id:
         selected_session_id = await _resolve_live_session_id(self, str(selected_session_id))
     session_id = selected_session_id or run_id
+    if selected_session_id:
+        from clawd_server.effort_service import EffortServiceError
+        from gateway.session_api_turn import commit_trusted_pending_effort
+        from hermes_state_runtime import RuntimeStoreError
+
+        try:
+            await commit_trusted_pending_effort(self, str(selected_session_id), agent_overrides)
+        except EffortServiceError as exc:
+            return _json_error(_openai_error, exc.message, code=exc.code, status=exc.status)
+        except RuntimeStoreError as exc:
+            code = "effort_admission_required" if exc.reason in ("profile_mismatch", "runtime_draining") else "effort_run_state_unavailable"
+            status = 409 if code == "effort_admission_required" else 503
+            return _json_error(_openai_error, "档位未能在该 profile 的准入锁内提交，当前请求未改用新档", code=code, status=status)
     # History loads for the session the request actually selected — including one resolved from
     # a declared X-Hermes-Session-Key, whose persisted delivery rows must reach the next
     # same-key run's context (#98619).  previous_response_id continuations keep their
@@ -1126,7 +1181,9 @@ async def _execute_run(self, run: _RunLaunch, *, _api_server) -> None:
             with observe_api_controls(run.admission, _control_cb):
                 result, usage = await observe_api_turn(
                     run.admission, stream_delta_callback=_text_cb,
-                    tool_start_callback=_tool_start, tool_complete_callback=_tool_complete)
+                    tool_start_callback=_tool_start, tool_complete_callback=_tool_complete,
+                    interim_assistant_callback=_interim_cb,
+                    reasoning_callback=lambda text: tool_cb("reasoning.available", None, text))
             # The canonical turn has no agent object here; the served pair rides on the
             # committed usage/result runtime metadata when the turn recorded one.
             served_runtime = ((usage or {}).get("runtime") if isinstance(usage, dict) else None) or (

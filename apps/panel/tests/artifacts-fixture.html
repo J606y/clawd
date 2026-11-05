@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <base href="/" />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>artifacts</title>
+  <style>
+    html, body, #root { margin: 0; height: 100%; }
+    #root { display: flex; flex-direction: column; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module">
+    import { createElement } from "react";
+    import { createRoot } from "react-dom/client";
+    import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+    import { ChatPage } from "/src/react/pages/chat/chat-page.tsx";
+    import { runs } from "/src/react/lib/runs.ts";
+    import { useUiStore } from "/src/react/stores/ui.ts";
+    import "/src/react/styles/index.css";
+
+    window.fixtureGeneration = crypto.randomUUID();
+    useUiStore.setState({ selectedSessionId: "artifacts-test" });
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    window.artifactRoots = () => [...document.querySelectorAll(".assistant-body")];
+    window.fixtureRuns = runs;
+    window.chat = {
+      get loading() { return document.querySelectorAll(".hp-chat .past, .hp-chat .empty, .hp-chat .center").length === 0; },
+      load() { return client.invalidateQueries({ queryKey: ["session", "artifacts-test"] }); },
+      requestUpdate() {},
+      get updateComplete() { return Promise.resolve(); },
+      get live() { return Boolean(document.querySelector(".mount-row")); },
+      get shadowRoot() { return document.querySelector(".hp-chat") || document.body; },
+    };
+    window.saveButton = (name) => [...document.querySelectorAll(".artifact")].find((section) => section.querySelector(".name")?.textContent === name)?.querySelector("button.save") || null;
+    createRoot(document.getElementById("root")).render(
+      createElement(QueryClientProvider, { client }, createElement(ChatPage)),
+    );
+    window.ready = true;
+  </script>
+</body>
+</html>

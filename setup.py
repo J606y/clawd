@@ -34,26 +34,48 @@ _ROOT = os.path.dirname(os.path.abspath(__file__))
 _IN_NIX_BUILD = os.environ.get("HERMES_NIX_BUILD") == "1"
 
 _BLOCK_MESSAGE = (
-    "Building wheels or sdists for hermes-agent is not supported.\n"
-    "Hermes is distributed via the shell installer, Docker image, or Nix.\n"
-    "See: https://hermes-agent.nousresearch.com/docs/getting-started/installation\n"
+    "Building wheels or sdists for clawd is not supported.\n"
+    "This checkout is distributed via the shell installer, Docker image, or Nix.\n"
+    "Upstream docs: https://hermes-agent.nousresearch.com/docs/getting-started/installation\n"
     "\n"
     "If you are developing, use an editable install instead:\n"
-    "  source ./activate  # PowerShell: . .\\activate.ps1\n"
+    "  source ./activate  # PowerShell: . ./activate.ps1\n"
     "\n"
     "If you are building with Nix (uv2nix), this error should not fire —\n"
-    "the Hermes Nix derivation sets HERMES_NIX_BUILD=1. If it does, file a bug."
+    "the Nix derivation sets HERMES_NIX_BUILD=1. If it does, file a bug."
 )
 
 
+def _prepare_distribution(distribution):
+    from clawd_server.resources import apply_distribution_boundary
+
+    apply_distribution_boundary(distribution)
+
+
 class _GuardedSdist(sdist):
+    def finalize_options(self):
+        _prepare_distribution(self.distribution)
+        super().finalize_options()
+
     def run(self, *args, **kwargs):
-        if not _IN_NIX_BUILD:
-            raise RuntimeError(_BLOCK_MESSAGE)
-        return super().run(*args, **kwargs)
+        from pathlib import Path
+
+        from clawd_server.resources import release_distribution_boundary, stage_distribution
+
+        try:
+            if not _IN_NIX_BUILD:
+                raise RuntimeError(_BLOCK_MESSAGE)
+            stage_distribution(Path(_ROOT))
+            return super().run(*args, **kwargs)
+        finally:
+            release_distribution_boundary(self.distribution)
 
 
-cmdclass = {"sdist": _GuardedSdist}
+cmdclass: dict[str, type] = {"sdist": _GuardedSdist}
+
+from clawd_server.resources import make_pruned_build_py
+
+cmdclass["build_py"] = make_pruned_build_py()
 
 # bdist_wheel is only available when the `wheel` package is installed.
 # setuptools.build_meta.build_wheel() calls it internally, so the guard
@@ -64,10 +86,22 @@ try:
     from setuptools.command.bdist_wheel import bdist_wheel
 
     class _GuardedBdistWheel(bdist_wheel):
+        def finalize_options(self):
+            _prepare_distribution(self.distribution)
+            super().finalize_options()
+
         def run(self, *args, **kwargs):
-            if not _IN_NIX_BUILD:
-                raise RuntimeError(_BLOCK_MESSAGE)
-            return super().run(*args, **kwargs)
+            from pathlib import Path
+
+            from clawd_server.resources import release_distribution_boundary, stage_distribution
+
+            try:
+                if not _IN_NIX_BUILD:
+                    raise RuntimeError(_BLOCK_MESSAGE)
+                stage_distribution(Path(_ROOT))
+                return super().run(*args, **kwargs)
+            finally:
+                release_distribution_boundary(self.distribution)
 
     cmdclass["bdist_wheel"] = _GuardedBdistWheel
 except ImportError:

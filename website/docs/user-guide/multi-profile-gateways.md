@@ -10,14 +10,14 @@ covers the operational concerns: starting them all together, viewing logs
 across profiles, preventing the host from sleeping, and recovering from common
 launchd/systemd quirks.
 
-If you only run one Hermes agent, you don't need this page — see
+If you only run one clawd agent, you don't need this page — see
 [Profiles](./profiles.md) for the basics. And if your instances live on
 *different* machines that one desktop app should reach simultaneously, see
-[Connecting Desktop to Many Hermes Instances](./multi-connection-desktop.md).
+[Connecting Desktop to Many clawd Instances](./multi-connection-desktop.md).
 
 ## When to use this
 
-You want this setup when you have two or more Hermes agents that should all
+You want this setup when you have two or more clawd agents that should all
 be online at the same time. Common reasons:
 
 - A personal assistant on one Telegram bot and a coding agent on another
@@ -29,18 +29,18 @@ be online at the same time. Common reasons:
 Every profile already gets its own per-platform supervisor entry: a LaunchAgent
 (`ai.hermes.gateway-<name>.plist`), a systemd user service
 (`hermes-gateway-<name>.service`), a systemd **system** service when installed with
-`sudo hermes gateway install --system` (runs as the invoking user via `User=`), a
+`sudo clawd gateway install --system` (runs as the invoking user via `User=`), a
 Windows Scheduled Task, or an s6/Docker service — and the Desktop app spawns its own
-per-profile `hermes serve` backend. This guide adds the patterns for managing them
+per-profile `clawd serve` backend. This guide adds the patterns for managing them
 collectively.
 
 ## Quick start
 
 ```bash
 # Create profiles (once)
-hermes profile create coder
-hermes profile create personal-bot
-hermes profile create research
+clawd profile create coder
+clawd profile create personal-bot
+clawd profile create research
 
 # Configure each
 coder setup
@@ -71,23 +71,23 @@ profile on the box.
 The default profile's lifecycle verbs target that process. Named profiles can
 stop or restart just their own bots without stopping the host:
 
-- `hermes -p <name> gateway run` while it is live **attaches** instead of
+- `clawd -p <name> gateway run` while it is live **attaches** instead of
   starting a second process: it prints the host gateway's PID and served set and
   exits 0. If `<name>` is not served yet, it asks the host gateway to re-scan
   `profiles/` and attaches once the answer includes it; it refuses (non-zero)
   only when the host gateway cannot be made to serve it.
-- `hermes gateway start --all` / `restart --all` mean *the one host
+- `clawd gateway start --all` / `restart --all` mean *the one host
   multiplexer*. They never sweep every gateway process on the box; a profile
   that still runs its own gateway is reported, never killed, with the
-  `hermes gateway migrate --multiplex` one-liner.
-- `hermes gateway run --replace` takes over the process **serving this
+  `clawd gateway migrate --multiplex` one-liner.
+- `clawd gateway run --replace` takes over the process **serving this
   profile**, whichever profile launched it. When the host owner is another
   profile's standalone gateway (an unmigrated per-profile fleet) it never serves
   this profile, so `--replace` starts beside it exactly as a plain `run` does,
-  instead of refusing and respawn-storming under the supervisor. An older Hermes
+  instead of refusing and respawn-storming under the supervisor. An older clawd
   wrote a systemd drop-in (`hermes-gateway.service.d/20-replace.conf`) that
-  forced `--replace` onto the unit; `hermes update` / `hermes gateway restart`
-  now remove that file. `hermes gateway run --force` starts a separate gateway
+  forced `--replace` onto the unit; `hermes update` / `clawd gateway restart`
+  now remove that file. `clawd gateway run --force` starts a separate gateway
   without asking the host process at all (the escape hatch when it is wedged or
   answering wrongly).
 - Under a service supervisor the attach exits 75, not 0 — systemd, s6 and
@@ -101,7 +101,7 @@ stop or restart just their own bots without stopping the host:
 Multiplexing is **on by default** (`gateway.multiplex_profiles` defaults to
 `true`), with one safety rule: an *unset* flag is a request the default gateway
 settles at boot, never a verdict. Each start it runs the same preflight as
-[`hermes gateway migrate --multiplex`](#migrating-from-per-profile-gateways) and
+[`clawd gateway migrate --multiplex`](#migrating-from-per-profile-gateways) and
 multiplexes only when the fold would have been safe — two
 or more profiles, no secondary still running its own gateway (live process or
 installed service, or under s6 a per-profile slot that is actually *up*), no
@@ -111,8 +111,8 @@ writes `gateway.multiplex_profiles: true` into the default profile's
 `config.yaml` (comments preserved) so the file says what the runtime does.
 Otherwise it comes up serving the default profile only and says so **loudly** on
 a host with other profiles: a boxed warning at gateway start naming the profiles
-that are not served, the blocker, and the fix; the same box in the `hermes
-update` summary and `hermes gateway status`; a banner in the dashboard
+that are not served, the blocker, and the fix; the same box in the `clawd
+update` summary and `clawd gateway status`; a banner in the dashboard
 (`/api/status` carries `multiplex_standalone_reason`). A single-profile install
 is not warned — there is nothing to serve. Nothing is written on a refusal.
 
@@ -139,7 +139,7 @@ profile that opts out with `gateway.standalone: true`:
   default profile it is ignored with a warning — the default profile is the
   host gateway. There is no environment variable for this key.
 
-Other processes (`hermes -p <name> gateway start`, the dashboard, `hermes gateway
+Other processes (`clawd -p <name> gateway start`, the dashboard, `clawd gateway
 migrate`) never guess how an unset flag was settled: they read the running
 default gateway's `served_profiles` record, and fall back to the explicit flag
 only when no gateway runs.
@@ -168,11 +168,11 @@ it, set it on the profile whose gateway runs as the host process (usually the
 where the boot preflight would have held back (`false` is retired and ignored):
 
 ```bash
-hermes config set gateway.multiplex_profiles true
-hermes gateway restart
+clawd config set gateway.multiplex_profiles true
+clawd gateway restart
 ```
 
-Equivalently, in the default profile's `~/.hermes/config.yaml`:
+Equivalently, in the default profile's `~/.clawd/config.yaml`:
 
 ```yaml
 gateway:
@@ -194,9 +194,9 @@ on a parked profile to bring it back online.
 For a named profile served by the host multiplexer:
 
 ```bash
-hermes -p coder gateway stop     # park coder; other profiles keep running
-hermes -p coder gateway start    # unpark coder and serve it again
-hermes -p coder gateway restart  # reconnect coder with its current configuration
+clawd -p coder gateway stop     # park coder; other profiles keep running
+clawd -p coder gateway start    # unpark coder and serve it again
+clawd -p coder gateway restart  # reconnect coder with its current configuration
 ```
 
 `stop` writes `gateway.parked` in the profile home before asking the host to stop
@@ -219,8 +219,8 @@ The host also rescans every 30 seconds: adding the marker by hand unserves the
 profile; removing it by hand makes it eligible again. If the control socket
 does not confirm the request, the CLI says so and the next rescan applies the
 marker state. Adapter teardown or connection can take additional time.
-`hermes -p coder gateway status` reports
-`parked (hermes -p coder gateway start)` while the marker exists.
+`clawd -p coder gateway status` reports
+`parked (clawd -p coder gateway start)` while the marker exists.
 
 The launch profile cannot be unserved. The default profile's marker is ignored
 with a warning; its lifecycle verbs and the `--all` variants retain their
@@ -229,7 +229,7 @@ process lifecycle.
 
 The dashboard and Desktop **Stop** / **Start** buttons for a served profile do the
 same thing: Stop parks it (`/api/gateway/stop?profile=coder` spawns
-`hermes -p coder gateway stop`), Start unparks it while a host gateway is live,
+`clawd -p coder gateway stop`), Start unparks it while a host gateway is live,
 and `/api/status` lists `parked_profiles`. Start on a named profile that is
 *not* parked still answers `409` — it would need a gateway of its own.
 
@@ -254,8 +254,8 @@ gap the [temporary shim](#temporary-gatewaystandalone-true) was kept open for.
 
 By default, one host gateway serves every profile, and a named profile does
 not get a gateway of its own. Without the opt-out below,
-`hermes -p coder gateway install` (or `start`, `run`, and
-the service step of `hermes -p coder setup`) refuses with exit 78 whether or not
+`clawd -p coder gateway install` (or `start`, `run`, and
+the service step of `clawd -p coder setup`) refuses with exit 78 whether or not
 a host gateway is running right now:
 
 ```
@@ -267,25 +267,25 @@ a host gateway is running right now:
 
   Install or start the host gateway from the default profile; it serves this one too:
 
-    hermes gateway install
+    clawd gateway install
 
   Or fold an existing per-profile fleet onto one host gateway:
 
-    hermes gateway migrate --multiplex
+    clawd gateway migrate --multiplex
 
   A separate per-profile gateway (for a fleet split across UNIX users or a
-  HERMES_HOME outside profiles/) needs --force:  hermes -p coder gateway install --force
+  HERMES_HOME outside profiles/) needs --force:  clawd -p coder gateway install --force
 
   Temporary compatibility path while multiplexing gaps are closed: set
   gateway.standalone: true in profiles/coder/config.yaml,
   then wait for the host gateway to rescan (<=30s) or send its rescan-profiles control verb.
   (gateway.standalone is a temporary compatibility shim while multiplexing gaps are fixed;
-  it will be removed once they are — plan to fold this profile with `hermes gateway migrate --multiplex`.)
+  it will be removed once they are — plan to fold this profile with `clawd gateway migrate --multiplex`.)
 ```
 
 When the host gateway is already running and serves the profile, the first
 line reads `The host gateway already serves profile 'coder'.` with the owner's
-PID and served set, and the pointer is `hermes -p default gateway restart`.
+PID and served set, and the pointer is `clawd -p default gateway restart`.
 The dashboard's **Start** button for a named profile returns the same refusal.
 
 ### Temporary: `gateway.standalone: true`
@@ -315,7 +315,7 @@ gateway:
 
 The host gateway then does not serve the profile, and the boot log
 records `profile 'coder' is standalone (gateway.standalone: true); not served
-by this gateway`. `hermes -p coder gateway install|start|run` works without
+by this gateway`. `clawd -p coder gateway install|start|run` works without
 `--force`. If the running host still lists the profile in its served set,
 the command refuses until it rescans: wait for the next rescan (at most 30
 seconds under normal operation), or send the `rescan-profiles` control verb
@@ -328,7 +328,7 @@ rescan.
 
 A standalone profile's adapters, cron, webhook ingress and Kanban
 notifications run only while its own gateway runs, not under the host
-multiplexer or `hermes serve`. Point webhook clients at the standalone
+multiplexer or `clawd serve`. Point webhook clients at the standalone
 gateway's own listener; the host's `/p/<profile>/` ingress no longer serves
 it. That listener resolves its port from the profile's own `.env` or
 `config.yaml`, so when both it and the host gateway enable the API server or
@@ -336,10 +336,10 @@ webhook ingress, give the profile its own `API_SERVER_PORT` / `WEBHOOK_PORT`;
 two gateways left on the defaults both try to bind them. The cron destination picker still lists standalone profiles as
 `bot-chat:<name>` targets, but the host cannot deliver to those targets.
 
-`hermes -p coder gateway status` prints `standalone by config
+`clawd -p coder gateway status` prints `standalone by config
 (gateway.standalone: true)` before the profile's own gateway state, and
-`hermes gateway status` (default) lists it as `standalone by config: coder`
-after the served set. `hermes gateway migrate --multiplex` leaves the profile
+`clawd gateway status` (default) lists it as `standalone by config: coder`
+after the served set. `clawd gateway migrate --multiplex` leaves the profile
 alone and prints it as `Standalone by config (gateway.standalone: true), left
 alone`. The WhatsApp bridge and relay run in the profile's own gateway, as in
 any standalone gateway.
@@ -362,7 +362,7 @@ With a multiplexer running, a named profile's `gateway run` attaches to it;
 `gateway install` refuses to create another process (exit code 78). The CLI
 refuses before touching a service manager, preventing a permanently failed
 systemd unit or a launchd respawn loop. Use the per-profile `stop`, `start`, and
-`restart` commands above to manage a satellite inside the host. `hermes gateway
+`restart` commands above to manage a satellite inside the host. `clawd gateway
 stop` on the default profile still takes every served profile offline.
 The dashboard and Desktop app follow the CLI: for a served profile the "Stop" action
 parks it and "Start" unparks it (see above); "Start" on an unparked named profile
@@ -380,8 +380,8 @@ default home's `gateway_state.json`), so it stays correct when the multiplexer w
 enabled only through `GATEWAY_MULTIPLEX_PROFILES` in the default profile's
 environment, or when profiles were added after the gateway started.
 
-The setup flows follow the same rule: `hermes -p coder setup gateway`, `hermes -p coder setup`,
-`hermes -p coder gateway setup` and `hermes -p coder import` configure the profile's bots but
+The setup flows follow the same rule: `clawd -p coder setup gateway`, `clawd -p coder setup`,
+`clawd -p coder gateway setup` and `clawd -p coder import` configure the profile's bots but
 skip the "install the gateway background service" step for a served profile, printing
 *"Profile 'coder' is already served by the default multiplexer"* instead of registering a
 stray unit or plist that could only sit dead. Add the bot token and the running multiplexer
@@ -425,7 +425,7 @@ no API server is enabled); it serves three kinds of profile-prefixed paths:
   `/p/<profile>/<the adapter's usual path>` to it. See
   [Inbound-port platforms under the multiplexer](#inbound-port-platforms-under-the-multiplexer).
 - **WhatsApp (bridge) runs per paired profile.** Pair each secondary with
-  `hermes -p work whatsapp`. Each profile uses its own session and bridge port;
+  `clawd -p work whatsapp`. Each profile uses its own session and bridge port;
   an unpaired profile is skipped with `whatsapp_unpaired` and a pairing remedy.
   See [WhatsApp multi-profile setup](messaging/whatsapp.md#multiple-profiles).
 - **Relay remains shared ingress owned by the default profile.** Enable and
@@ -438,7 +438,7 @@ Authentication follows the profile named in the URL. Unprefixed endpoints keep
 using the default listener's existing credentials.
 
 - `/p/coder/...` API-server requests must use `API_SERVER_KEY` from
-  `~/.hermes/profiles/coder/.env`; the default listener key is rejected. Under
+  `~/.clawd/profiles/coder/.env`; the default listener key is rejected. Under
   the multiplexer that key only authenticates the prefix — it does not turn on a
   second `api_server` listener in the secondary profile, so you do not need to
   pin `platforms.api_server.enabled: false` in the secondary's `config.yaml`.
@@ -448,9 +448,9 @@ using the default listener's existing credentials.
   `/p/coder/webhooks/<route>` and is rejected on every other profile prefix.
 - Webhook routes without `profile` remain default-profile routes and are not
   reachable through a named profile prefix. Dynamic subscriptions bind the same
-  way: `hermes webhook subscribe <name> --route-profile coder` writes
+  way: `clawd webhook subscribe <name> --route-profile coder` writes
   `profile: coder` into the default gateway's `webhook_subscriptions.json` and
-  prints the `/p/coder/webhooks/<name>` URL (`hermes webhook ls` shows the
+  prints the `/p/coder/webhooks/<name>` URL (`clawd webhook ls` shows the
   binding). Use `--route-profile`, not the global `-p coder`: `-p` would write
   the subscription into coder's own subscriptions file, which the default
   gateway's webhook adapter never reads.
@@ -473,7 +473,7 @@ silently dropping the unsafe profile.
 
 #### Inbound-port platforms under the multiplexer
 
-A standalone `hermes -p coder gateway run` binds coder's Twilio, LINE, Teams,
+A standalone `clawd -p coder gateway run` binds coder's Twilio, LINE, Teams,
 … webhook servers on their own ports. Under the multiplexer those adapters are
 still coder's — same credentials from `profiles/coder/.env`, same
 `config.yaml`, replies sent through coder's channel — but they bind **no port**.
@@ -509,16 +509,16 @@ and every status surface repeats it, so you know what to paste into the vendor
 console:
 
 ```
-$ hermes -p coder gateway status
+$ clawd -p coder gateway status
 ✓ Gateway is running via the default-profile multiplexer
-  Manage it from the default profile: hermes gateway status
+  Manage it from the default profile: clawd gateway status
 
 Inbound callback URLs on the shared listener:
   line: http://127.0.0.1:8642/p/coder/line/webhook
   sms: http://127.0.0.1:8642/p/coder/webhooks/twilio
 ```
 
-`hermes gateway status` and `hermes status` on the default profile list the same
+`clawd gateway status` and `clawd status` on the default profile list the same
 URLs per served profile, and the dashboard's Channels page and the Desktop
 Messaging page show them as each platform's `ingress_url` when viewing that
 profile. The default's own `api_server` and `webhook` are reported the same way
@@ -567,11 +567,11 @@ parent conversation.
 
 #### 5. One PID/lock and one status surface
 
-There is a single process-level PID and lock (the multiplexer, under the default home). `hermes status --full` on the default profile reports the multiplexer and lists the profiles it serves (`Serves: coder, research`). `hermes -p coder status` and `hermes -p coder gateway status` report "running via the default-profile multiplexer" instead of "stopped". The dashboard's `/api/status?profile=coder` / Channels page report the multiplexer as coder's running gateway, with coder's own adapters as its platforms. The single `gateway_state.json` lives under the default home: secondary adapters appear there as `<profile>:<platform>` entries beside `served_profiles`; no per-profile gateway status file is written.
+There is a single process-level PID and lock (the multiplexer, under the default home). `clawd status --full` on the default profile reports the multiplexer and lists the profiles it serves (`Serves: coder, research`). `clawd -p coder status` and `clawd -p coder gateway status` report "running via the default-profile multiplexer" instead of "stopped". The dashboard's `/api/status?profile=coder` / Channels page report the multiplexer as coder's running gateway, with coder's own adapters as its platforms. The single `gateway_state.json` lives under the default home: secondary adapters appear there as `<profile>:<platform>` entries beside `served_profiles`; no per-profile gateway status file is written.
 
-`hermes -p coder cron status` names the single host gateway and the profiles it serves — `Scheduler host: the host gateway (PID 4211) serving profiles default, coder` — then checks coder's own ticker heartbeat and last successful tick. A missing or stale heartbeat produces a warning rather than an unconditional running verdict. `cron list` and `cron create` also warn when a served profile has no fresh heartbeat. `cron status` adds tick-failure details that those lightweight checks do not read.
+`clawd -p coder cron status` names the single host gateway and the profiles it serves — `Scheduler host: the host gateway (PID 4211) serving profiles default, coder` — then checks coder's own ticker heartbeat and last successful tick. A missing or stale heartbeat produces a warning rather than an unconditional running verdict. `cron list` and `cron create` also warn when a served profile has no fresh heartbeat. `cron status` adds tick-failure details that those lightweight checks do not read.
 
-When no gateway owns the host role, `cron status` tells you to start the **one** host gateway (`hermes --profile default gateway install` / `gateway run`) and to make sure it serves this profile. Installing a per-profile service is shown only under `LEGACY (pre-multiplex topology, not recommended)`: it would start a second gateway process on the host. `hermes doctor` follows the same rule — under s6 it reports `Host gateway: the host gateway (PID 4211) serving profiles default, coder` instead of a per-profile slot count, flags any still-supervised per-profile slot as LEGACY, and checks the host systemd unit's linger even when you run doctor from a served profile. The `state.db` holder lines name the shared host process too, so "3 process(es) holding the DB open" says which gateway and which profiles stopping it would affect.
+When no gateway owns the host role, `cron status` tells you to start the **one** host gateway (`clawd --profile default gateway install` / `gateway run`) and to make sure it serves this profile. Installing a per-profile service is shown only under `LEGACY (pre-multiplex topology, not recommended)`: it would start a second gateway process on the host. `clawd doctor` follows the same rule — under s6 it reports `Host gateway: the host gateway (PID 4211) serving profiles default, coder` instead of a per-profile slot count, flags any still-supervised per-profile slot as LEGACY, and checks the host systemd unit's linger even when you run doctor from a served profile. The `state.db` holder lines name the shared host process too, so "3 process(es) holding the DB open" says which gateway and which profiles stopping it would affect.
 
 #### What does **not** change
 
@@ -684,12 +684,12 @@ profile and never shares with the default or any sibling:
 | MCP discovery in the Desktop/dashboard backend | Once per served profile home | A profile selected after another has already built an agent still discovers its own `mcp_servers` |
 | Settings changed from a Desktop / TUI session (`/busy`, `/verbose`, `/approval`, `/cwd`, theme and display toggles) | The `config.yaml` of the profile that owns the session, even when the RPC carries only the session id | The session's own profile is written; the launch profile's `config.yaml` and its `TERMINAL_CWD` are never touched |
 | MCP connections in the Desktop/dashboard backend and the per-profile cron ticker | Keyed per served profile even with `gateway.multiplex_profiles` off — same rule as the multiplexer | A same-named `mcp_servers` entry with other credentials is its own connection; a served profile never calls a server as another profile |
-| Dashboard actions (`hermes -p <name> …` spawned by the Desktop/dashboard) | A scrubbed child env pinned to that profile's `HERMES_HOME` | The child loads its own `.env`; the dashboard profile's tokens and ports are not inherited |
+| Dashboard actions (`clawd -p <name> …` spawned by the Desktop/dashboard) | A scrubbed child env pinned to that profile's `HERMES_HOME` | The child loads its own `.env`; the dashboard profile's tokens and ports are not inherited |
 | Every child that acts for a served profile (slash worker, Bot Chat delivery, A2A forward, `key_cmd` helper, browser driver) | That profile's own `.env` + secret sources over a credential-scrubbed base — with or without `gateway.multiplex_profiles` (the Desktop/dashboard `?profile=` route counts) | Absent from the child — a key that reached the launch process only through systemd / Compose / the shell is never inherited by another profile's child |
-| Authorization gates in a child spawned for another profile (`*_ALLOWED_USERS` / `*_ALLOWED_CHANNELS` / `*_IGNORED_CHANNELS` / `*_ALLOW_ALL_USERS` / `*_ALLOW_BOTS`, `GATEWAY_ALLOW*`) — dashboard `hermes -p <name>` actions, kanban workers, Bot Chat delivery, the post-update per-profile `gateway restart` | The child's own `.env` / `config.yaml`, loaded by the child itself | Closed (the adapter's documented default) — a gate exported into the spawning process by a unit file or the shell is dropped before the child starts, so profile B never enforces profile A's channel or user list; a same-profile child keeps it |
-| Routed-profile detection in an embedding host that mirrors the served profile into the live `HERMES_HOME` env var for legacy readers (Hermes WebUI) | The launch home the host pinned with `hermes_constants.pin_process_hermes_home()`; MCP connection keys, the launch-env strip for a served profile's children, the bridged allow-all seed and the `terminal.*` env-bridge guard all compare against it | Without a pin the live env var is the launch home, exactly as before — a host that never mutates `HERMES_HOME` needs nothing |
-| The launch (default) profile's own credentials in a `hermes serve` / dashboard process that also serves another profile | Its `.env` + secret sources over the process env **frozen the moment the first other profile is served**; not re-read afterwards | A credential rotated only in the process env (`systemctl set-environment`, a refreshed `op run` wrapper that did not re-exec) is not picked up until the process restarts — put rotating keys in `.env` or a secret source, or restart after rotating |
-| Cron `.env` tuning (`HERMES_CRON_TIMEOUT`, `HERMES_MODEL` fallback, `HERMES_CRON_MAX_PARALLEL`, prefill file), worker / Bot Chat child env | The profile's own `.env`; children never inherit the default profile's `.env` settings or bridged `TERMINAL_*` policy | Cron defaults / model refusal, exactly as a standalone `hermes -p <name> gateway run` |
+| Authorization gates in a child spawned for another profile (`*_ALLOWED_USERS` / `*_ALLOWED_CHANNELS` / `*_IGNORED_CHANNELS` / `*_ALLOW_ALL_USERS` / `*_ALLOW_BOTS`, `GATEWAY_ALLOW*`) — dashboard `clawd -p <name>` actions, kanban workers, Bot Chat delivery, the post-update per-profile `gateway restart` | The child's own `.env` / `config.yaml`, loaded by the child itself | Closed (the adapter's documented default) — a gate exported into the spawning process by a unit file or the shell is dropped before the child starts, so profile B never enforces profile A's channel or user list; a same-profile child keeps it |
+| Routed-profile detection in an embedding host that mirrors the served profile into the live `HERMES_HOME` env var for legacy readers (clawd WebUI) | The launch home the host pinned with `hermes_constants.pin_process_hermes_home()`; MCP connection keys, the launch-env strip for a served profile's children, the bridged allow-all seed and the `terminal.*` env-bridge guard all compare against it | Without a pin the live env var is the launch home, exactly as before — a host that never mutates `HERMES_HOME` needs nothing |
+| The launch (default) profile's own credentials in a `clawd serve` / dashboard process that also serves another profile | Its `.env` + secret sources over the process env **frozen the moment the first other profile is served**; not re-read afterwards | A credential rotated only in the process env (`systemctl set-environment`, a refreshed `op run` wrapper that did not re-exec) is not picked up until the process restarts — put rotating keys in `.env` or a secret source, or restart after rotating |
+| Cron `.env` tuning (`HERMES_CRON_TIMEOUT`, `HERMES_MODEL` fallback, `HERMES_CRON_MAX_PARALLEL`, prefill file), worker / Bot Chat child env | The profile's own `.env`; children never inherit the default profile's `.env` settings or bridged `TERMINAL_*` policy | Cron defaults / model refusal, exactly as a standalone `clawd -p <name> gateway run` |
 | Kanban workers and notifications for a profile's tasks | The assignee's `.env` + `config.yaml` (toolset pin, terminal backend, media policy, display language) | — |
 | `/loop` ticks, `background_process_notifications` gate, `notice_delivery`, background-process checkpoint recovery | The owning profile's `state.db` / `config.yaml` / `processes.json` | — |
 
@@ -707,7 +707,7 @@ runs its own gateway and is not enumerated by the host (see
 (The former `gateway.multiplex_profile_allowlist` key is retired; a config
 migration removes it from `config.yaml`, and a profile you do not want served
 but that has not opted out is archived or deleted instead —
-`hermes profile delete <name>`, or move the
+`clawd profile delete <name>`, or move the
 directory out of `profiles/`.) Deleted profiles leave a tombstone and are never
 enumerated; a profile whose directory is gone is never recreated by a served
 turn, the cron ticker or log routing.
@@ -718,19 +718,19 @@ scheduler ticks (the Desktop backend's ticker re-enumerates the same set on
 every cycle — a profile created or deleted while Desktop runs joins or leaves
 the ticked set without a restart — and stands down for any profile a running
 multiplexer or its own gateway already serves). A
-multiplexer started as `hermes -p <name> gateway run` always ticks its own
+multiplexer started as `clawd -p <name> gateway run` always ticks its own
 profile's cron store as well.
 
 The served set is **live**. A profile created while the multiplexer is running
-(`hermes profile create`, the dashboard, Desktop or the TUI) is served at once:
+(`clawd profile create`, the dashboard, Desktop or the TUI) is served at once:
 the creator pings the multiplexer over its control socket, and the multiplexer
 also rescans `profiles/` every 30 seconds as a safety net. The new profile's
 adapters are built the moment its `config.yaml`/`.env` carries a bot token
 (creators usually create first, then add the token), `served_profiles` in the
-default profile's `gateway_state.json` is updated, and `hermes -p <name> gateway
+default profile's `gateway_state.json` is updated, and `clawd -p <name> gateway
 status` reports it as served — no restart, and the other profiles' adapters and
 in-flight turns are untouched. Deleting a profile stops and unroutes its
-adapters the same way, and `hermes profile rename` unroutes the old name before
+adapters the same way, and `clawd profile rename` unroutes the old name before
 the directory moves and hot-serves the new one (the old name is not resurrected
 by the adapters or the cron ticker that were still bound to it). The
 one-credential-one-poller rule still applies: a
@@ -739,11 +739,11 @@ hot-added profile that reuses another profile's token is parked with a
 
 Hot-serving also grows the multiplexer's **profile reservation**: the new
 profile's `gateway.lock` is taken and its own session authority is built, so
-`hermes -p <name>` finds the multiplexer as its owner (no stray per-profile
-daemon) and the next `hermes gateway restart` reserves the whole set cleanly.
+`clawd -p <name>` finds the multiplexer as its owner (no stray per-profile
+daemon) and the next `clawd gateway restart` reserves the whole set cleanly.
 A profile whose `state.db` cannot be opened is **parked** — logged as
 `Profile '<name>' not served`, left out of `served_profiles` — and every other
-profile keeps booting; fix the store and re-run `hermes profile create` or wait
+profile keeps booting; fix the store and re-run `clawd profile create` or wait
 for the periodic rescan.
 
 ### Routing shared-bot chats to profiles (`profile_routes`)
@@ -890,9 +890,9 @@ run_for_profile() {
   profile="$1"
   action="$2"
   if [ "$profile" = "default" ]; then
-    hermes gateway "$action"
+    clawd gateway "$action"
   else
-    hermes -p "$profile" gateway "$action"
+    clawd -p "$profile" gateway "$action"
   fi
 }
 
@@ -905,7 +905,7 @@ case "$action" in
     done
     ;;
   list)
-    hermes gateway list
+    clawd gateway list
     ;;
   *)
     usage
@@ -921,12 +921,12 @@ hermes-gateways start      # start every configured profile
 hermes-gateways stop       # stop every configured profile
 hermes-gateways restart    # restart all
 hermes-gateways status     # status across all
-hermes-gateways list       # delegates to `hermes gateway list`
+hermes-gateways list       # delegates to `clawd gateway list`
 ```
 
 :::tip
-The `default` profile is targeted with `hermes gateway <action>` (no `-p`),
-not `hermes -p default gateway <action>`. The wrapper above handles both forms.
+The `default` profile is targeted with `clawd gateway <action>` (no `-p`),
+not `clawd -p default gateway <action>`. The wrapper above handles both forms.
 :::
 
 ## Manage one profile
@@ -943,7 +943,7 @@ coder gateway install    # create the LaunchAgent / systemd unit
 coder gateway uninstall  # remove the service file
 ```
 
-These are equivalent to `hermes -p coder gateway <action>` — useful if a
+These are equivalent to `clawd -p coder gateway <action>` — useful if a
 profile alias is not on `PATH` or if you target profiles dynamically from a
 script.
 
@@ -966,34 +966,34 @@ Each profile writes to its own log files:
 
 ```bash
 # Default profile
-tail -f ~/.hermes/logs/gateway.log
-tail -f ~/.hermes/logs/gateway.error.log
+tail -f ~/.clawd/logs/gateway.log
+tail -f ~/.clawd/logs/gateway.error.log
 
 # Named profile
-tail -f ~/.hermes/profiles/<name>/logs/gateway.log
-tail -f ~/.hermes/profiles/<name>/logs/gateway.error.log
+tail -f ~/.clawd/profiles/<name>/logs/gateway.log
+tail -f ~/.clawd/profiles/<name>/logs/gateway.error.log
 ```
 
 Stream every profile's log simultaneously:
 
 ```bash
-tail -f ~/.hermes/logs/gateway.log ~/.hermes/profiles/*/logs/gateway.log
+tail -f ~/.clawd/logs/gateway.log ~/.clawd/profiles/*/logs/gateway.log
 ```
 
 The CLI also has a structured log viewer:
 
 ```bash
-hermes logs -f                  # follow default profile
-hermes -p coder logs -f         # follow one profile
-hermes logs --help              # filters, levels, JSON output
+clawd logs -f                  # follow default profile
+clawd -p coder logs -f         # follow one profile
+clawd logs --help              # filters, levels, JSON output
 ```
 
 ## Identify what's actually running
 
 ```bash
-hermes profile list             # profiles + model + gateway state
+clawd profile list             # profiles + model + gateway state
 hermes-gateways status          # full status across every profile
-launchctl list | grep hermes    # macOS — PIDs and labels
+launchctl list | grep clawd    # macOS — PIDs and labels
 systemctl --user list-units 'hermes-gateway-*'   # Linux — units
 ```
 
@@ -1002,18 +1002,18 @@ systemctl --user list-units 'hermes-gateway-*'   # Linux — units
 Every profile keeps its config inside its own directory:
 
 ```
-~/.hermes/profiles/<name>/
+~/.clawd/profiles/<name>/
 ├── .env              # API keys, bot tokens (chmod 600)
 ├── config.yaml       # model, provider, toolsets, gateway settings
 └── SOUL.md           # personality / system prompt
 ```
 
-The default profile uses `~/.hermes/` directly with the same three files.
+The default profile uses `~/.clawd/` directly with the same three files.
 
 Edit them with any editor or via the CLI:
 
 ```bash
-hermes config set model.model anthropic/claude-sonnet-4    # default profile
+clawd config set model.model anthropic/claude-sonnet-4    # default profile
 coder config set model.model openai/gpt-5                  # named profile
 ```
 
@@ -1037,7 +1037,7 @@ to sleep when idle. Two patterns:
 ```bash
 caffeinate -dis                    # block display, idle, and system sleep
 caffeinate -dis -t 28800           # same, auto-exit after 8 hours
-caffeinate -i -w $(cat ~/.hermes/gateway.pid) &   # awake while default gateway runs
+caffeinate -i -w $(cat ~/.clawd/gateway.pid) &   # awake while default gateway runs
 
 # Persistent: run in background and forget
 nohup caffeinate -dis >/dev/null 2>&1 &
@@ -1068,7 +1068,7 @@ use a third-party tool.
 
 ```bash
 # Inhibit suspend while a command runs
-systemd-inhibit --what=idle:sleep --who=hermes --why="gateways running" \
+systemd-inhibit --what=idle:sleep --who=clawd --why="gateways running" \
   sleep infinity &
 
 # Allow user services to keep running after logout (recommended)
@@ -1092,7 +1092,7 @@ To audit:
 
 ```bash
 grep -H 'TELEGRAM_BOT_TOKEN\|DISCORD_BOT_TOKEN' \
-     ~/.hermes/.env ~/.hermes/profiles/*/.env
+     ~/.clawd/.env ~/.clawd/profiles/*/.env
 ```
 
 ## Migrating from per-profile gateways
@@ -1106,24 +1106,24 @@ on a half-migrated host (flag on, a unit left behind, a crash between the two)
 finishes the job instead of reporting "already multiplexed":
 
 ```bash
-hermes gateway migrate --multiplex --dry-run   # print the plan and any blockers; changes nothing
-hermes gateway migrate --multiplex             # apply (asks for confirmation on a TTY; -y skips)
+clawd gateway migrate --multiplex --dry-run   # print the plan and any blockers; changes nothing
+clawd gateway migrate --multiplex             # apply (asks for confirmation on a TTY; -y skips)
 ```
 
 There is no `--standalone` reverse command: a per-profile fleet is not a
 supported target. A blocked fleet keeps running as it is, and each profile
-keeps `hermes -p <name> gateway install --force` as its path — or opts out of
+keeps `clawd -p <name> gateway install --force` as its path — or opts out of
 the host gateway with `gateway.standalone: true` (see
 [No new per-profile gateways](#no-new-per-profile-gateways)), which
-`hermes gateway migrate --multiplex` respects.
+`clawd gateway migrate --multiplex` respects.
 
-### Docker / Hermes Cloud (s6-supervised container)
+### Docker / clawd Cloud (s6-supervised container)
 
 Inside the official image every profile has an s6 slot
 (`/run/service/gateway-<profile>`). The container's boot registers every *named*
 slot down and folds its autostart intent into the root slot, so a fresh boot
 already multiplexes. An **in-place** update no longer needs a container restart
-to converge either: `hermes gateway migrate --multiplex` (and the hook `hermes
+to converge either: `clawd gateway migrate --multiplex` (and the hook `clawd
 update` runs) parks any named slot that is still up (`s6-svc -d` plus a `down`
 file so a supervisor restart does not revive it), folds its intent into the root
 slot through the same rule the boot uses, and restarts the root slot. A
@@ -1139,7 +1139,7 @@ service) and `gateway.multiplex_profiles` is off, `hermes update` runs the same
 preflight:
 
 - **Nothing blocks it** → the migration runs automatically (the same code path
-  as `hermes gateway migrate --multiplex --yes`) and prints what it did. This
+  as `clawd gateway migrate --multiplex --yes`) and prints what it did. This
   is deterministic and never prompts, so it also runs on headless/cron updates.
 - **Something blocks it** → a warning block lists each blocker with its exact
   fix and the one-liner to run later. Nothing is changed.
@@ -1152,7 +1152,7 @@ on an install where nothing was running.
 ### Boundaries `hermes update` never crosses on its own
 
 The unattended hook only folds profiles that share **one UNIX user, one service
-domain and one `profiles/` tree** — the shape `hermes profile create` produces.
+domain and one `profiles/` tree** — the shape `clawd profile create` produces.
 A standalone secondary behind any of these boundaries stops the automatic path:
 
 | boundary | example |
@@ -1163,13 +1163,13 @@ A standalone secondary behind any of these boundaries stops the automatic path:
 | `HERMES_HOME` outside `<default home>/profiles/` | a unit pinning `HERMES_HOME=/opt/hermes/profiles/emma` |
 
 In that case `hermes update` prints the boundary it found plus
-`hermes gateway migrate --multiplex`, and changes nothing — no unit is removed
+`clawd gateway migrate --multiplex`, and changes nothing — no unit is removed
 and the per-profile gateways keep running (`--force` remains their path where
 a boundary like these blocks the fold; a profile free of them opts out with
 `gateway.standalone: true`). Collapsing such a fleet replaces a
 kernel-enforced boundary (file ownership, `User=`) with in-process isolation,
 which is an operator's decision. The explicit command still makes it: the same
-findings appear as **notices** in `hermes gateway migrate --multiplex --dry-run`
+findings appear as **notices** in `clawd gateway migrate --multiplex --dry-run`
 so you can read them first, and `--multiplex` proceeds when you confirm.
 
 ### Opting out of the automatic migration
@@ -1178,7 +1178,7 @@ Set `gateway.auto_multiplex_migration: false` on the **default** profile to keep
 the automatic fold from ever running on this install:
 
 ```bash
-hermes config set gateway.auto_multiplex_migration false
+clawd config set gateway.auto_multiplex_migration false
 ```
 
 `hermes update` then leaves per-profile gateways exactly as they are, with no
@@ -1187,36 +1187,36 @@ config, so it survives updates — the decision is made once rather than
 re-litigated on every release. It is read from the effective config like every
 other setting, so a value pinned in the managed scope (`/etc/hermes/config.yaml`)
 wins over the profile's own file. It governs the **automatic** path only:
-`hermes gateway migrate --multiplex` is an explicit request and still migrates
+`clawd gateway migrate --multiplex` is an explicit request and still migrates
 (and is the supported way to opt back in). Absent or `true` keeps the default
 behaviour described above.
 
 The same setting covers a gateway that booted with only the default profile.
 Normally, once you create a second profile (Desktop's New Agent or
-`hermes profile create`), that gateway starts serving every profile in place,
+`clawd profile create`), that gateway starts serving every profile in place,
 with no restart. With `auto_multiplex_migration: false` it keeps serving only
 its own profile, and the new profile is refused with that reason until you run
-`hermes gateway migrate --multiplex` or set the key back to `true`. The key is
+`clawd gateway migrate --multiplex` or set the key back to `true`. The key is
 re-read on every profile rescan, so setting it back takes effect within about
 30 seconds, with no restart.
 
-The explicit command is different: `hermes gateway migrate --multiplex` with
+The explicit command is different: `clawd gateway migrate --multiplex` with
 two or more profiles and **no** standalone secondary gateway still applies the
 one remaining step — it sets `gateway.multiplex_profiles: true` and (re)starts
 the default gateway. You asked for multiplex; you get multiplex.
 
 :::tip Clones do not carry channels
-`hermes profile create --clone` leaves the source's bot tokens and allowlists
+`clawd profile create --clone` leaves the source's bot tokens and allowlists
 behind (see [Profiles → messaging channels are never cloned](./profiles.md#messaging-channels-are-never-cloned---clone-channels-to-opt-in)),
 so a fleet of clones no longer trips the duplicate-credential blocker below.
-Older clones that still carry them are flagged by `hermes profile list`.
+Older clones that still carry them are flagged by `clawd profile list`.
 :::
 
 ### What the migration does
 
 1. Stops each secondary profile's standalone gateway and uninstalls its
    service (systemd user/system unit or launchd agent). What was removed is
-   recorded in `~/.hermes/gateway_migration.json` for rollback.
+   recorded in `~/.clawd/gateway_migration.json` for rollback.
 2. Sets `gateway.multiplex_profiles: true` in the **default** profile's
    `config.yaml`.
 3. Restarts the default gateway — or installs and starts it on the same service
@@ -1230,7 +1230,7 @@ Older clones that still carry them are flagged by `hermes profile list`.
 | Blocker | Why | Fix |
 |---|---|---|
 | Two profiles configure the same platform credential (e.g. the same `TELEGRAM_BOT_TOKEN`) | Under one process a bot token can only be polled once; the multiplexer would park the duplicate and that profile's bot would go silent | Remove the token from the second profile, or keep it in `default` and route that profile's chats with [`profile_routes`](#routing-shared-bot-chats-to-profiles-profile_routes) |
-| A secondary profile enables a port-binding platform that has **no** `/p/<profile>/` ingress on the default listener | The multiplexer skips that whole profile (see [rule 2](#2-http-inbound-platforms-are-reached-via-a-pprofile-url-prefix)) | Disable the platform in that profile (`platforms.<name>.enabled: false`), or run the profile standalone: set `gateway.standalone: true` in its own `config.yaml` and wait for the host to rescan (at most 30 seconds), or send its `rescan-profiles` control verb. Use `hermes -p <name> gateway install --force` only where a boundary blocks the fold. |
+| A secondary profile enables a port-binding platform that has **no** `/p/<profile>/` ingress on the default listener | The multiplexer skips that whole profile (see [rule 2](#2-http-inbound-platforms-are-reached-via-a-pprofile-url-prefix)) | Disable the platform in that profile (`platforms.<name>.enabled: false`), or run the profile standalone: set `gateway.standalone: true` in its own `config.yaml` and wait for the host to rescan (at most 30 seconds), or send its `rescan-profiles` control verb. Use `clawd -p <name> gateway install --force` only where a boundary blocks the fold. |
 
 The credential check reuses the gateway's own conflict detection, so its verdict
 matches what the multiplexer does at startup. Which port-binding platforms have
@@ -1256,8 +1256,8 @@ prefixed URL; nothing else about the key changes.
 ### Profiles created after the migration
 
 A profile created while the multiplexer runs is served without a restart (see
-above). `hermes profile create` confirms this when the live multiplexer picked the
-profile up; it prints the `hermes gateway restart` reminder only when it could not
+above). `clawd profile create` confirms this when the live multiplexer picked the
+profile up; it prints the `clawd gateway restart` reminder only when it could not
 reach the multiplexer (for example, a gateway started from an older build).
 
 ### Failure handling and resuming
@@ -1269,7 +1269,7 @@ per-profile gateway is stopped. Anything that fails after the manifest is
 written — the flag write, a later secondary's stop or unit removal, the
 default's install or start — rolls back through the manifest on the spot, so no
 profile is left without a gateway. Should the process die anywhere in that
-window, the next `hermes gateway migrate --multiplex` sees the flag on, the
+window, the next `clawd gateway migrate --multiplex` sees the flag on, the
 manifest, and no live multiplexer serving the migrated profiles (an installed
 but stopped default unit does not count) and resumes from the manifest instead
 of reporting "already multiplexed". A manifest on disk always means
@@ -1307,7 +1307,7 @@ User-modified skills are never overwritten.
 
 ### "Could not find service in domain for user gui: 501"
 
-You ran `hermes gateway start` after a previous `hermes gateway stop`. The
+You ran `clawd gateway start` after a previous `clawd gateway stop`. The
 CLI's `stop` does a full `launchctl unload`, which removes the service from
 launchd's registry. The CLI catches this specific error on `start` and
 automatically re-loads the plist (`↻ launchd job was unloaded; reloading
@@ -1319,7 +1319,7 @@ If a profile's gateway shows `not running` but a process is still alive:
 
 ```bash
 ps -ef | grep "hermes_cli.*-p <profile>"
-cat ~/.hermes/profiles/<profile>/gateway.pid
+cat ~/.clawd/profiles/<profile>/gateway.pid
 kill -TERM <pid>          # graceful
 kill -KILL <pid>          # if that fails after a few seconds
 <profile> gateway start
@@ -1339,6 +1339,6 @@ systemctl --user restart hermes-gateway-<profile>.service
 ### Health check
 
 ```bash
-hermes doctor                  # default profile
-hermes -p <profile> doctor     # one profile
+clawd doctor                  # default profile
+clawd -p <profile> doctor     # one profile
 ```

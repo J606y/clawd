@@ -61,8 +61,8 @@
           export SSL_CERT_FILE="${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
           export NIX_SSL_CERT_FILE="$SSL_CERT_FILE"
 
-          echo "Hermes Agent dev shell in $HERMES_PYTHON_SRC_ROOT"
-          echo "Ready. Run 'hermes' or 'sandbox hermes' to start."
+          echo "clawd dev shell in $HERMES_PYTHON_SRC_ROOT"
+          echo "Product entry is clawd (clawd_cli). This shell still puts the compatibility script hermes on PATH; do not install it onto a host that already has production hermes."
         '';
       };
     };

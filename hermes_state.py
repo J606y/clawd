@@ -123,8 +123,8 @@ class SessionResumeTooLargeError(ValueError):
         super().__init__(
             f"This session is too long to reload safely ({message_count} messages; limit {limit}). "
             "Start a fresh chat and keep a copy with the dashboard Sessions page's Export action or "
-            "`hermes sessions export --format md --session-id <id>` (neither is capped), or raise the limit "
-            "with `hermes config set sessions.max_resume_messages 0`."
+            "`clawd sessions export --format md --session-id <id>` (neither is capped), or raise the limit "
+            "with `clawd config set sessions.max_resume_messages 0`."
         )
 
 
@@ -234,7 +234,7 @@ def _ensure_test_isolation(db_path: Path) -> None:
         if _is_production_state_db(resolved, root):
             raise RuntimeError(
                 "live-system guard: test attempted to open production "
-                f"state.db at {resolved} (under real Hermes root {root}). "
+                f"state.db at {resolved} (under real clawd root {root}). "
                 "Tests must run against a temporary HERMES_HOME — pass an "
                 "explicit tmp db_path or let the hermetic conftest redirect "
                 "HERMES_HOME. If this test genuinely needs the live database, mark it with "
@@ -374,12 +374,12 @@ _SESSION_DB_CONSEQUENCE = "Sessions will not be saved until this is fixed."
 _NETWORK_DRIVE_HINT = " If the database lives on a network drive, move it to a local disk."
 _NETWORK_DRIVE_GLOSS = "the session database could not be opened; it may be on a network or unsupported drive"
 _NETWORK_DRIVE_ACTION = (
-    "Move it to a local disk (`hermes {profile_arg}doctor` shows where it is), then start Hermes again."
+    "Move it to a local disk (`clawd {profile_arg}doctor` shows where it is), then start clawd again."
 )
 
 
 def format_session_db_unavailable(
-    prefix: str = "Hermes can't open its session history right now",
+    prefix: str = "clawd can't open its session history right now",
     *,
     details: bool = False,
 ) -> str:
@@ -397,7 +397,7 @@ def format_session_db_unavailable(
     cause = get_last_init_error()
     if not cause:
         return (
-            f"{prefix}. {_SESSION_DB_CONSEQUENCE} Run `hermes {profile_arg}doctor` to check the "
+            f"{prefix}. {_SESSION_DB_CONSEQUENCE} Run `clawd {profile_arg}doctor` to check the "
             "storage location."
         )
     from hermes_state_user_copy import describe_storage_failure

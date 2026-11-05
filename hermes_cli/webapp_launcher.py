@@ -1,4 +1,4 @@
-"""``hermes webapp``: open the browser-hosted Desktop that the gateway serves.
+"""``clawd webapp``: open the browser-hosted Desktop that the gateway serves.
 
 The gateway serves the Webapp on its own listener when its home's config sets ``webapp.enabled``
 (``gateway.webapp_listener``). This command builds the bundle when it is stale, starts the gateway that
@@ -24,14 +24,14 @@ import time
 from pathlib import Path
 from urllib.parse import urlsplit
 
-RESTART_COMMAND = "hermes gateway restart"
+RESTART_COMMAND = "clawd gateway restart"
 # The gateway reads the Webapp's settings and sign-in providers only when it starts.
 RETRY_AFTER_FIX = f"The gateway reads these settings when it starts: after fixing them, run {RESTART_COMMAND}."
 STARTED_BEFORE_ON = f"The gateway started before the Webapp was turned on. Restart it to serve the Webapp: {RESTART_COMMAND}"
 # A gateway answers a verb it does not know this way; the Webapp's are registered before its control
 # socket answers, so the gateway running predates them (an upgrade it has not restarted onto).
 OLDER_GATEWAY = ("The running gateway is older than the Webapp and does not know its commands. Restart it "
-                 f"onto this version of Hermes: {RESTART_COMMAND}")
+                 f"onto this version of clawd: {RESTART_COMMAND}")
 # Browsers keep secure-context APIs (crypto.subtle, mediaDevices, navigator.clipboard, Notification) from a
 # plain-HTTP origin that is not loopback.
 PLAIN_HTTP_NOTE = ("This address is plain HTTP, so the browser turns off what needs a secure connection: the bot "
@@ -106,8 +106,8 @@ def _open(url: str) -> bool:
 # else, so the referrer and any script stay out of it.
 _LAUNCH_PAGE = ('<!doctype html><meta charset="utf-8"><meta name="referrer" content="no-referrer">'
                 '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'">'
-                '<meta http-equiv="refresh" content="0;url={url}"><title>Opening Hermes</title>'
-                '<p><a href="{url}">Open Hermes Webapp</a></p>\n')
+                '<meta http-equiv="refresh" content="0;url={url}"><title>Opening clawd</title>'
+                '<p><a href="{url}">Open clawd Webapp</a></p>\n')
 
 
 def _open_privately(target: Path, url: str) -> bool:
@@ -154,7 +154,7 @@ def _profile_choice(home: Path, target: Path) -> dict:
 
 
 def _rerun_command(*flags: str) -> str:
-    """``hermes webapp *flags*`` for the profile this run used: ``-p`` re-homed only this process, so a
+    """``clawd webapp *flags*`` for the profile this run used: ``-p`` re-homed only this process, so a
     bare rerun gets the sticky profile, and the command keeps ``-p <name>`` when that names another one."""
     import shlex
     from hermes_cli.main import explicit_cli_profile
@@ -225,9 +225,9 @@ def _status(target: Path) -> int:
     except GatewayUnreachable:
         from gateway.webapp_listener import webapp_settings
         if webapp_settings(target).enabled:
-            print("The gateway is not running. Run hermes webapp to start it.")
+            print("The gateway is not running. Run clawd webapp to start it.")
         else:
-            print(_off_message(target, "run hermes webapp"))
+            print(_off_message(target, "run clawd webapp"))
         return 1
     if not response.get("ok"):
         print(_refusal(response))
@@ -243,7 +243,7 @@ def _status(target: Path) -> int:
             print(f"{target / 'config.yaml'} no longer turns the Webapp on: it stops at the next gateway restart "
                   f"({RESTART_COMMAND}).")
     elif status["state"] == "starting":
-        print("The gateway is still starting the Webapp. Run hermes webapp --status again in a moment.")
+        print("The gateway is still starting the Webapp. Run clawd webapp --status again in a moment.")
     elif status["state"] == "off":
         print(_off_message(target, f"run {RESTART_COMMAND}"))
     else:
@@ -281,7 +281,7 @@ def _signed_out_summary(result: dict) -> str:
         return ("The gateway is not serving the Webapp, so no browser is connected to it. Replaced its stored "
                 "browser credential: every browser must sign in again once it serves the Webapp.")
     if "connections_closed" not in result:
-        # A gateway started before this Hermes: it replaced the credential and closed the sockets that
+        # A gateway started before this clawd: it replaced the credential and closed the sockets that
         # credential opened, but logins behind the sign-in gate outlive it.
         return (f"Replaced the Webapp's browser credential. Restart the gateway ({RESTART_COMMAND}) to sign "
                 "out browsers that signed in with a password or an account too.")
@@ -291,7 +291,7 @@ def _signed_out_summary(result: dict) -> str:
         return (f"Signed out every browser: {connections}. Every browser login behind sign-in has ended, "
                 "and the account tokens it held no longer work here: browsers must sign in again. Native apps "
                 "signed in to this gateway with their own sign-in stay signed in.")
-    return f"Signed out of every Webapp tab: {connections}. Run hermes webapp to open it again."
+    return f"Signed out of every Webapp tab: {connections}. Run clawd webapp to open it again."
 
 
 def _sign_out(target: Path) -> int:
@@ -324,7 +324,7 @@ def _sign_out(target: Path) -> int:
         # never reaches it: wait until it answers the sign-out itself.
         if attempt < _START_WAIT_ATTEMPTS:
             time.sleep(_START_WAIT_INTERVAL)
-    print(f"The gateway is still starting, so nobody was signed out. Run hermes webapp --sign-out again once "
+    print(f"The gateway is still starting, so nobody was signed out. Run clawd webapp --sign-out again once "
           f"it is up ({RESTART_COMMAND} if it never comes up).")
     return 1
 
@@ -351,6 +351,10 @@ def _explain_refused_launch(target: Path, response: dict) -> int:
 
 
 def cmd_webapp(args) -> int:
+    root = Path(__file__).resolve().parents[1]
+    if os.environ.get("CLAWD_CLI") == "1" or not (root / "apps" / "desktop" / "package.json").is_file():
+        print("refused: clawd does not provide the official desktop webapp.", file=sys.stderr)
+        return 2
     from gateway.webapp_listener import webapp_settings
     from hermes_cli.webapp import WebappBuildError, packaged_webapp_dist
     from hermes_constants import get_hermes_home
@@ -365,7 +369,7 @@ def cmd_webapp(args) -> int:
     if args.sign_out:
         return _sign_out(target)
     if not args.build_only and not webapp_settings(target).enabled:
-        print(_still_served(target) or _off_message(target, "run hermes webapp again"))
+        print(_still_served(target) or _off_message(target, "run clawd webapp again"))
         return 1
     try:
         _build(args)
@@ -374,7 +378,7 @@ def cmd_webapp(args) -> int:
         # A packaged bundle (HERMES_WEBAPP_DIST) is never built here, so no build can fix it.
         if packaged_webapp_dist() is None:
             print("  Build it explicitly:")
-            print("    hermes webapp --build-only")
+            print("    clawd webapp --build-only")
         return 1
     if args.build_only:
         print("Webapp bundle ready.")

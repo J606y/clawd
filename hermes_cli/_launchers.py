@@ -878,6 +878,12 @@ def expose_cli(project_root: Path | None = None, *, create: bool = True) -> dict
     from pm.paths import install_root
 
     root = Path(project_root or install_root()).resolve()
+    if os.environ.get("CLAWD_CLI") == "1":
+        return {
+            "ok": False,
+            "refused": True,
+            "error": "refused: clawd will not publish or overwrite the hermes command",
+        }
     if _is_windows():
         # The installer stages the user-facing commands into $HERMES_HOME\bin
         # and registers that directory in the User PATH. An update skipped both

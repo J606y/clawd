@@ -119,7 +119,7 @@ def _url_policy_error(url: str, *, auto_local: bool = False) -> Optional[dict]:
 
     Credential-NAMED query params (``?token=``, ``?signature=``) are deliberately not a floor: magic links,
     OAuth callbacks and signed CDN assets are how the agent signs in, and a cloud browser already sees every
-    cookie of the session. Hermes' own secrets in a URL are caught by ``_secret_url_error``."""
+    cookie of the session. clawd's own secrets in a URL are caught by ``_secret_url_error``."""
     from tools.browser_session_cloud import allow_private_urls, is_local_backend
     if is_always_blocked_url(url):  # unconditional: IMDS via any browser exfiltrates host credentials (#16234)
         return _err("Blocked: URL targets a cloud metadata endpoint")

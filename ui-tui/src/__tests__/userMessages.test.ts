@@ -61,7 +61,7 @@ describe('describeTurnFailure', () => {
     })
 
     expect(text).not.toContain('/retry')
-    expect(text).toContain('hermes model')
+    expect(text).toContain('clawd model')
   })
 
   it('falls back to the layer copy, and to a generic title, when the code is unknown', () => {
@@ -239,7 +239,7 @@ describe('slash.exec fallback policy', () => {
 })
 
 describe('backend lifecycle copy', () => {
-  it('names the exit code, the last real stderr line, /logs and hermes doctor', () => {
+  it('names the exit code, the last real stderr line, /logs and clawd doctor', () => {
     const tail =
       '[lifecycle] child exit code=1\nModuleNotFoundError: No module named pydantic\n[lifecycle] scheduling gateway reconnect in 1000ms (attempt 1)'
 
@@ -249,7 +249,7 @@ describe('backend lifecycle copy', () => {
     expect(text).toContain('Details: ModuleNotFoundError: No module named pydantic')
     expect(text).not.toContain('[lifecycle]')
     expect(text).toContain('/logs')
-    expect(text).toContain('hermes doctor')
+    expect(text).toContain('clawd doctor')
     expect(text).toContain('/resume')
     expect(text).not.toMatch(/\bgateway\b/)
   })

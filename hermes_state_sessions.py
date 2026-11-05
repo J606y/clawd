@@ -366,6 +366,22 @@ class SessionSessionsMixin:
         conn.execute(_INHERIT_PARENT_META_SQL, (session_id,))
         conn.execute(_INHERIT_PARENT_ROUTING_SQL, (session_id,))
 
+    def _copy_child_project_binding(self, parent_session_id: str, child_session_id: str) -> None:
+        """Snapshot the parent's project row onto a newly inserted child.
+
+        Uses this store's directory (``state.db``'s parent), not the process
+        ``HERMES_HOME``. Raises ``ProjectInheritanceError`` when a bound parent
+        cannot be copied. Callers are inside a state write transaction and must
+        let that error roll the child row back. Not a cross-database commit.
+        """
+        from clawd_projects.inheritance import inherit_session_project, state_db_profile_home
+
+        inherit_session_project(
+            parent_session_id,
+            child_session_id,
+            hermes_home=state_db_profile_home(self.db_path),
+        )
+
     def _insert_session_row(
         self, session_id: str, source: str, model: str | None = None, model_config: dict[str, Any] | None = None,
         system_prompt: str | None = None, user_id: str | None = None, session_key: Optional[str] = None,
@@ -410,8 +426,19 @@ class SessionSessionsMixin:
                       parent_session_id=parent_session_id, cwd=cwd, profile_name=profile_name,
                       git_repo_root=git_repo_root, origin_json=origin_json, display_name=display_name,
                       transport_profile=transport_profile)
-        self._execute_write(lambda conn: insert_session_row_in_transaction(self, conn, **params),
-                            patience_s=self._TRANSCRIPT_WRITE_PATIENCE_S)
+
+        def _insert(conn):
+            # An existing row is not a new copy. Re-upserting it must not bind a
+            # later parent project onto a session that was ordinary, or undo an
+            # explicit unbind. API fork and other first inserts are new ids.
+            existed = conn.execute(
+                "SELECT 1 FROM sessions WHERE id=?", (session_id,),
+            ).fetchone() is not None
+            insert_session_row_in_transaction(self, conn, **params)
+            if parent_session_id and not existed:
+                self._copy_child_project_binding(parent_session_id, session_id)
+
+        self._execute_write(_insert, patience_s=self._TRANSCRIPT_WRITE_PATIENCE_S)
 
     def create_session(self, session_id: str, source: str, **kwargs) -> str:
         """Create (upsert) a session record. Returns the session_id."""

@@ -102,6 +102,81 @@ function nextQueueCreatedAt(floor = 0): number {
   return lastCreatedAt
 }
 
+// `attempted` is the durable "do not auto-dispatch" bit. A missing file cannot
+// be drained either. `live` is the only state that restart will send on its own.
+function replacedJournalState(item: QueueItem): 'absent' | 'attempted' | 'live' {
+  if (!item.submissionId || !item.destination?.sid) {
+    return 'absent'
+  }
+
+  const row = loadPendingInputs(item.destination).find(candidate => candidate.submissionId === item.submissionId)
+
+  if (!row) {
+    return 'absent'
+  }
+
+  return row.failed ? 'attempted' : 'live'
+}
+
+// Retire the previous submission only after the replacement claim has landed.
+// Delete first. If that fails and the old file is still auto-dispatchable, mark
+// it attempted so restart will not send it beside the new row. If that also
+// fails, roll back the unsent replacement and rethrow — do not delete both, and
+// do not return a claim the caller would dispatch into a restart double send.
+function retireReplacedJournal(previous: QueueItem, claimed: QueueItem): void {
+  try {
+    removePendingInput(previous)
+
+    return
+  } catch (removeError) {
+    if (replacedJournalState(previous) !== 'live') {
+      patchUiState({ status: t('canonical.queue.journalCleanupFailed', (removeError as Error).message) })
+
+      return
+    }
+
+    let tombstoneError: unknown
+
+    try {
+      savePendingInput({ ...previous, failed: true, inFlight: false })
+    } catch (error) {
+      tombstoneError = error
+    }
+
+    if (replacedJournalState(previous) !== 'live') {
+      const message = tombstoneError
+        ? `${(removeError as Error).message}; ${(tombstoneError as Error).message}`
+        : (removeError as Error).message
+
+      patchUiState({ status: t('canonical.queue.journalCleanupFailed', message) })
+
+      return
+    }
+
+    claimed.inFlight = false
+    claimed.failed = false
+    claimed.settle = undefined
+
+    let rollbackError: unknown
+
+    try {
+      removePendingInput(claimed)
+    } catch (error) {
+      rollbackError = error
+    }
+
+    const message = [
+      (removeError as Error).message,
+      tombstoneError ? (tombstoneError as Error).message : undefined,
+      rollbackError ? (rollbackError as Error).message : undefined
+    ].filter((part): part is string => Boolean(part)).join('; ')
+
+    patchUiState({ status: t('canonical.queue.journalCleanupFailed', message) })
+
+    throw Object.assign(new Error(message), { cause: removeError })
+  }
+}
+
 // `gw` owns server-queued rows: the authority's pending fanout is rendered
 // after this client's unconfirmed local items, and deleting/editing one goes
 // through `prompt.cancel` — the next fanout, not a local splice, retires it.
@@ -405,13 +480,22 @@ export function useQueue(gw?: { request: (method: string, params: Record<string,
     [draft, claim, syncQueue]
   )
 
+  const replacingIds = useRef(new Set<string>())
+
   const dequeue = useCallback(
     (retry = false) => {
       if (getUiState().gatewayConnected === false) { return undefined }
       const queue = getQueue()
       const item = queue.items[0]
 
-      if (!item || item.inFlight || (item.failed && !retry)) {
+      // Skip a row whose replacement claim is in progress. Otherwise a drain
+      // reentered from claim's refresh would send the old text as well.
+      if (
+        !item ||
+        item.inFlight ||
+        (item.failed && !retry) ||
+        (item.submissionId !== undefined && replacingIds.current.has(item.submissionId))
+      ) {
         return undefined
       }
 
@@ -466,19 +550,56 @@ export function useQueue(gw?: { request: (method: string, params: Record<string,
       }
 
       const previous = queue.items[i]
-      const item = takeQueueItem(queue.items, i, editedDisplay)
+
+      if (!previous) {
+        return undefined
+      }
+
+      // Build the successor off a copy so a failed claim does not consume the
+      // live row. takeQueueItem strips submissionId only when the text changes.
+      const item = takeQueueItem([previous], 0, editedDisplay)
 
       if (!item) {
         return undefined
       }
 
-      if (previous && previous.submissionId !== item.submissionId) {
-        removePendingInput(previous)
+      const previousId = previous.submissionId
+
+      if (!previousId || previousId === item.submissionId) {
+        queue.items.splice(i, 1, item)
+
+        return claim(queue, item)
       }
 
-      queue.items.splice(i, 0, item)
+      // Same-index reentry must not claim a second id or delete the journal
+      // the outer call has not finished replacing.
+      if (replacingIds.current.has(previousId)) {
+        return undefined
+      }
 
-      return claim(queue, item)
+      replacingIds.current.add(previousId)
+
+      try {
+        const claimed = claim(queue, item)
+
+        // Remove only after the new journal exists. This is not a finally:
+        // a thrown claim must leave the previous file untouched.
+        retireReplacedJournal(previous, claimed)
+
+        const at = queue.items.findIndex(row => row === previous || row.submissionId === previousId)
+
+        if (at >= 0) {
+          queue.items.splice(at, 1, claimed)
+        } else if (!queue.items.includes(claimed)) {
+          queue.items.splice(Math.min(i, queue.items.length), 0, claimed)
+        }
+
+        syncQueue()
+
+        return claimed
+      } finally {
+        replacingIds.current.delete(previousId)
+      }
     },
     [getQueue, claim, cancelServerRow, draft, serverRowAt, syncQueue]
   )

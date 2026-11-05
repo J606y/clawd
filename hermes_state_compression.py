@@ -369,6 +369,15 @@ class SessionCompressionMixin:
                 (parent["archived"] or 0) if continuation else 0,
                 (parent["auto_archived"] or 0) if continuation else 0),
         )
+        # Same-profile project snapshot, before the caller's state commit.
+        # Branch, reset and compression all publish through here. A bind failure
+        # raises so the child INSERT rolls back; this is not a cross-db commit.
+        from clawd_projects.inheritance import inherit_session_project, state_db_profile_home
+        inherit_session_project(
+            parent_session_id,
+            child_session_id,
+            hermes_home=state_db_profile_home(self.db_path),
+        )
 
     def publish_compression_child(
         self, *, parent_session_id: str, child_session_id: str, source: str,

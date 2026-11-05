@@ -1,7 +1,7 @@
 """Trusted API preparation and observation of the canonical durable FIFO."""
 import asyncio
 from contextvars import ContextVar
-from contextlib import contextmanager
+from contextlib import contextmanager, asynccontextmanager
 from functools import partial
 import hmac
 import json
@@ -14,6 +14,10 @@ from gateway.session_results import admission_result
 from hermes_state_runtime import RuntimeStoreError, admit_session_input, _json
 
 api_execution: ContextVar[dict | None] = ContextVar('api_execution', default=None)
+# Set only for the admitted chat that just committed a tier, and only around
+# ``_prepare_session_chat``. A new lock replace reads it so the persisted lock
+# keeps that tier. It is not a profile guess and not a pending pin.
+committed_effort_for_lock: ContextVar[str | None] = ContextVar('committed_effort_for_lock', default=None)
 _SETTINGS_PREFIX = 'gateway.api.settings.v1.'
 # Request-owned sinks an API observer may register for its admission's execution.
 _OBSERVER_KEYS = ('stream_delta_callback', 'tool_start_callback', 'tool_complete_callback',
@@ -31,7 +35,7 @@ class AdmissionQueued(RuntimeStoreError):
     input is committed: the row stays queued and the next owner runs it exactly once, so a client
     that resends it submits the work twice. ``str()`` is the message every API surface shows."""
 
-    MESSAGE = 'Hermes is restarting. Your input is saved and will run once when it is back; do not resend it.'
+    MESSAGE = 'clawd is restarting. Your input is saved and will run once when it is back; do not resend it.'
 
     def __init__(self):
         super().__init__('admission_queued')
@@ -568,3 +572,143 @@ def prepare_api_runtime(model, runtime_kwargs):
         confirmed_runtime_lock=bool(options.get('confirmed_runtime_lock')),
         gateway_session_key=None, session_id=None)
     return model, runtime_kwargs
+
+
+def _trusted_runner(adapter):
+    runner = getattr(adapter, 'gateway_runner', None)
+    if runner is None:
+        return None
+    if getattr(runner, 'session_authority', None) is None and getattr(runner, 'session_authorities', None) is None:
+        return None
+    return runner
+
+
+def merge_reasoning_effort(options, effort):
+    """Put one committed tier on the snapshot the agent will actually build.
+
+    Does not replace model, provider, or the rest of a browser lock.
+    """
+    if not isinstance(effort, str) or not effort:
+        return options if isinstance(options, dict) else {}
+    merged = dict(options) if isinstance(options, dict) else {}
+    merged['reasoning_effort'] = effort
+    reasoning = merged.get('reasoning')
+    if isinstance(reasoning, dict):
+        reasoning = dict(reasoning)
+        reasoning['effort'] = effort
+        merged['reasoning'] = reasoning
+    return merged
+
+
+def commit_pending_if_any(authority, session_id):
+    """Commit a pending pin on the request row, then the lineage root if that is a different row.
+
+    No pending is not a write. A refusal from the service is raised, never turned into success.
+    """
+    from clawd_server.effort_service import commit_deferred_effort, describe_session_effort
+
+    logical = authority.logical_owner(session_id) or session_id
+    order = [session_id] if session_id == logical else [session_id, logical]
+    primary = None
+    for sid in order:
+        if not sid:
+            continue
+        session = authority.db.get_session(sid)
+        if not isinstance(session, dict):
+            continue
+        described = describe_session_effort(session, running=None)
+        if described.get('source') != 'pending':
+            continue
+        view = commit_deferred_effort(
+            authority.db, sid, authority=authority, admission_held=True)
+        if sid == session_id or primary is None:
+            primary = view
+    return primary
+
+
+@asynccontextmanager
+async def profile_admission_lock(adapter, session_id):
+    """Hold this profile's admission lock around the commit and the tier snapshot.
+
+    ``None`` only when this process has no session authority to hold. A mismatched
+    store raises; callers must not continue as if the pin was committed.
+    """
+    runner = _trusted_runner(adapter)
+    if runner is None:
+        yield None
+        return
+    from gateway.session_authorities import require_active_authority
+    from gateway.session_authority import keyed_turn
+
+    authority = require_active_authority(runner, adapter._ensure_session_db)
+    if authority.db is not adapter._ensure_session_db():
+        from hermes_state_runtime import RuntimeStoreError
+        raise RuntimeStoreError('profile_mismatch')
+    logical = authority.logical_owner(session_id) or session_id
+    live = authority.sessions.get(logical)
+    async with keyed_turn(authority._route_turns, 'clawd-admission:' + logical):
+        if live is None:
+            yield authority, session_id
+        else:
+            async with live.mutation_lock:
+                yield authority, session_id
+
+
+def apply_committed_effort(mapping, effort):
+    if not isinstance(mapping, dict) or not isinstance(effort, str) or not effort:
+        return
+    mapping['model_options'] = merge_reasoning_effort(mapping.get('model_options'), effort)
+
+
+async def commit_trusted_pending_effort(adapter, session_id, *snapshots):
+    """Commit under the held admission lock, then write the tier into snapshots before release.
+
+    Returns the view, or None when this process has no authority or nothing pending.
+    ``EffortServiceError`` and ``RuntimeStoreError`` propagate. Neither is success.
+    """
+    async with profile_admission_lock(adapter, session_id) as held:
+        if held is None:
+            return None
+        authority, sid = held
+        view = await asyncio.to_thread(commit_pending_if_any, authority, sid)
+        if isinstance(view, dict) and view.get('persisted') is True:
+            effort = view.get('effort')
+            for snapshot in snapshots:
+                apply_committed_effort(snapshot, effort)
+        return view
+
+
+async def prepare_admitted_session_chat(adapter, request):
+    """Commit a pending tier before ``_prepare_session_chat`` copies the lock into this request."""
+    from clawd_server.effort_service import EffortServiceError
+    from gateway.platforms.api_server import _error_response
+
+    session_id = request.match_info['session_id']
+    try:
+        async with profile_admission_lock(adapter, session_id) as held:
+            view = None
+            if held is not None:
+                view = await asyncio.to_thread(commit_pending_if_any, held[0], held[1])
+            # The replace inside ``_prepare_session_chat`` must see this tier.
+            # Only the row that was actually committed qualifies. A lineage-root
+            # view must not be written onto a different request row.
+            effort = None
+            if (isinstance(view, dict) and view.get('persisted') is True
+                    and view.get('session_id') == session_id
+                    and isinstance(view.get('effort'), str)):
+                effort = view['effort']
+            token = committed_effort_for_lock.set(effort)
+            try:
+                ctx, err = await adapter._prepare_session_chat(request)
+            finally:
+                committed_effort_for_lock.reset(token)
+            if err is None and isinstance(view, dict) and view.get('persisted') is True:
+                apply_committed_effort(ctx.get('run_kwargs'), view.get('effort'))
+                apply_committed_effort(ctx.get('runtime_request'), view.get('effort'))
+            return ctx, err
+    except EffortServiceError as exc:
+        return None, _error_response(exc.message, exc.status, code=exc.code)
+    except RuntimeStoreError as exc:
+        code = 'effort_admission_required' if exc.reason in ('profile_mismatch', 'runtime_draining') else 'effort_run_state_unavailable'
+        status = 409 if code == 'effort_admission_required' else 503
+        return None, _error_response('档位未能在该 profile 的准入锁内提交，当前请求未改用新档', status, code=code)

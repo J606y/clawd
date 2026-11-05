@@ -148,7 +148,7 @@ def _pinned_guard(name: str) -> Optional[str]:
         from agent.skill_utils import ESSENTIAL_SKILLS
         if name in ESSENTIAL_SKILLS:
             return (
-                f"Skill '{name}' is essential to Hermes (the agent's own "
+                f"Skill '{name}' is essential to clawd (the agent's own "
                 f"operating manual referenced by the system prompt) and "
                 f"cannot be deleted. Patches and edits are still allowed.")
     except Exception:
@@ -156,7 +156,7 @@ def _pinned_guard(name: str) -> Optional[str]:
     if _is_pinned(name, "pinned-guard"):
         return (
             f"Skill '{name}' is pinned and cannot be deleted by skill_manage. Ask the user to "
-            f"run `hermes curator unpin {name}` if they want to delete it. Patches and edits "
+            f"run `clawd curator unpin {name}` if they want to delete it. Patches and edits "
             f"are allowed on pinned skills; only deletion is blocked.")
     return None
 

@@ -11,6 +11,7 @@ model/provider. Logger name stays ``agent.conversation_loop`` for caplog parity.
 from __future__ import annotations
 
 import logging
+import time
 from contextlib import suppress
 from dataclasses import dataclass
 from typing import Any, Dict, List
@@ -279,6 +280,16 @@ def record_response_usage(
                 model=agent.model,
                 api_call_count=1,
                 task=getattr(agent, "_turn_route_task", "") or "",
+                last_api_call={
+                    "prompt_tokens": int(prompt_tokens or 0),
+                    "output_tokens": int(canonical_usage.output_tokens or 0),
+                    "cache_read_tokens": int(canonical_usage.cache_read_tokens or 0),
+                    "model": agent.model or "",
+                    "provider": agent.provider or "",
+                    "base_url": agent.base_url or "",
+                    "api_call": int(agent.session_api_calls or 0),
+                    "at": time.time(),
+                },
             )
         except Exception as e:  # silent loss here undercounts analytics
             logger.debug(

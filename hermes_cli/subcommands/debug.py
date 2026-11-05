@@ -1,4 +1,4 @@
-"""``hermes debug`` subcommand parser."""
+"""``clawd debug`` subcommand parser."""
 
 from __future__ import annotations
 
@@ -10,20 +10,20 @@ def build_debug_parser(subparsers, *, cmd_debug: Callable) -> None:
     """Attach the ``debug`` subcommand to ``subparsers``."""
     debug_parser = subparsers.add_parser(
         "debug", help="Debug tools — upload logs and system info for support",
-        description="Debug utilities for Hermes Agent. Use 'hermes debug share' to "
+        description="Debug utilities for clawd. Use 'clawd debug share' to "
         "upload a debug report (system info + recent logs) to a paste "
         "service and get a shareable URL.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""\
 Examples:
-    hermes debug share              Upload debug report (asks for confirmation)
-    hermes debug share --yes        Skip confirmation (for scripts/CI)
-    hermes debug share --lines 500  Include more log lines
-    hermes debug share --expire 30  Keep dpaste.com fallback pastes for 30 days
-    hermes debug share --local      Print report locally (no upload)
-    hermes debug share --no-redact  Disable upload-time secret redaction
-    hermes debug share --nous       Upload to Nous-internal storage (private)
-    hermes debug delete <url>       Delete a previously uploaded paste
+    clawd debug share              Upload debug report (asks for confirmation)
+    clawd debug share --yes        Skip confirmation (for scripts/CI)
+    clawd debug share --lines 500  Include more log lines
+    clawd debug share --expire 30  Keep dpaste.com fallback pastes for 30 days
+    clawd debug share --local      Print report locally (no upload)
+    clawd debug share --no-redact  Disable upload-time secret redaction
+    clawd debug share --nous       Upload to Nous-internal storage (private)
+    clawd debug delete <url>       Delete a previously uploaded paste
 """)
     debug_sub = debug_parser.add_subparsers(dest="debug_command")
     share_parser = debug_sub.add_parser(
@@ -58,7 +58,7 @@ Examples:
             "gated viewer — and auto-deletes after 14 days. Still force-redacts "
             "secrets unless --no-redact is also passed.")
     delete_parser = debug_sub.add_parser(
-        "delete", help="Delete a paste uploaded by 'hermes debug share'")
+        "delete", help="Delete a paste uploaded by 'clawd debug share'")
     delete_parser.add_argument(
         "urls", nargs="*", default=[],
         help="One or more paste URLs to delete (e.g. https://paste.rs/abc123)")

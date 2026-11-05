@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>subagent fold motion</title>
+</head>
+<body>
+  <div id="styles"></div>
+  <div class="hp-chat">
+    <div class="subagents">
+      <div class="frame">
+        <div class="fold"><div><div class="list" id="list"></div></div></div>
+        <button type="button" class="bar" aria-expanded="false">
+          <span>子代理 · 无进行中 · 12 个已结束</span>
+          <svg class="chev" width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+            <path d="M2.5 6.5 5 4l2.5 2.5" stroke="currentColor" strokeWidth="1.4" fill="none" strokeLinecap="round" />
+          </svg>
+        </button>
+      </div>
+    </div>
+    <div id="below"></div>
+  </div>
+  <script type="module">
+    import { createElement } from "react";
+    import { createRoot } from "react-dom/client";
+    import { flushSync } from "react-dom";
+    import { ChatStyles } from "/src/react/pages/chat/chat-styles.tsx";
+    const list = document.querySelector("#list");
+    for (let i = 0; i < 12; i += 1) {
+      const card = document.createElement("div");
+      card.className = "card";
+      card.textContent = `子任务 ${i} 一段会参与重排的标题`;
+      list.appendChild(card);
+    }
+    const below = document.querySelector("#below");
+    for (let i = 0; i < 40; i += 1) {
+      const p = document.createElement("p");
+      p.textContent = `下文 ${i}`;
+      below.appendChild(p);
+    }
+    flushSync(() => createRoot(document.querySelector("#styles")).render(createElement(ChatStyles)));
+    const bar = document.querySelector(".bar");
+    const chev = document.querySelector(".chev");
+    const frame = document.querySelector(".frame");
+    const fold = document.querySelector(".fold");
+    window.motion = {
+      contracts() {
+        const frameStyle = getComputedStyle(frame);
+        const chevStyle = getComputedStyle(chev);
+        return {
+          framePosition: frameStyle.position,
+          frameBottom: frameStyle.bottom,
+          chevDuration: chevStyle.transitionDuration,
+          chevProperty: chevStyle.transitionProperty,
+          path: chev.querySelector("path")?.getAttribute("d") || "",
+        };
+      },
+      async play() {
+        const samples = [];
+        const start = performance.now();
+        const below = document.querySelector("#below");
+        const before = below.getBoundingClientRect().top;
+        bar.setAttribute("aria-expanded", "true");
+        fold.setAttribute("data-open", "");
+        const sample = () => {
+          const matrix = new DOMMatrix(getComputedStyle(chev).transform);
+          samples.push(Math.round(Math.atan2(matrix.b, matrix.a) * 180 / Math.PI));
+          if (performance.now() - start < 260) requestAnimationFrame(sample);
+        };
+        requestAnimationFrame(sample);
+        await new Promise((resolve) => setTimeout(resolve, 320));
+        return {
+          samples,
+          cardsNow: document.querySelectorAll("#list .card").length,
+          belowDelta: below.getBoundingClientRect().top - before,
+        };
+      },
+    };
+    window.ready = true;
+  </script>
+</body>
+</html>

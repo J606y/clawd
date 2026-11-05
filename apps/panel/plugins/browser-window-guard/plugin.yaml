@@ -1,0 +1,7 @@
+name: browser-window-guard
+version: 0.1.0
+description: Blocks browser tools that do not register targets. Does not rewrite browser_exec.
+author: Hermes Panel
+enabled: true
+provides_hooks:
+  - pre_tool_call

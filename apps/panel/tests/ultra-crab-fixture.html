@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ultra 螃蟹回归（合成数据）</title>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="module">
+    import { createElement as h, useEffect, useState } from "react";
+    import { createRoot } from "react-dom/client";
+    import "/src/react/styles/index.css";
+    import { ChatStyles } from "/src/react/pages/chat/chat-styles.tsx";
+    import { EffortPicker } from "/src/react/pages/chat/pickers.tsx";
+
+    function App() {
+      const [effort, setEffort] = useState("medium");
+      useEffect(() => { window.fixtureReady = true; }, []);
+      return h("div", { className: "hp-chat", style: { minHeight: "100vh" } },
+        h(ChatStyles),
+        h("div", { className: "fixture-anchor", style: { position: "absolute", right: "24px", bottom: "24px" } },
+          h(EffortPicker, {
+            model: "grok-4.7",
+            stored: effort,
+            sessionId: "ultra-crab-fixture",
+            onChange: (level) => {
+              window.actions = [...(window.actions || []), level];
+              setEffort(level);
+            },
+          })));
+    }
+    window.actions = [];
+    window.fixtureErrors = [];
+    window.addEventListener("error", (event) => window.fixtureErrors.push(event.message));
+    window.addEventListener("unhandledrejection", (event) => window.fixtureErrors.push(String(event.reason)));
+    createRoot(document.getElementById("root")).render(h(App));
+  </script>
+</body>
+</html>

@@ -112,7 +112,7 @@ def _current_session_key() -> str:
 
 
 def _current_session_profile() -> str:
-    """Active session's Hermes profile name, or "" (same lookup discipline as
+    """Active session's clawd profile name, or "" (same lookup discipline as
     :func:`_current_session_key`)."""
     from gateway.session_context import get_session_env
 

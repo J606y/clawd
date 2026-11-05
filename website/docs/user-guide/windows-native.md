@@ -7,6 +7,12 @@ sidebar_position: 3
 
 # Windows (Native) Guide
 
+<!-- clawd-docs-note -->
+:::warning Not this checkout
+The installers, packages, and download links on this page are upstream Hermes Agent. They do not install clawd. This checkout does not publish an installer URL. From this checkout, run `./clawd`. Setup spelling is `clawd setup`. `clawd` refuses `update`, `desktop`, `dashboard`, `gui`, and `webapp`. The web UI here is `clawd panel`.
+:::
+
+
 Hermes runs natively on Windows 10 and Windows 11 — no WSL, no Cygwin, no Docker. This page is the deep dive: what works natively, what's WSL-only, what the installer actually does, and the Windows-specific knobs you might need to touch.
 
 If you just want to install, the one-liner on the [landing page](../index.mdx) or [Installation page](../getting-started/installation#windows-native) is all you need. Come back here when something surprises you.

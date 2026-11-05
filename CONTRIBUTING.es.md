@@ -1,5 +1,7 @@
 # Contribuir a Hermes Agent
 
+> **El nombre del producto en este checkout es clawd, no clawed.** El texto siguiente sigue describiendo el proceso de contribución del repositorio upstream [NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent). No declara un repositorio, un sitio ni un contacto de seguridad de clawd. La licencia y el copyright permanecen en `LICENSE` (MIT, Copyright (c) 2025 Nous Research). Los comandos `hermes` y `HERMES_HOME` de esta guía son el proceso upstream o identificadores de compatibilidad; el comando del producto está en el README raíz como `clawd`.
+
 ¡Gracias por contribuir a Hermes Agent! Esta guía cubre todo lo que necesitas: configurar tu entorno de desarrollo, entender la arquitectura, decidir qué construir y conseguir que tu PR sea aceptado.
 
 ---

@@ -4,6 +4,12 @@ sidebar_position: 5
 
 # Connecting Desktop to Many Hermes Instances
 
+<!-- clawd-docs-note -->
+:::warning Not a clawd product
+clawd does not ship official Desktop, the official web dashboard, or the commands `desktop`, `gui`, `webapp`, and `dashboard`. This page documents upstream Hermes Agent. The web UI in this checkout is `clawd panel`.
+:::
+
+
 Register every Hermes backend you own — the local runtime, remote gateways on
 your LAN or VPS, SSH hosts, and Hermes Cloud instances — in one desktop app,
 and use the agents on all of them side by side. Every registered gateway is

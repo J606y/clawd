@@ -1,4 +1,4 @@
-"""``hermes connectors`` subcommand parser."""
+"""``clawd connectors`` subcommand parser."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ def build_connectors_parser(subparsers) -> None:
 
     parser = subparsers.add_parser(
         "connectors", help="Manage hosted app connectors and their accounts",
-        description="List, connect, rename and remove the app accounts Hermes uses through Nous Portal.")
+        description="List, connect, rename and remove the app accounts clawd uses through Nous Portal.")
     actions = parser.add_subparsers(dest="connectors_action")
 
     actions.add_parser("list", aliases=["ls"], help="Show every connector and whether it is connected")

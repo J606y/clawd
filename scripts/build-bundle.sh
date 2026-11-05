@@ -10,6 +10,9 @@
 # Windows has its own script: scripts/build-bundle.ps1.
 set -euo pipefail
 
+echo "refused: clawd does not build the official desktop app. This entry is unsupported." >&2
+exit 2
+
 variant=bundled
 while [ $# -gt 0 ]; do
   case "$1" in

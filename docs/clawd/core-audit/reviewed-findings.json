@@ -1,0 +1,680 @@
+{
+  "meta": {
+    "reviewer": "独立复核",
+    "model": "grok-4.7",
+    "method": "只读源码与工作区 SDK 源码；未运行测试、构建、导入、探针，未改产品",
+    "baseline": "c314285f077e91937c995d419b9fa40af9eb4981",
+    "not_run": true,
+    "kernel_safe": false,
+    "third_party_not_judged": true,
+    "note": "不宣布全内核安全。第三方依赖未覆盖不等于安全。子代理自报不是复现。",
+    "observed_hashes": {
+      "agent/turn_facade.py": "3adf4fab31987213890ec9b2841a66e4942998c4ccd235b09307767557c53c1e",
+      "gateway/session_api_turn.py": "f03d140bf5e14f341e3bd0de6b3b5e368161ba1d69aa780e250cea001896b190",
+      "gateway/platforms/api_server.py": "b95284ed570ea9f3ed4f0218af12eff91891373a32a93f60f89658b43ba839de",
+      "gateway/platforms/api_server_runs.py": "554cb28b411b323fab038d4f24dedc7e4876b7266f2044bc5f3730e528fa122b",
+      "clawd_server/effort_service.py": "8cd685880f82709654679de6e99dac558e7735b9c7dc85fa16c92fcc2aec2d98",
+      "hermes_cli/projects_db.py": "57e9f8aa1214bf074f9160cdff0eed4442980af5d623a622aa113b6772b37714",
+      "clawd_projects/service.py": "8855d47d650886c91d90440025f31ee617f662749f316ceb45c052057f174130",
+      "agent/conversation_compression.py": "796494d28180659f2843599420840832e1f528ecad2110b498a59f53e34e6bcb",
+      "gateway/clawd_continuation.py": "300f059641a218a78bf8be30fe7a1e4e162f44053b3105efe0bfc78341bbe476",
+      "gateway/clawd_continuation_admit.py": "57e699c2ce583fa8f1d024442a5da01be3d1524ce906d16e4357132ee0a35282"
+    },
+    "drift": "sa-0-da9d9384 可能再改 turn_facade.py、turn_facade_lease.py、project_memory.py。sa-1-958bc94b 可能再改 hermes_state_subagents.py、clawd_runtime_routes.py、sidecar 投影。本报告不把这些文件的旧快照升格。结论绑定上表哈希；哈希再变则对应项待稳定复核，未轮询。"
+  },
+  "active": [
+    {
+      "id": "ctx-commit-fail",
+      "status": "仍成立",
+      "severity": "高",
+      "confidence": "确定",
+      "title": "压缩提交失败仍换提示并继续打模型，轮换失败会清空 flush 基线",
+      "locations": [
+        "agent/conversation_compression.py:4198-4239",
+        "agent/conversation_compression.py:3434",
+        "agent/conversation_compression.py:3590-3591",
+        "agent/conversation_compression.py:3708-3739",
+        "agent/conversation_compression.py:2140-2145",
+        "agent/turn_preflight.py:147-191",
+        "agent/turn_overflow.py:154-178",
+        "tools/mcp_tool_agent.py:190-194"
+      ],
+      "description": "提示重建和工具刷新在 _commit_compaction 之前。失败时 compacted_in_place 保持 False，_finish 仍把它写入 _last_compression_attempt_in_place。conversation_history_after_compression 因此返回 None。预检和 overflow 只在同一列表且 lock/transient 时推迟；失败路径不设这些标志，列表对象又被原地回滚，于是当成压缩完成并继续打模型。返回的是新建 system prompt。工具 schema 有变化时 pin 已写会话行。轮换失败时回滚拷贝没有持久化标记，基线 None 会使未标记行再 INSERT。",
+      "trigger": "in-place 的 archive_and_compact 在提交标记前抛错，或 rotation 的 publish_compression_child / 继承在切换 session_id 前失败。",
+      "fix": "先提交；session_commit_succeeded 为假时把 _last_compression_attempt_in_place 设回 None，恢复旧 prompt，不调用工具刷新。调用方在未提交时走 lock-skip 推迟，不要 continue 打模型。\nagent._last_compression_attempt_in_place = None\nreturn messages, previous_system_prompt",
+      "static_note": "只读消费链。未运行。继承基线附近代码，不以旧 bug 排除。",
+      "origin": ["context.md#3.1"],
+      "code_generation": "继承"
+    },
+    {
+      "id": "appr-fifo",
+      "status": "仍成立",
+      "severity": "高",
+      "confidence": "确定",
+      "title": "不带 request_id 的同意按 FIFO 放行另一条待决命令",
+      "locations": [
+        "tools/approval.py:165-166",
+        "tools/approval.py:915-919",
+        "plugins/platforms/telegram/adapter.py:4768",
+        "plugins/platforms/feishu/adapter.py:2385",
+        "plugins/platforms/qqbot/adapter.py:704",
+        "plugins/platforms/teams/adapter.py:657",
+        "plugins/platforms/matrix/adapter.py:2549",
+        "plugins/platforms/whatsapp_cloud/adapter.py:930",
+        "plugins/platforms/slack/adapter.py:5628",
+        "gateway/relay/adapter.py:2056",
+        "gateway/slash_commands.py:1218",
+        "gateway/platforms/api_server_runs.py:1453-1454"
+      ],
+      "description": "resolve_gateway_approval 无 request_id 时弹出最旧项。上述按钮和 /approve 不传 request_id。旧 API 分支在无 session_authority 时 request_id 可缺，且 resolve_all 可一次同意。Discord 传了 request_id，不在此列。斜杠门禁未配置 allow_admin_from 时每个人都是 admin。",
+      "trigger": "同一会话有两条未合并的待决审批。用户点较新卡片的 once，或发送 /approve。无 authority 的旧 API 缺 request_id 时同样消费最旧项。",
+      "fix": "按钮必须带创建时的 request_id。无 id 时仅队列长度为 1 才允许。\ncount = resolve_gateway_approval(session_key, choice, request_id=request_id)\nif count != 1: return already_resolved",
+      "static_note": "只读调用点。未运行。旧 API 分支是否现网可达未探测，分支本身存在。",
+      "origin": ["approval.md#高-FIFO"],
+      "code_generation": "继承；api_server_runs.py 为脏文件，审批行已按当前哈希重读"
+    },
+    {
+      "id": "prov-redirect",
+      "status": "仍成立",
+      "severity": "高",
+      "confidence": "确定",
+      "title": "Anthropic 兼容客户端跟随重定向并带走 X-Api-Key",
+      "locations": [
+        "agent/anthropic_adapter.py:385-397",
+        ".venv anthropic/_base_client.py:909",
+        ".venv anthropic/_client.py:366",
+        ".venv httpx/_client.py:552-556"
+      ],
+      "description": "build_anthropic_client 的共享 kwargs 不注入 follow_redirects=False。SDK 默认客户端 follow_redirects=True，并把密钥放在 X-Api-Key。httpx 0.28.1 跨源只删除 Authorization，不删除 X-Api-Key。这是工作区 venv 源码，未发请求。OpenAI 注入成功时默认不跟随；构造失败回落未在本次逐行再证，不并入已确认项。",
+      "trigger": "配置的 Anthropic 兼容 base_url 返回指向另一 origin 的 301/302/307/308。",
+      "fix": "kwargs['http_client'] = httpx.Client(timeout=..., follow_redirects=False, trust_env=False)",
+      "static_note": "SDK 证据来自工作区 .venv 源码，不是现场请求。密钥值不写入报告。",
+      "origin": ["provider.md#高-重定向"],
+      "code_generation": "继承"
+    },
+    {
+      "id": "bg-receipt",
+      "status": "仍成立",
+      "severity": "高",
+      "confidence": "确定",
+      "title": "续跑回执写在 create_task 返回时，早于回合结束",
+      "locations": [
+        "gateway/clawd_continuation_admit.py:122-133",
+        "gateway/clawd_continuation.py:317-331"
+      ],
+      "description": "admit 在 create_task(_go) 后立刻返回 run_id。_apply 随后 add_receipts 并删 request。_go 不看 result['completed']，异常以外把 run 标成 completed。回执含义是已排队，不是回合成功。崩溃后通知已被消费。turn_facade_lease 的等待失败返回值正被另一路修改，不把该文件旧行号升格为当前故障；admit 自身不检查 completed 已足够。",
+      "trigger": "回执写入后进程退出；或 _run_agent 返回 completed 为假。无 authority 时没有另一套账本重跑。",
+      "fix": "回执改到终态且 result 明确成功之后。失败则 release，不 add_receipts。\nif not isinstance(result, dict) or result.get('completed') is False:\n    raise ContinuationAdmitError('continuation_not_completed')",
+      "static_note": "只读顺序。未运行交错。本轮未跟踪续跑代码。",
+      "origin": ["background.md#高-回执"],
+      "code_generation": "本轮未跟踪"
+    },
+    {
+      "id": "bg-lease",
+      "status": "仍成立",
+      "severity": "高",
+      "confidence": "确定",
+      "title": "续跑 claim 失败直接返回，不排下一次评估",
+      "locations": [
+        "gateway/clawd_continuation.py:310-311"
+      ],
+      "description": "claim 失败时 _apply 直接 return，不 call_later。busy/draining 才会 _schedule。这一轮抢不到租约就不会自己再评估，除非另有通知、run 终态或重启。未把 journal 内部租约秒数当已复现的线上丢失。",
+      "trigger": "完成通知已持久化，本轮 claim 因他人持有或未过期租约失败，之后没有新事件。",
+      "fix": "对方仍活则 schedule 到 lease_expires_at；对方已死且能比对进程起始时间再抢。不要 return 后不管。",
+      "static_note": "只读 _apply。未运行。journal 死进程判定细节未逐行再证，不单独升格。",
+      "origin": ["background.md#高-死租约"],
+      "code_generation": "本轮未跟踪"
+    },
+    {
+      "id": "bg-pid",
+      "status": "仍成立",
+      "severity": "高",
+      "confidence": "确定",
+      "title": "续跑把仍存在的 PID 当成可复用旧 run 并写回执",
+      "locations": [
+        "gateway/clawd_continuation_admit.py:136-146",
+        "gateway/clawd_continuation_admit.py:166-167"
+      ],
+      "description": "_reusable 对别的 pid 只要求进程存在，不比 owner_started。幂等库 reserve 存了 owner_started，这条路径没有用。复用成功就返回旧 run_id，调用方接着写回执，不再 _launch。",
+      "trigger": "续跑行停在非终态，原进程已死，内核把同一 pid 分给无关进程，随后评估走到 reused。",
+      "fix": "复用必须 pid 存在且 start time 一致。对不上则不要写 receipt。",
+      "static_note": "缺 start time 比对是源码事实。未观察线上 PID 复用。",
+      "origin": ["background.md#高-PID"],
+      "code_generation": "本轮未跟踪"
+    },
+    {
+      "id": "bg-stop",
+      "status": "仍成立",
+      "severity": "高",
+      "confidence": "确定",
+      "title": "停止打不中续跑回合",
+      "locations": [
+        "gateway/clawd_continuation_admit.py:100-133",
+        "gateway/platforms/api_server_runs.py:1574-1580"
+      ],
+      "description": "_launch 不注册 _active_run_agents，不传 request_id。无 authority 时 stop 只有 agent 非空才 request_hard_interrupt，不取消 _active_run_tasks。身份分裂是确定的。两个 admission 是否双执行未跑，不升格。",
+      "trigger": "对续跑 run id 调用 POST /v1/runs/{id}/stop，且走无 authority 分支或 authority 找不到对应 admission。",
+      "fix": "kwargs['request_id']=spec['request_key']；把 agent 放进 _active_run_agents[run_id]。agent 为空时取消该 task。找不到 admission 不得假装已停止。",
+      "static_note": "只读。双执行标为未证实。api_server_runs.py 哈希 554cb28b。",
+      "origin": ["background.md#高-停止"],
+      "code_generation": "本轮未跟踪 + 脏 runs 文件已重读"
+    },
+    {
+      "id": "bg-human",
+      "status": "仍成立",
+      "severity": "高",
+      "confidence": "确定",
+      "title": "已发射的续跑不再服从更新的人话",
+      "locations": [
+        "gateway/clawd_continuation.py:312-320",
+        "gateway/clawd_continuation_admit.py:95-128"
+      ],
+      "description": "claim 后同步再决策一次，然后 await admit。_go 里不再 decide。回执也不因新人话撤销。",
+      "trigger": "评估已决定 admit 之后、_go 进入模型之前，插入 id 更晚的人话。",
+      "fix": "在 _go 内、_run_agent 前再 decide。action 不是 admit 则 release，不写 receipt。",
+      "static_note": "只读。未测量事件循环窗口宽度。",
+      "origin": ["background.md#高-人话"],
+      "code_generation": "本轮未跟踪"
+    },
+    {
+      "id": "stor-s1",
+      "status": "仍成立",
+      "severity": "高",
+      "confidence": "确定",
+      "title": "按 session_id 找不到 owner 时写入环境库",
+      "locations": [
+        "gateway/session_persistence.py:241-246",
+        "gateway/session_persistence.py:203-209"
+      ],
+      "description": "_db_for_session_id 用索引或 hint 找 key，找不到就 _db_for_key(None)，回到 self._db 或 multiplex 启动库。按 key 的路径在 profile home 失败时拒绝回落，按 id 没有这条拒绝。",
+      "trigger": "多 profile 进程用会话 id 读写，该 id 尚未进入 _entries，hint 也没有。",
+      "fix": "未知归属必须失败，不能回落 self._db。\nif key is None and profile_home is None:\n    raise RuntimeStoreError('session_id has no profile-scoped owner')",
+      "static_note": "只读。未打开 state.db。项目库条件释放另见 rechecked，不并入本项。",
+      "origin": ["storage.md#S1"],
+      "code_generation": "继承"
+    },
+    {
+      "id": "stor-s3",
+      "status": "仍成立",
+      "severity": "高",
+      "confidence": "确定",
+      "title": "重写在没有库时返回成功",
+      "locations": [
+        "gateway/session_transcript.py:549-551"
+      ],
+      "description": "文档字符串写明没有 DB 也返回 True。真实异常返回 False。调用方会把没写当成已替换。",
+      "trigger": "rewrite_transcript 的 _db_for_session_id 得到空。",
+      "fix": "if not db: return False",
+      "static_note": "只读。未运行。",
+      "origin": ["storage.md#S3"],
+      "code_generation": "继承"
+    },
+    {
+      "id": "stor-s4",
+      "status": "仍成立",
+      "severity": "高",
+      "confidence": "确定",
+      "title": "/branch 吞掉复制失败后仍切换，条数来自内存",
+      "locations": [
+        "gateway/slash_commands_session.py:1263-1281"
+      ],
+      "description": "create_session 已提交。append_messages_batch 被 suppress(Exception) 包住。随后 switch_session。回复条数来自内存 history，不来自数据库。",
+      "trigger": "复制中途忙、外键、满盘或块失败。",
+      "fix": "复制失败则不要 switch_session；报告数据库行数；不要 suppress(Exception)。",
+      "static_note": "只读。未运行。",
+      "origin": ["storage.md#S4"],
+      "code_generation": "继承"
+    },
+    {
+      "id": "exec-cli-history",
+      "status": "仍成立",
+      "severity": "中",
+      "confidence": "确定",
+      "title": "CLI 异常用空 messages 覆盖内存历史",
+      "locations": [
+        "hermes_cli/cli_chat_turn_mixin.py:365-370",
+        "hermes_cli/cli_chat_turn_mixin.py:500-501"
+      ],
+      "description": "run_conversation 抛 Exception 时 result['messages'] 为 []，随后覆盖 conversation_history。不再由 effort 两参数调用强制触发。KeyboardInterrupt 不进这个 except。",
+      "trigger": "对话 CLI 的 agent 线程里 run_conversation 抛出任意 Exception。",
+      "fix": "\"messages\": list(self.conversation_history)",
+      "static_note": "只读。未运行。文件哈希 aad4a245 稳定。",
+      "origin": ["execution.md#2"],
+      "code_generation": "继承"
+    },
+    {
+      "id": "exec-stop-window",
+      "status": "仍成立",
+      "severity": "中",
+      "confidence": "确定",
+      "title": "旧 API 停在创建 agent 期间停不住执行线程",
+      "locations": [
+        "gateway/platforms/api_server_runs.py:1159-1199",
+        "gateway/platforms/api_server_runs.py:1574-1580",
+        "gateway/platforms/api_server.py:3265-3274"
+      ],
+      "description": "1159 在创建 agent 前看一次停止位。创建期间到达的 stop 因 agent 尚未登记而不硬停，创建返回后也不再读停止位。断线且 agent 为空时只 task.cancel()。有 authority 的停走 stop_run，不在本窗口。api_server.py 哈希已变，断线函数行号仍在 3265，文件可能再漂。",
+      "trigger": "session_authority 为空，停或断线落在已过 1159、agent 尚未写入 _active_run_agents 之间。",
+      "fix": "创建 agent 后、run_conversation 前再读 _stopping_run_ids。命中则硬停并 _finish('cancelled')。不要依赖 task.cancel() 停 worker。",
+      "static_note": "只读当前行。未运行。runs 哈希 554cb28b。",
+      "origin": ["execution.md#3"],
+      "code_generation": "脏文件已重读，不是旧快照"
+    },
+    {
+      "id": "prov-prefix",
+      "status": "仍成立",
+      "severity": "中",
+      "confidence": "确定",
+      "title": "已闭合的 tool 参数前缀被补括号后执行",
+      "locations": [
+        "agent/chat_completion_helpers.py:3262-3273",
+        "agent/chat_completion_helpers.py:3334-3355",
+        "agent/message_sanitization.py:193-227",
+        "agent/turn_tool_validation.py:167-236",
+        "agent/transports/chat_completions.py:780-781"
+      ],
+      "description": "有 finish_reason 且 JSON 非法时会修复。修复结果不是 {} 就写回参数，has_truncated 保持假。校验只拒绝仍然非法且结尾不是 }/] 的参数。args_repaired 只进指标，不挡执行。未闭合字符串被 _rebalance_json_closers 拒绝，不在本项。本项是字符串已闭合、缺的是括号或后续键，补全后合法 JSON 会被执行。",
+      "trigger": "流在 finish_reason 已给出时停在已闭合值之后，例如 {\"command\":\"ls\",\"n\":1 缺最后的 }。",
+      "fix": "JSONDecodeError 一律 has_truncated_tool_args = True，不要把前缀修成可执行参数。",
+      "static_note": "只读到校验与指标。未运行。原报告的缩短命令字符串触发不成立，见误报。",
+      "origin": ["provider.md#高-补括号"],
+      "code_generation": "继承"
+    },
+    {
+      "id": "prov-empty",
+      "status": "仍成立",
+      "severity": "中",
+      "confidence": "确定",
+      "title": "有结束原因且参数为空时被改成 {} 并执行",
+      "locations": [
+        "agent/chat_completion_helpers.py:3282-3285",
+        "agent/turn_tool_validation.py:167-168"
+      ],
+      "description": "空参数只在 finish_reason is None 时标截断。有结束原因时参数保持空串，校验把空串改成 {} 并继续。哪些网关会发出这种 chunk 未证实，代码放行是确定的。降为中：副作用取决于工具是否接受空对象。",
+      "trigger": "兼容端点给出 tool 名和 finish_reason，arguments 为空。",
+      "fix": "参数去空白后为空时，无论 finish_reason 都设 has_truncated_tool_args = True。校验层不要把空串升级成可执行对象。",
+      "static_note": "只读。未运行。",
+      "origin": ["provider.md#高-空参数"],
+      "code_generation": "继承"
+    },
+    {
+      "id": "prov-redact",
+      "status": "仍成立",
+      "severity": "中",
+      "confidence": "确定",
+      "title": "SDK error.body 字典路径不脱敏",
+      "locations": [
+        "agent/api_error_summary.py:217-221",
+        "agent/api_error_summary.py:248",
+        "agent/api_error_summary.py:257-259"
+      ],
+      "description": "response.text 路径会 redact。body 为 dict 时 221 行直接返回 message 前 300 字。248 行回落同样不脱敏。掩码保留前 8 后 4。上游是否回显密钥未证实，缺调用是确定的。",
+      "trigger": "代理在 error.message 中回显 Authorization 或密钥。",
+      "fix": "221 与 248 返回前调用 redact_sensitive_text。日志掩码改为全 ***。",
+      "static_note": "只读。未运行。",
+      "origin": ["provider.md#高-脱敏"],
+      "code_generation": "继承"
+    },
+    {
+      "id": "inp-media",
+      "status": "仍成立",
+      "severity": "中",
+      "confidence": "确定",
+      "title": "媒体外发默认不严格",
+      "locations": [
+        "hermes_cli/config_defaults.py:2212"
+      ],
+      "description": "gateway.strict 默认 false。注释写明非严格模式只套拒绝名单。这不是路径穿越，也不把同用户可写 home 升成任意远程高危。公开平台上，回复中的 MEDIA: 绝对路径可变成外发。base.py 消费函数本次未逐行重读，默认值与注释是确定的。",
+      "trigger": "入站内容诱导模型写出 MEDIA:/拒绝名单之外的绝对路径，且网关会把该路径当媒体发送。",
+      "fix": "对非 loopback 网关默认 strict true，或由部署显式关闭。",
+      "static_note": "只读默认值。未运行。",
+      "origin": ["input-security.md#1"],
+      "code_generation": "继承"
+    },
+    {
+      "id": "inp-origin",
+      "status": "仍成立",
+      "severity": "中",
+      "confidence": "可能",
+      "title": "面板省略端口匹配任意 Host 端口",
+      "locations": [
+        "clawd_server/auth.py:239-242",
+        "clawd_server/auth.py:275-280",
+        "clawd_server/server.py:277-281"
+      ],
+      "description": "http/80 与 https/443 被记成无端口。任一侧无端口则 _ports_compatible 为真。通过后的 /panel-api 注入 Bearer。server.py 哈希已变，注入仍在 281。loopback 限制利用面。不升成远程高危。",
+      "trigger": "用户已登录；浏览器打开同主机默认端口页面；面板监听非默认端口。",
+      "fix": "比较前把省略端口还原成 scheme 默认端口。无法还原则拒绝。",
+      "static_note": "只读。未发请求。server.py 可能再漂。",
+      "origin": ["input-security.md#2"],
+      "code_generation": "本轮未跟踪"
+    },
+    {
+      "id": "appr-parallel",
+      "status": "仍成立",
+      "severity": "中",
+      "confidence": "确定",
+      "title": "写审批返回前，启动顺序已经推进",
+      "locations": [
+        "agent/tool_executor.py:743-748",
+        "tools/file_tools.py:873-876"
+      ],
+      "description": "_advance_start_order 在 execute 之前。SSH 等写审批在 write_file_tool 内部。被挡住的写本身不在同意前落盘；同一段里后一个不重叠工具可以先开始。未把规划器分段再逐行证明，控制流足够说明顺序门早于写审批。",
+      "trigger": "同一条助手消息里，需要写审批的 write_file 与另一个不依赖它的工具被放进同一执行段。",
+      "fix": "写审批在 _advance_start_order 之前完成。未同意不得推进顺序。",
+      "static_note": "只读。未运行，不声称某次写入已经发生。",
+      "origin": ["approval.md#中-并行"],
+      "code_generation": "继承"
+    },
+    {
+      "id": "appr-tui",
+      "status": "仍成立",
+      "severity": "中",
+      "confidence": "可能",
+      "title": "TUI 审批接受任意非 deny，且可 all",
+      "locations": [
+        "tui_gateway/methods_prompt.py:1350-1354",
+        "tui_gateway/server.py:729-731",
+        "tools/approval.py:855-861",
+        "tools/approval.py:915-919"
+      ],
+      "description": "处理器把 choice 原样送入队列，all 变成 resolve_all。grant 把除 None 和 deny 以外的字符串当成同意。缺省 choice 是 deny，所以缺省本身不放行。外层连接是否只接受本机会话持有者，本次未读完分发器，因此不把这条升成远程高危。处理器自身没有 execution_generation。",
+      "trigger": "已连接客户端发送 choice 为 yes 或 all 为真，且该会话有待决项。",
+      "fix": "choice 只允许 once/session/always/deny，且必须带 request_id。all 不由单卡回包携带。响应经 check_approval_generation。",
+      "static_note": "methods_prompt 与 tui server 哈希已变，行号按本次读取。可能再漂。未运行。",
+      "origin": ["approval.md#高-任意choice", "approval.md#中-TUI身份"],
+      "code_generation": "脏文件已重读"
+    },
+    {
+      "id": "bg-busy",
+      "status": "仍成立",
+      "severity": "中",
+      "confidence": "确定",
+      "title": "续跑 busy/draining 会计入尝试次数",
+      "locations": [
+        "gateway/clawd_continuation.py:317-327"
+      ],
+      "description": "record_attempt 在 admit 之前。busy/draining 再记一次并 schedule。尝试耗尽后的 receipt 逻辑未在本次把阈值函数逐行重读，加次本身是确定的。",
+      "trigger": "网关并发顶满或 draining，续跑被连续拒绝。",
+      "fix": "busy/draining 不要增加 attempts，只 schedule。",
+      "static_note": "只读。未运行。",
+      "origin": ["background.md#中-并发拒绝"],
+      "code_generation": "本轮未跟踪"
+    },
+    {
+      "id": "nat-environ",
+      "status": "仍成立",
+      "severity": "中",
+      "confidence": "可能",
+      "title": "never-free environ 按完整 NAME=value 无界保留",
+      "locations": [
+        "hermes_bootstrap.py:373-386"
+      ],
+      "description": "lines 以完整 NAME=value 为键，不淘汰。这是缓冲区留存，不是 UAF。网关是否每个会话写新 HERMES_SESSION_ID，本次未重读 session_context.py，所以触发面为可能。glibc 版本门未重读。",
+      "trigger": "该安装函数生效，且进程反复把同一名字设成新值。",
+      "fix": "按名字复用一块缓冲区，给历史上限。不能在仍可能被 getenv 读取时 free。",
+      "static_note": "只读。未运行。不把 Python 留存说成 C UAF。",
+      "origin": ["native-safety.md#1"],
+      "code_generation": "继承"
+    },
+    {
+      "id": "stor-s5",
+      "status": "仍成立",
+      "severity": "中",
+      "confidence": "确定",
+      "title": "state_meta 盖章失败后替换检测保持关闭",
+      "locations": [
+        "hermes_state.py:1219-1220"
+      ],
+      "description": "sqlite3.Error 只 debug 后返回。异常若发生在写入 _db_file_application_id 之前，记录值保持 0，替换检测按 0 放行。同 inode 覆盖是否已经写坏文件，未运行，不升成已发生损坏。",
+      "trigger": "打开时 state_meta 或 application_id 遇到锁、满盘或 I/O 错误。",
+      "fix": "盖章失败必须拒绝写入，不能把 0 当成尚未 checkpoint。",
+      "static_note": "只读控制流。物理损坏需验证，不计入已复现。",
+      "origin": ["storage.md#S5"],
+      "code_generation": "继承"
+    },
+    {
+      "id": "stor-s6",
+      "status": "仍成立",
+      "severity": "中",
+      "confidence": "确定",
+      "title": "close 失败后仍清空代际身份",
+      "locations": [
+        "hermes_state.py:1581-1585"
+      ],
+      "description": "先把 _conn 置空，再安静关闭，然后无条件清空 _db_sidecar_identity。注释写只有干净关闭才结束代际，代码没有这条判断。关闭失败后描述符是否仍占旧 WAL，未运行。",
+      "trigger": "Connection.close() 抛错。",
+      "fix": "关闭失败则把连接放回句柄并抛出，不要清空代际身份。",
+      "static_note": "只读。未运行。",
+      "origin": ["storage.md#S6"],
+      "code_generation": "继承"
+    },
+    {
+      "id": "stor-s2",
+      "status": "仍成立",
+      "severity": "中",
+      "confidence": "可能",
+      "title": "同 session_id 的进程索引不带 profile",
+      "locations": [
+        "gateway/session_persistence.py:233-236"
+      ],
+      "description": "扫描 _entries 返回第一个 session_id 相等的 key。两个 profile 真的生成同一个 id 的频率未证实。没有碰撞时 S1 仍独立成立。",
+      "trigger": "一个进程的索引同时放多个 profile，且 id 相撞或两条路由指向同一 id。",
+      "fix": "索引键改为 (profile, session_id)。重定向只更新同一 profile。",
+      "static_note": "控制流确定，碰撞频率需验证，故置信度可能。未运行。",
+      "origin": ["storage.md#S2"],
+      "code_generation": "继承"
+    },
+    {
+      "id": "stor-s7",
+      "status": "仍成立",
+      "severity": "中",
+      "confidence": "确定",
+      "title": "/branch 按 500 行分块提交",
+      "locations": [
+        "gateway/slash_commands_session.py:1263-1269"
+      ],
+      "description": "调用点写明 chunk_rows=500，注释承认分块事务。块与块之间没有同一个事务。append_messages_batch 函数体本次未重读，调用契约足够说明不是一次提交。",
+      "trigger": "历史超过 500 行，进程在下一块前提交前崩溃或后一块失败。",
+      "fix": "未完成复制不得被路由引用。不要让调用方把已提交的块再插一遍。",
+      "static_note": "只读调用点。未运行。",
+      "origin": ["storage.md#S7"],
+      "code_generation": "继承"
+    },
+    {
+      "id": "prov-unknown",
+      "status": "仍成立",
+      "severity": "低",
+      "confidence": "确定",
+      "title": "未知 provider 被改写成 chat_completions",
+      "locations": [
+        "hermes_cli/providers.py:473-482"
+      ],
+      "description": "文档写明未知名字落到 chat_completions。目的地仍是操作者配置的 base_url，不是把密钥送到未配置的第三方。风险是协议不匹配时响应被按 Chat 工具调用解释。不升成密钥外泄高危。",
+      "trigger": "配置或插件给出未注册 provider，同时带了 base_url 和密钥。",
+      "fix": "未注册 transport 返回显式错误。只有操作者显式写出 api_mode 才发请求。",
+      "static_note": "只读。未运行。",
+      "origin": ["provider.md#高-未知provider"],
+      "code_generation": "继承"
+    }
+  ],
+  "fixed": [
+    {
+      "id": "exec-effort",
+      "status": "已修复",
+      "severity": "高",
+      "confidence": "确定",
+      "title": "租约回合不再调用缺准入证明的 commit_deferred_effort",
+      "locations": [
+        "agent/turn_facade.py:125-209",
+        "gateway/session_api_turn.py:618-619",
+        "gateway/session_api_turn.py:645-650",
+        "gateway/session_api_turn.py:665-692",
+        "gateway/platforms/api_server_runs.py:879-891",
+        "clawd_server/effort_service.py:502-507"
+      ],
+      "description": "当前 turn_facade 没有 commit_deferred_effort。唯一调用在 session_api_turn，传入 authority.db、authority、admission_held=True，并持有 keyed_turn('clawd-admission:'+logical) 与 live.mutation_lock。提交后、释放前把 reasoning_effort 写入快照。执行中由 effort_service 拒绝且不写。无 authority 时返回 None，回合继续，pin 不提交；这不是旧的必失败。CLI 不走这条准入，不把旧两参数快照当成当前故障。",
+      "trigger": "不再适用。旧触发是每个成功租约回合。",
+      "fix": "无需按旧报告删除调用。若 turn_facade 哈希离开 3adf4fab，须重读，该文件正被另一路修改。",
+      "static_note": "亲读当前函数。未运行。session_api_turn 哈希 f03d140b 下提交段与先前读取一致。",
+      "origin": ["execution.md#1"],
+      "code_generation": "本轮代码已去掉错误调用"
+    }
+  ],
+  "false_positive": [
+    {
+      "id": "inp-auth-bool",
+      "status": "误报",
+      "severity": "高",
+      "confidence": "确定",
+      "title": "当前 aiohttp 的 4xx Response 不为假",
+      "locations": [
+        ".venv aiohttp/web_response.py:651-652",
+        "gateway/platforms/api_server.py:773",
+        "gateway/platforms/api_server.py:801",
+        "gateway/platforms/api_server.py:3326"
+      ],
+      "description": "StreamResponse.__bool__ 返回 True，文件中只有这一处。Response 继承它。if auth_err 对 401 响应为真，会返回该响应。effort 路由注释说 Response 可能为假，与这份 aiohttp 不符。不把路由文件漂移说成绕过已出现。",
+      "trigger": "不成立于当前工作区 aiohttp。",
+      "fix": "不必为这份 aiohttp 改真值判断。升级 aiohttp 后须重读 __bool__。",
+      "static_note": "只读 venv 源码，未导入。",
+      "origin": ["input-security.md#3"],
+      "code_generation": "SDK 证据否定"
+    },
+    {
+      "id": "prov-short-string",
+      "status": "误报",
+      "severity": "高",
+      "confidence": "确定",
+      "title": "未闭合字符串不会被补成缩短命令并执行",
+      "locations": [
+        "agent/message_sanitization.py:199-200",
+        "agent/message_sanitization.py:225-226",
+        "agent/message_sanitization.py:281-285",
+        "agent/chat_completion_helpers.py:3270-3273",
+        "agent/turn_tool_validation.py:183-203"
+      ],
+      "description": "以 {\"command\":\"rm -rf /tmp/foo 这种未闭合字符串结束时，重平衡返回 None，修复返回 {}。装配不把 {} 写回参数，只标截断。校验看到非法且结尾不是 }/] 就拒绝执行。原报告该触发不成立。已闭合前缀仍见活跃项 prov-prefix。",
+      "trigger": "原报告示例不可达。",
+      "fix": "不要按该示例派修。仍应拒绝一切修复后的前缀，见 prov-prefix。",
+      "static_note": "只读修复器与校验。未运行。",
+      "origin": ["provider.md#高-补括号"],
+      "code_generation": "继承"
+    }
+  ],
+  "unverified": [
+    {"id": "appr-auto", "origin": "approval.md#中-默认同意", "reason": "分支 1211-1216 存在，未找到具体内部调用者。"},
+    {"id": "appr-timeout", "origin": "approval.md#低-超时窗口", "reason": "未重读等待出队函数。"},
+    {"id": "appr-grace", "origin": "approval.md#低-3秒", "reason": "未重读 tool_executor 952 一带。"},
+    {"id": "ctx-positional", "origin": "context.md#3.2", "reason": "未重读 _pair_tool_calls_positionally 函数体。"},
+    {"id": "ctx-skill-id", "origin": "context.md#3.3", "reason": "未重读 tail 降级，也未对照 Codex 行。"},
+    {"id": "inp-empty-key", "origin": "input-security.md#4", "reason": "未重读启动门禁与请求路径的组合。"},
+    {"id": "inp-webhook-v1", "origin": "input-security.md#5", "reason": "webhook.py 哈希与原报告一致，函数体未重读。"},
+    {"id": "inp-password", "origin": "input-security.md#6", "reason": "未重读哈希函数。同用户读 auth.json 不升格。"},
+    {"id": "inp-lazy", "origin": "input-security.md#7", "reason": "未重读该默认项。"},
+    {"id": "prov-drip", "origin": "provider.md#高-滴流", "reason": "未重读 stream_max_lifetime 默认与看门狗。不沿用高危自报。"},
+    {"id": "prov-pool", "origin": "provider.md#中-连接池", "reason": "未重读 process_bootstrap 超限分支。"},
+    {"id": "prov-cancel", "origin": "provider.md#中-取消落空", "reason": "未重读套接字出现前的 abort。"},
+    {"id": "prov-url", "origin": "provider.md#中-危险URL", "reason": "操作者 base_url 指向本机是信任边界。构造失败回落未逐行再证。"},
+    {"id": "prov-retry", "origin": "provider.md#中-重试叠乘", "reason": "未重试次数与上游副作用都未再证。"},
+    {"id": "prov-name", "origin": "provider.md#中-tool名", "reason": "未重读分片合并。"},
+    {"id": "prov-finish-error", "origin": "provider.md#中-finish_reason", "reason": "未重读错误提升门闩。"},
+    {"id": "prov-jitter", "origin": "provider.md#低-抖动", "reason": "未重读退避参数。"},
+    {"id": "bg-plan", "origin": "background.md#中-计划闸门", "reason": "未重读 gates 默认值。"},
+    {"id": "bg-window", "origin": "background.md#中-300条", "reason": "未重读租约键与消息窗。"},
+    {"id": "bg-approval-key", "origin": "background.md#中-审批键", "reason": "键不一致原报告已述。绕过宽度未再证，不升格。"},
+    {"id": "bg-swallow", "origin": "background.md#低-吞异常", "reason": "未重读 wake.py 异常路径。"},
+    {"id": "bg-claim-true", "origin": "background.md#低-无账本", "reason": "未重读 claim 缺行返回值。"},
+    {"id": "bg-sidecar", "origin": "background.md#低-sidecar", "reason": "未重读脚本 main。绑定路径不在本次升格。"},
+    {"id": "nat-peek", "origin": "native-safety.md#2", "reason": "看到传入 c_void_p 实例且未设 argtypes。未读到 CPython ConvParam，不能把对象地址或截断写成确定。"},
+    {"id": "nat-console", "origin": "native-safety.md#3", "reason": "同一 ctypes 约定缺 C 源证据。"},
+    {"id": "nat-cuda", "origin": "native-safety.md#4", "reason": "未重读硬件探测。"},
+    {"id": "nat-job", "origin": "native-safety.md#5", "reason": "restype 截断后 x64 是否符号扩展，缺调用约定证据。"},
+    {"id": "nat-cf", "origin": "native-safety.md#6", "reason": "未重读 darwin_pci。"},
+    {"id": "nat-pe", "origin": "native-safety.md#7", "reason": "未重读 PE 长度检查。"},
+    {"id": "nat-close", "origin": "native-safety.md#8", "reason": "未重读 CloseHandle 宽度。"},
+    {"id": "stor-s8", "origin": "storage.md#S8", "reason": "未重读 switch_session 落索引顺序。"},
+    {"id": "stor-s9", "origin": "storage.md#S9", "reason": "未重读 rollback 异常与 FTS executescript 组合。"},
+    {"id": "stor-a1", "origin": "storage.md#A1", "reason": "未重读生图 connect。同用户可写 home 不升格。"}
+  ],
+  "rechecked": [
+    {
+      "id": "proj-release",
+      "status": "不新开活跃问题",
+      "title": "条件释放的位置参数是期望项目",
+      "locations": [
+        "hermes_cli/projects_db.py:619-636",
+        "hermes_cli/projects_db.py:673-675",
+        "clawd_projects/service.py:248-290",
+        "clawd_projects/migration.py:1225-1240",
+        "clawd_projects/migration.py:1793-1812"
+      ],
+      "description": "expected_write_token 路径把 project_id 交给 _release_if。空项目拒绝。DELETE 同时比较 session、project、write_token。NULL 不等于给定 token，不会删。缺 token 走 bind_unproven 或 rollback_unproven，不按项目 id 解绑。service 仍声明跨库不是一个事务。不把 None 当成条件释放的通配。不扩大到产品集成。"
+    }
+  ],
+  "mapping": [
+    {"origin": "execution.md#1", "status": "已修复", "id": "exec-effort"},
+    {"origin": "execution.md#2", "status": "仍成立", "id": "exec-cli-history"},
+    {"origin": "execution.md#3", "status": "仍成立", "id": "exec-stop-window"},
+    {"origin": "approval.md#高-FIFO", "status": "仍成立", "id": "appr-fifo"},
+    {"origin": "approval.md#高-任意choice", "status": "仍成立", "id": "appr-tui"},
+    {"origin": "approval.md#中-TUI身份", "status": "仍成立", "id": "appr-tui"},
+    {"origin": "approval.md#中-并行", "status": "仍成立", "id": "appr-parallel"},
+    {"origin": "approval.md#中-默认同意", "status": "需验证", "id": "appr-auto"},
+    {"origin": "approval.md#低-超时窗口", "status": "需验证", "id": "appr-timeout"},
+    {"origin": "approval.md#低-3秒", "status": "需验证", "id": "appr-grace"},
+    {"origin": "context.md#3.1", "status": "仍成立", "id": "ctx-commit-fail"},
+    {"origin": "context.md#3.2", "status": "需验证", "id": "ctx-positional"},
+    {"origin": "context.md#3.3", "status": "需验证", "id": "ctx-skill-id"},
+    {"origin": "input-security.md#1", "status": "仍成立", "id": "inp-media"},
+    {"origin": "input-security.md#2", "status": "仍成立", "id": "inp-origin"},
+    {"origin": "input-security.md#3", "status": "误报", "id": "inp-auth-bool"},
+    {"origin": "input-security.md#4", "status": "需验证", "id": "inp-empty-key"},
+    {"origin": "input-security.md#5", "status": "需验证", "id": "inp-webhook-v1"},
+    {"origin": "input-security.md#6", "status": "需验证", "id": "inp-password"},
+    {"origin": "input-security.md#7", "status": "需验证", "id": "inp-lazy"},
+    {"origin": "provider.md#高-补括号", "status": "误报触发；残留仍成立", "id": "prov-short-string/prov-prefix"},
+    {"origin": "provider.md#高-空参数", "status": "仍成立", "id": "prov-empty"},
+    {"origin": "provider.md#高-重定向", "status": "仍成立", "id": "prov-redirect"},
+    {"origin": "provider.md#高-未知provider", "status": "仍成立", "id": "prov-unknown"},
+    {"origin": "provider.md#高-滴流", "status": "需验证", "id": "prov-drip"},
+    {"origin": "provider.md#高-脱敏", "status": "仍成立", "id": "prov-redact"},
+    {"origin": "provider.md#中-连接池", "status": "需验证", "id": "prov-pool"},
+    {"origin": "provider.md#中-取消落空", "status": "需验证", "id": "prov-cancel"},
+    {"origin": "provider.md#中-危险URL", "status": "需验证", "id": "prov-url"},
+    {"origin": "provider.md#中-重试叠乘", "status": "需验证", "id": "prov-retry"},
+    {"origin": "provider.md#中-tool名", "status": "需验证", "id": "prov-name"},
+    {"origin": "provider.md#中-finish_reason", "status": "需验证", "id": "prov-finish-error"},
+    {"origin": "provider.md#低-抖动", "status": "需验证", "id": "prov-jitter"},
+    {"origin": "background.md#高-回执", "status": "仍成立", "id": "bg-receipt"},
+    {"origin": "background.md#高-死租约", "status": "仍成立", "id": "bg-lease"},
+    {"origin": "background.md#高-PID", "status": "仍成立", "id": "bg-pid"},
+    {"origin": "background.md#高-停止", "status": "仍成立", "id": "bg-stop"},
+    {"origin": "background.md#高-人话", "status": "仍成立", "id": "bg-human"},
+    {"origin": "background.md#中-并发拒绝", "status": "仍成立", "id": "bg-busy"},
+    {"origin": "background.md#中-计划闸门", "status": "需验证", "id": "bg-plan"},
+    {"origin": "background.md#中-300条", "status": "需验证", "id": "bg-window"},
+    {"origin": "background.md#中-审批键", "status": "需验证", "id": "bg-approval-key"},
+    {"origin": "background.md#低-吞异常", "status": "需验证", "id": "bg-swallow"},
+    {"origin": "background.md#低-无账本", "status": "需验证", "id": "bg-claim-true"},
+    {"origin": "background.md#低-sidecar", "status": "需验证", "id": "bg-sidecar"},
+    {"origin": "native-safety.md#1", "status": "仍成立", "id": "nat-environ"},
+    {"origin": "native-safety.md#2", "status": "需验证", "id": "nat-peek"},
+    {"origin": "native-safety.md#3", "status": "需验证", "id": "nat-console"},
+    {"origin": "native-safety.md#4", "status": "需验证", "id": "nat-cuda"},
+    {"origin": "native-safety.md#5", "status": "需验证", "id": "nat-job"},
+    {"origin": "native-safety.md#6", "status": "需验证", "id": "nat-cf"},
+    {"origin": "native-safety.md#7", "status": "需验证", "id": "nat-pe"},
+    {"origin": "native-safety.md#8", "status": "需验证", "id": "nat-close"},
+    {"origin": "storage.md#S1", "status": "仍成立", "id": "stor-s1"},
+    {"origin": "storage.md#S2", "status": "仍成立", "id": "stor-s2"},
+    {"origin": "storage.md#S3", "status": "仍成立", "id": "stor-s3"},
+    {"origin": "storage.md#S4", "status": "仍成立", "id": "stor-s4"},
+    {"origin": "storage.md#S5", "status": "仍成立", "id": "stor-s5"},
+    {"origin": "storage.md#S6", "status": "仍成立", "id": "stor-s6"},
+    {"origin": "storage.md#S7", "status": "仍成立", "id": "stor-s7"},
+    {"origin": "storage.md#S8", "status": "需验证", "id": "stor-s8"},
+    {"origin": "storage.md#S9", "status": "需验证", "id": "stor-s9"},
+    {"origin": "storage.md#A1", "status": "需验证", "id": "stor-a1"}
+  ]
+}

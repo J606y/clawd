@@ -8,9 +8,7 @@
 // with every commit (commit, its date, the dirty flag, the build clock) is
 // expected to differ; anything else (branch, payload, update mechanism, tag,
 // channel, version strings) changes the shipped app and means "build".
-import { readFileSync } from 'node:fs'
 import { join, resolve } from 'node:path'
-import { parseArgs } from 'node:util'
 import { pathToFileURL } from 'node:url'
 import { isMain } from './frontend-common.mjs'
 
@@ -26,8 +24,6 @@ export async function stampDrift({ source, baked, env = process.env, platform = 
 }
 
 if (isMain(import.meta.url)) {
-  const { values } = parseArgs({ options: { source: { type: 'string' }, baked: { type: 'string' } } })
-  if (!values.source || !values.baked) throw new Error('--source and --baked are required')
-  const baked = JSON.parse(readFileSync(values.baked, 'utf8'))
-  console.log(JSON.stringify(await stampDrift({ source: values.source, baked })))
+  console.error('refused: clawd does not reuse or rebuild the official desktop app. This entry is unsupported.')
+  process.exit(2)
 }

@@ -1,4 +1,4 @@
-"""``hermes login`` subcommand parser."""
+"""``clawd login`` subcommand parser."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ def build_login_parser(subparsers, *, cmd_login: Callable) -> None:
     """Attach the deprecated ``login`` subcommand (handler only prints a deprecation notice).
 
     Kept registered so old scripts get the actionable message instead of argparse's
-    ``invalid choice``. Registered WITHOUT ``help=`` so it is omitted from ``hermes --help``
+    ``invalid choice``. Registered WITHOUT ``help=`` so it is omitted from ``clawd --help``
     (``help=SUPPRESS`` leaks ``==SUPPRESS==`` for top-level subparsers on 3.12+). ``--provider``
     takes ANY value (no ``choices=``) so the handler is reached rather than argparse erroring.
 
@@ -18,14 +18,14 @@ def build_login_parser(subparsers, *, cmd_login: Callable) -> None:
     """
     login_parser = subparsers.add_parser(
         "login",
-        description="Deprecated. Use `hermes auth` to manage credentials, "
-            "`hermes model` to select a provider, or `hermes setup` for full setup.")
+        description="Deprecated. Use `clawd auth` to manage credentials, "
+            "`clawd model` to select a provider, or `clawd setup` for full setup.")
     # No ``choices=`` on purpose — the handler is a deprecation notice that
     # ignores the value, and a restrictive list would reject providers the user
     # legitimately wants (e.g. ``anthropic``) with an argparse error before the
     # friendly redirect message is ever printed.
     login_parser.add_argument(
-        "--provider", default=None, help="(deprecated) Provider name; ignored — see `hermes model`")
+        "--provider", default=None, help="(deprecated) Provider name; ignored — see `clawd model`")
     login_parser.add_argument("--portal-url", help="Portal base URL (default: production portal)")
     login_parser.add_argument(
         "--inference-url", help="Inference API base URL (default: production inference API)")

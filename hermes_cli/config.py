@@ -2685,9 +2685,13 @@ def _managed_source(filename: str):
     return (managed_dir / filename) if managed_dir else "the managed scope"
 
 
-def save_env_value(key: str, value: str):
+def save_env_value(key: str, value: str, *, publish: bool = True):
     """Save or update a value in ~/.hermes/.env (also matching ``export KEY=`` lines, so a save
-    never appends a second line that a later delete would resurrect)."""
+    never appends a second line that a later delete would resurrect).
+
+    ``publish=False`` writes only that profile file. It does not assign ``os.environ``,
+    which is shared by every thread. The CLI default still publishes.
+    """
     if _env_write_blocked(key, "set"):
         return
     validate_env_var_name_for_write(key)
@@ -2709,7 +2713,8 @@ def save_env_value(key: str, value: str):
             lines.append(f"{key}={serialized_value}\n")
 
         _write_env_lines(env_path, lines, preserve_mode=env_path.exists())
-    _publish_env_value(key, value)
+    if publish:
+        _publish_env_value(key, value)
     invalidate_env_cache()
 
 
@@ -2722,15 +2727,19 @@ def custom_endpoint_key_env(identity: str) -> str:
     return f"HERMES_CUSTOM_{slug}_API_KEY" if slug else "HERMES_CUSTOM_API_KEY"
 
 
-def remove_env_value(key: str) -> bool:
-    """Remove a key from ~/.hermes/.env and os.environ; True if it was found and removed."""
+def remove_env_value(key: str, *, publish: bool = True) -> bool:
+    """Remove a key from ~/.hermes/.env; True if it was found and removed.
+
+    ``publish=False`` does not pop the name from ``os.environ``. The CLI default still does.
+    """
     if _env_write_blocked(key, "remove"):
         return False
     if not _ENV_VAR_NAME_RE.match(key):
         raise ValueError(f"Invalid environment variable name: {key!r}")
     env_path = get_env_path()
     if not env_path.exists():
-        _publish_env_value(key, None)
+        if publish:
+            _publish_env_value(key, None)
         return False
 
     with _env_write_lock(env_path):
@@ -2739,7 +2748,8 @@ def remove_env_value(key: str) -> bool:
         found = len(new_lines) < len(lines)
         if found:
             _write_env_lines(env_path, new_lines, preserve_mode=True)
-    _publish_env_value(key, None)
+    if publish:
+        _publish_env_value(key, None)
     invalidate_env_cache()
     return found
 

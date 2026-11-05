@@ -170,6 +170,8 @@ def restore_local_session(authority, sid):
         raise
     except (KeyError, TypeError, ValueError, AttributeError) as exc:
         # The client only sees the bounded code: gateway.log names the check that refused (#140099).
+        # An unset model is not one of these refusals: restore_policy accepts JSON null.
+        # Do not widen this wrap to cover a missing credential.
         logging.getLogger(__name__).warning('Local session %s receipt refused: %s', sid, _refused_check(exc))
         if isinstance(exc, RuntimeStoreError):
             raise _ReceiptRefused(exc.reason, field=exc.field, detail=exc.detail) from exc

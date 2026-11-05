@@ -85,7 +85,8 @@ class TestSubprocessEnvironment:
 
     def test_subprocess_env_replaces_parent_python_import_paths(self, monkeypatch):
         """#83427/#84841/#86006/#86104: an inherited PYTHONPATH/PYTHONHOME must never reach the
-        harness child; PYTHONPATH is replaced by the harness's own site dir, unrelated vars survive."""
+        harness child. Vendor src is the first PYTHONPATH entry and the harness site dir stays
+        second; parent import paths are dropped, unrelated vars survive."""
         monkeypatch.setattr(bs, "build_browser_env", lambda: {
             "PYTHONPATH": "/hermes:/hermes/venv/lib/site-packages",
             "PYTHONHOME": "/hermes/venv",
@@ -94,8 +95,15 @@ class TestSubprocessEnvironment:
         monkeypatch.setattr(bu_cli, "_harness_site_dir", lambda: "/harness-site")
 
         env = bu_cli._base_subprocess_env()
+        parts = env["PYTHONPATH"].split(os.pathsep)
+        vendor = str(bu_cli.verify_vendor_tree())
 
-        assert env["PYTHONPATH"] == "/harness-site"
+        assert parts == [vendor, "/harness-site"]
+        assert parts[0] == vendor
+        assert parts[1] == "/harness-site"
+        assert vendor != "/harness-site"
+        assert "/hermes" not in parts
+        assert "/hermes/venv/lib/site-packages" not in parts
         assert "PYTHONHOME" not in env
         assert env["KEEP_ME"] == "yes"
 

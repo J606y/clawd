@@ -12,13 +12,13 @@ description: "A recurring prompt that re-enters your current session whenever it
 /heartbeat every 10m Check the deployment and report meaningful changes
 ```
 
-Inspired by Prime-Agent's `/heartbeat`. The Hermes adaptation keeps the strict message-flow invariants: the heartbeat is injected only between turns (never mid-run), as a plain user-role message.
+Inspired by Prime-Agent's `/heartbeat`. The clawd adaptation keeps the strict message-flow invariants: the heartbeat is injected only between turns (never mid-run), as a plain user-role message.
 
 ## Heartbeat vs cron: which one do I want?
 
 They look similar but serve different jobs:
 
-| | `/heartbeat` | [`hermes cron`](./cron) |
+| | `/heartbeat` | [`clawd cron`](./cron) |
 |---|---|---|
 | Runs in | **This conversation** — full context, memory of the discussion | A fresh isolated session per tick |
 | Survives process restart | State survives (SessionDB); gateway watches resume automatically after restart | Yes — fully durable scheduler |

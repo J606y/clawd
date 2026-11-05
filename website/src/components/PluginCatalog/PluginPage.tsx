@@ -79,7 +79,7 @@ export default function PluginPage({ data }: { data: PluginPageData }) {
     : null;
   const added = formatDate(plugin.addedAt);
   const updated = formatDate(plugin.updatedAt);
-  const metaDescription = (prose || plugin.description || `${plugin.name} — a Hermes Agent plugin`).slice(0, 160);
+  const metaDescription = (prose || plugin.description || `${plugin.name} — a clawd plugin`).slice(0, 160);
 
   return (
     <Layout title={`${plugin.name} · Plugin Catalog`} description={metaDescription}>
@@ -247,7 +247,7 @@ export default function PluginPage({ data }: { data: PluginPageData }) {
                 {plugin.version && <Fact label="Version"><code>{plugin.version}</code></Fact>}
                 {plugin.subdir && <Fact label="Path in repo"><code>{plugin.subdir}</code></Fact>}
                 <Fact label="Requires">
-                  <code>hermes {plugin.requiresHermes || "(any version)"}</code>
+                  <code>clawd {plugin.requiresHermes || "(any version)"}</code>
                 </Fact>
                 <Fact label="Platforms">
                   {plugin.platforms?.length ? plugin.platforms.map(platformLabel).join(", ") : "Linux, macOS, Windows"}

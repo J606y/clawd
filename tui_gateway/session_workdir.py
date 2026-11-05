@@ -645,7 +645,8 @@ def _ensure_session_db_row(session: dict) -> bool:
             _schedule_row_git_meta(session, key, db)
         except Exception as exc:
             # Disk-full is not a soft failure: swallowed here, prompt.submit returns {"status":"streaming"} and the
-            # message vanishes silently.
+            # message vanishes silently. Project inheritance is not soft either: the child row rolled back.
+            _reraise_project_inheritance(exc)
             _workdir_reraise_disk_full(exc, "failed to persist desktop session row")
     return True
 
@@ -662,6 +663,13 @@ def _schedule_row_git_meta(session: dict, key: str, db) -> None:
     cwd = str(row.get("cwd") or "").strip()
     if cwd and not (row.get("git_branch") and row.get("git_repo_root")):
         _persist_session_cwd_and_schedule_git_meta(session, cwd, db=db)
+
+
+def _reraise_project_inheritance(exc: BaseException) -> None:
+    """A binding failure is not a transient store error and must not be swallowed."""
+    from clawd_projects.inheritance import ProjectInheritanceError
+    if isinstance(exc, ProjectInheritanceError):
+        raise exc
 
 
 def _workdir_reraise_disk_full(exc: BaseException, log_msg: str) -> None:
@@ -709,6 +717,7 @@ def _persist_branch_seed(session: dict) -> None:
                 sync_flushed_message_markers(live, seed)
             session["_branch_seed_persisted"] = True
         except Exception as exc:
+            _reraise_project_inheritance(exc)
             _workdir_reraise_disk_full(exc, "branch seed persist failed")
 
 

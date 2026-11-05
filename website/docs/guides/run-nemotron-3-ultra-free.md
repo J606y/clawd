@@ -1,12 +1,12 @@
 ---
 sidebar_position: 0
-title: "Run Nemotron 3 Ultra free in Hermes Agent"
-description: "Try NVIDIA Nemotron 3 Ultra on Nous Portal — free June 4–18 — with day 0 support in Hermes Agent"
+title: "Run Nemotron 3 Ultra free in clawd"
+description: "Try NVIDIA Nemotron 3 Ultra on Nous Portal — free June 4–18 — with day 0 support in clawd"
 ---
 
-# Run Nemotron 3 Ultra free in Hermes Agent
+# Run Nemotron 3 Ultra free in clawd
 
-Nous Research has been inducted into the **Nemotron Coalition** of leading AI labs working with **NVIDIA** to advance open frontier foundation models. In honor of this, we've partnered with **Nebius** to provide **Nemotron 3 Ultra** free on [Nous Portal](https://portal.nousresearch.com) for two weeks (**June 4th – June 18th**). Follow the instructions below to try the model in your Hermes Agent today.
+Nous Research has been inducted into the **Nemotron Coalition** of leading AI labs working with **NVIDIA** to advance open frontier foundation models. In honor of this, we've partnered with **Nebius** to provide **Nemotron 3 Ultra** free on [Nous Portal](https://portal.nousresearch.com) for two weeks (**June 4th – June 18th**). Follow the instructions below to try the model in your clawd today.
 
 :::info Limited-time offer
 The `nvidia/nemotron-3-ultra:free` tier is available from **June 4th to June 18th**. The `:free` tag is what keeps it on the no-cost plan — pick that exact variant.
@@ -44,11 +44,12 @@ Click **Start chatting**. That's it — you're talking to Nemotron 3 Ultra, free
 
 Prefer the terminal?
 
-### 1. Install Hermes Agent
+### 1. Upstream installer, not clawd
 
 On macOS/Linux/WSL2/Android, run
 
 ```bash
+# Upstream Hermes Agent installer. Not clawd.
 curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash
 ```
 
@@ -69,10 +70,10 @@ source ~/.bashrc   # or source ~/.zshrc
 ### 2. Run Quick Setup
 
 ```bash
-hermes setup
+clawd setup
 ```
 
-Select **Quick Setup**. Hermes opens a browser tab and waits for you to finish the next steps.
+Select **Quick Setup**. clawd opens a browser tab and waits for you to finish the next steps.
 
 ### 3. Create a Nous Portal account
 
@@ -80,7 +81,7 @@ In the browser, create a [Nous Portal](https://portal.nousresearch.com) account 
 
 ### 4. Connect your account
 
-When prompted to connect your account to Hermes Agent, click **Connect**. You'll see a confirmation once it's linked.
+When prompted to connect your account to clawd, click **Connect**. You'll see a confirmation once it's linked.
 
 ### 5. Select the free Nemotron 3 Ultra model
 
@@ -97,7 +98,7 @@ The `:free` tag is what keeps it on the no-cost tier, so make sure you pick that
 Complete the remaining Quick Setup prompts, then run:
 
 ```bash
-hermes
+clawd
 ```
 
 That's it — you're talking to Nemotron 3 Ultra, free.
@@ -111,13 +112,13 @@ Already set up with another model?
 
 ## Troubleshooting
 
-- **Don't see the model in the list?** Make sure you finished the Nous Portal connection and that you're on the **Free** plan. In the CLI, `hermes portal info` confirms you're logged in and routing through Nous.
+- **Don't see the model in the list?** Make sure you finished the Nous Portal connection and that you're on the **Free** plan. In the CLI, `clawd portal info` confirms you're logged in and routing through Nous.
 - **Picked the wrong variant?** Re-select `nvidia/nemotron-3-ultra:free` — the `:free` suffix is required to stay on the no-cost tier.
 - **Browser didn't open / you're on a remote host (CLI)?** See [OAuth over SSH / Remote Hosts](./oauth-over-ssh.md) for port-forwarding workarounds.
 
 ## See also
 
 - **[Desktop App](../user-guide/desktop.md)** — The native one-click app (macOS, Windows, Linux)
-- **[Run Hermes Agent with Nous Portal](./run-hermes-with-nous-portal.md)** — Full Portal walkthrough: models, Tool Gateway, and verification
+- **[Run clawd with Nous Portal](./run-hermes-with-nous-portal.md)** — Full Portal walkthrough: models, Tool Gateway, and verification
 - **[Nous Portal integration](../integrations/nous-portal.md)** — What's in the subscription
 - **[Quickstart](../getting-started/quickstart.md)** — Install-to-chat in under 5 minutes

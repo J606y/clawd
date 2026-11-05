@@ -1,16 +1,16 @@
-# Hermes Agent - Development Guide
+# clawd - Development Guide
 
-For AI coding assistants and developers working on hermes-agent. This root file is a hub: what
+For AI coding assistants and developers working on clawd. This root file is a hub: what
 applies everywhere, then a routing table. Each area's `AGENTS.md` loads automatically when you work
 in that directory; read it before editing there. `python scripts/check` caps this file at 12k chars
 and every root-to-area chain at 30k, so it loads whole on 128k+ models: long form goes in the guide.
 
 **Never give up on the right solution.**
 
-## What Hermes Is
+## What clawd Is
 
-Hermes is a personal AI agent that runs the same agent core across a CLI, a messaging
-gateway (Telegram, Discord, Slack, ~20 platforms), a TUI, and an Electron desktop app. It
+clawd is a personal AI agent that runs the same agent core across a CLI, a messaging
+gateway (Telegram, Discord, Slack, ~20 platforms), and a TUI. It
 learns across sessions (memory + skills), delegates to subagents, runs scheduled jobs, and
 drives a real terminal and browser. It is extended primarily through **plugins and skills**,
 not by growing the core.
@@ -61,7 +61,7 @@ unreachable otherwise).
 ## Development Environment
 
 `source ./activate` (fish: `activate.fish`, PowerShell: `activate.ps1`) provisions and activates the
-PM environment; pick an isolated `HERMES_HOME`/`HERMES_RUNTIME_DIR` first
+PM environment; pick an isolated `CLAWD_HOME` first
 (`website/docs/reference/package-management.md#developer-workflow`). Tests need the separate test
 environment in `CONTRIBUTING.md`. **`python scripts/check`** runs every blocking lint check CI
 runs, with CI's pinned tools; `--install-hook pre-push` runs it on every push (re-run after
@@ -73,7 +73,7 @@ pulling to refresh the hook). `# noqa` does not waive a ratchet finding:
 Counts shift constantly; the filesystem is canonical. Load-bearing entry points:
 
 ```
-hermes-agent/
+clawd/
 ├── run_agent.py          # AIAgent facade; the turn loop lives in agent/turn_*.py
 ├── model_tools.py        # Tool orchestration, discover_builtin_tools(), handle_function_call()
 ├── toolsets.py           # TOOLSETS dict, _HERMES_CORE_TOOLS
@@ -86,8 +86,8 @@ hermes-agent/
 ├── gateway/              # run.py facade + run_*.py phases + session*.py + platforms/
 ├── plugins/              # memory/, context_engine/, model-providers/, kanban/, image_gen/, ...
 ├── skills/               # Built-in skills (by category)   optional-skills/: shipped, not active
-├── ui-tui/, tui_gateway/ # Ink terminal UI + its Python JSON-RPC backend (also serves Desktop)
-├── apps/desktop/         # Electron desktop app (+ apps/shared)   web/: dashboard SPA
+├── ui-tui/, tui_gateway/ # Ink terminal UI + its Python JSON-RPC backend
+├── apps/panel/, apps/shared/ # bound panel and shared UI; no official Desktop
 ├── cron/                 # jobs.py + scheduler.py (+ scheduler_*.py)
 ├── pm/, hermes_platform/ # dependency/environment manager; machine facts + executable lookup
 ├── scripts/              # check, run_tests.sh, code_health/, ci/
@@ -95,7 +95,7 @@ hermes-agent/
 └── tests/                # Pytest suite, mirrors the source tree
 ```
 
-**User state:** `~/.hermes/config.yaml` (settings), `.env` (secrets only), `logs/` (`hermes logs`);
+**User state:** `~/.clawd/config.yaml` (settings), `.env` (secrets only), `logs/` (`clawd logs`);
 all profile-aware via `get_hermes_home()`.
 
 ### Facade + siblings layout
@@ -132,7 +132,7 @@ Every former god file is a **facade** (public entry points + the names other pac
   § Profile scope (HX002/HX004/HX005/HX012, PS-P05/P06).
 - **Machine facts and executable lookup go through `hermes_platform`** (`hermes_platform/AGENTS.md`).
 - **Dependencies carry upper bounds** (`>=floor,<next_major`; git URLs and Actions pinned to a SHA);
-  after editing `pyproject.toml` run `hermes pm lock` and commit `uv.lock`; never mutate a Hermes
+  after editing `pyproject.toml` run `clawd pm lock` and commit `uv.lock`; never mutate a clawd
   environment with raw pip/uv. Full policy: `pm/AGENTS.md`.
 - **TypeScript (desktop, TUI, website):** feature-owned nanostores over threaded state, thin route
   roots, narrow hooks and colocated action modules, `interface` for props and shared shapes,
@@ -157,8 +157,7 @@ Every former god file is a **facade** (public entry points + the names other pac
 | `plugins/`, `hermes_cli/plugins*.py` | `plugins/AGENTS.md` | plugin kinds, native compat contract, in-tree policy |
 | `plugin-catalog/` | `plugin-catalog/README.md` | catalog admission rules (mirrored in the developer guide; keep identical) |
 | `tui_gateway/`, `ui-tui/` | `tui_gateway/AGENTS.md` | process model, JSON-RPC transport, slash flow |
-| `web/`, `hermes_cli/web_routers/` | `web/AGENTS.md` | dashboard embeds the real TUI |
-| `apps/desktop/` | `apps/desktop/AGENTS.md`, `apps/desktop/src/AGENTS.md` | `serve` backend, slash palette, Bot Mode |
+| `hermes_cli/web_routers/` | `hermes_cli/AGENTS.md` | shared routers; no official dashboard |
 | `skills/`, `optional-skills/`, `agent/curator*.py` | `skills/AGENTS.md` | frontmatter, authoring standards, curator |
 | `cron/`, kanban | `cron/AGENTS.md` | scheduler invariants, job fields, kanban dispatcher |
 | `tests/` | `tests/AGENTS.md` | runner, placement, OS markers, `wine2e`, banned test shapes |

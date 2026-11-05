@@ -4,7 +4,7 @@ import type * as Preset from '@docusaurus/preset-classic';
 import relativeDocLinks from './src/remark/relativeDocLinks';
 
 const config: Config = {
-  title: 'Hermes Agent',
+  title: 'clawd',
   tagline: 'The self-improving AI agent',
   favicon: 'img/favicon.ico',
 
@@ -123,9 +123,9 @@ const config: Config = {
       },
     },
     navbar: {
-      title: 'Hermes Agent',
+      title: 'clawd',
       logo: {
-        alt: 'Hermes Agent',
+        alt: 'clawd',
         src: 'img/logo.png',
         srcDark: 'img/logo-dark.png',
       },
@@ -148,7 +148,7 @@ const config: Config = {
         },
         {
           href: 'https://hermes-agent.nousresearch.com/',
-          label: 'Download',
+          label: 'Upstream',
           position: 'left',
         },
         {
@@ -157,7 +157,7 @@ const config: Config = {
         },
         {
           href: 'https://hermes-agent.nousresearch.com',
-          label: 'Home',
+          label: 'Upstream home',
           position: 'right',
         },
         {
@@ -195,7 +195,7 @@ const config: Config = {
         {
           title: 'More',
           items: [
-            { label: 'Desktop Download', href: 'https://hermes-agent.nousresearch.com/' },
+            { label: 'Upstream Desktop', href: 'https://hermes-agent.nousresearch.com/' },
             { label: 'GitHub', href: 'https://github.com/NousResearch/hermes-agent' },
             { label: 'Nous Research', href: 'https://nousresearch.com' },
           ],

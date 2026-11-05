@@ -168,9 +168,9 @@ def _check_sensitive_path(filepath: str, task_id: str = "default") -> str | None
     hermes_config = _get_hermes_config_resolved()
     if hermes_config and hermes_config in candidates:
         return (
-            f"Refusing to write to Hermes config file: {filepath}\n"
+            f"Refusing to write to clawd config file: {filepath}\n"
             "Agent cannot modify security-sensitive configuration. "
-            "Edit ~/.hermes/config.yaml directly or use 'hermes config' instead.")
+            "Edit the config file shown above directly or use 'clawd config' instead.")
     from tools.skill_lock import path_refusal
     if reason := path_refusal(candidates):
         return f"Refusing to write to {filepath}: {reason}"

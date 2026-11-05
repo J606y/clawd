@@ -33,7 +33,7 @@ def _quoted(row, fallback):
     return f'    "{preview}"' if preview else f"    ({fallback} {row['admission_id']})"
 
 
-_UNKNOWN_OUTCOME = ("Hermes couldn't confirm how this turn ended (usually because it restarted mid-turn). "
+_UNKNOWN_OUTCOME = ("clawd couldn't confirm how this turn ended (usually because it restarted mid-turn). "
                     "Resume this session and use the /discard <id> command it shows to drop the turn. "
                     "Don't send the same message again until you've checked.")
 
@@ -52,17 +52,17 @@ def pending_lines(pending, *, interactive=True):
     queued = [row for row in pending if row["status"] == "queued"]
     lines = []
     if len(lost) == 1:
-        lines.append("⏸ This chat is paused. Hermes couldn't confirm how the last turn ended "
+        lines.append("⏸ This chat is paused. clawd couldn't confirm how the last turn ended "
                      "(usually because it restarted mid-turn):")
         if _pending_preview(lost[0].get("text")):
             lines.append(_quoted(lost[0], "lost turn"))
-        lines.append("  Hermes won't re-run it by itself, since it may already have done part of the work.")
+        lines.append("  clawd won't re-run it by itself, since it may already have done part of the work.")
         if interactive:
             lines += ["  To drop it and continue, type:", f"/discard {lost[0]['admission_id']}"]
     elif lost:
-        lines.append(f"⏸ This chat is paused. Hermes couldn't confirm how {len(lost)} turns ended "
+        lines.append(f"⏸ This chat is paused. clawd couldn't confirm how {len(lost)} turns ended "
                      "(usually because it restarted mid-turn):")
-        lines.append("  Hermes won't re-run them by itself, since they may already have done part of the work.")
+        lines.append("  clawd won't re-run them by itself, since they may already have done part of the work.")
         if interactive:
             lines.append("  To continue, drop each one with the /discard line under it:")
         for row in lost:
@@ -96,7 +96,7 @@ class GatewayChatView:
         self.generation = snapshot.get("execution_generation", 0)
         self.prompts = {p["prompt_id"]: p for p in snapshot.get("prompts", [])}
         self.pending = snapshot.get("pending", [])
-        self.model = str((snapshot.get("info") or {}).get("model") or "Hermes").split("/")[-1]
+        self.model = str((snapshot.get("info") or {}).get("model") or "clawd").split("/")[-1]
         # ``--format stream-json``: stdout belongs to the JSONL protocol, so every human line is
         # replaced by an emitter event and the terminal record carries the exit code.
         self.emitter = emitter
@@ -436,7 +436,7 @@ class GatewayChatView:
         self.pending = snapshot.get('pending', [])
         self.model = str((snapshot.get('info') or {}).get('model') or self.model).split('/')[-1]
         if not self.finite:
-            # Bare `hermes -c` in this terminal continues the session it is now on, as the
+            # Bare `clawd -c` in this terminal continues the session it is now on, as the
             # in-process CLI re-wrote its breadcrumb on every session switch.
             from hermes_cli.terminal_breadcrumbs import write_breadcrumb
             await asyncio.to_thread(write_breadcrumb, self.session_id)
@@ -479,7 +479,7 @@ class GatewayChatView:
             self.completions[admission] = {"outcome": "unknown", "text": _UNKNOWN_OUTCOME}
             return None
         if own == "queued" and self.unknown_admissions():
-            return ("This chat is paused behind a turn whose ending Hermes couldn't confirm. "
+            return ("This chat is paused behind a turn whose ending clawd couldn't confirm. "
                     "Your message is saved and will run once you resume this session and /discard "
                     "that turn; don't send it again.")
         if self.prompts and (own or not self.gaps):  # a control blocks only a turn still pending
@@ -523,7 +523,7 @@ class GatewayChatView:
     def _report_no_reply(self, exit_code):
         """`-z` exit 1 (a completed turn with no reply text): the in-process one-shot's stderr line."""
         if self.unattended and exit_code == 1:
-            print("hermes -z: no final response was produced; treating the run as failed.", file=sys.stderr)
+            print("clawd -z: no final response was produced; treating the run as failed.", file=sys.stderr)
 
     def _write_usage_file(self, result, outcome):
         """``-z --usage-file``: the same JSON ledger the in-process one-shot wrote."""
@@ -541,7 +541,7 @@ class GatewayChatView:
         if oneshot and self.unknown_admissions():
             # A new admission would queue behind the unknown row and never run; refuse BEFORE
             # submitting so nothing is left queued for the next interactive resume to find.
-            return self._detach(f"Your message was not sent. To continue, run `hermes sessions discard "
+            return self._detach(f"Your message was not sent. To continue, run `clawd sessions discard "
                                 f"{self.session_id} --yes`, or resume this session in an interactive chat "
                                 "and /discard the paused turn there; then send it again.")
         renderer = asyncio.create_task(self.render())
@@ -597,7 +597,7 @@ class GatewayChatView:
             from prompt_toolkit import PromptSession
             from prompt_toolkit.patch_stdout import patch_stdout
             from hermes_cli.skin_engine import get_active_prompt_symbol, get_active_skin
-            welcome = "Welcome to Hermes Agent! Type your message or /help for commands."
+            welcome = "Welcome to clawd! Type your message or /help for commands."
             print(get_active_skin().get_branding("welcome", welcome), flush=True)
             # The classic status bar's leading segments: model, then the attached session.
             prompt = PromptSession(erase_when_done=True,
@@ -647,4 +647,4 @@ def resume_footer(session_id):
     from hermes_cli.profiles import get_active_profile_name
     profile = get_active_profile_name()
     flag = "" if profile in ("default", "custom") else f" -p {profile}"
-    return f"\n{t('cli.session.exit_resume_hint')}\n  hermes --resume {session_id}{flag}"
+    return f"\n{t('cli.session.exit_resume_hint')}\n  clawd --resume {session_id}{flag}"

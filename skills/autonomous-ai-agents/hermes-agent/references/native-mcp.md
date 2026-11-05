@@ -1,11 +1,11 @@
 # Native MCP Client
 
-Hermes Agent has a built-in MCP client that connects to MCP servers at startup, discovers their tools, and makes them available as first-class tools the agent can call directly. No bridge CLI needed -- tools from MCP servers appear alongside built-in tools like `terminal`, `read_file`, etc.
+clawd has a built-in MCP client that connects to MCP servers at startup, discovers their tools, and makes them available as first-class tools the agent can call directly. No bridge CLI needed -- tools from MCP servers appear alongside built-in tools like `terminal`, `read_file`, etc.
 
 ## When to Use
 
 Use this whenever you want to:
-- Connect to MCP servers and use their tools from within Hermes Agent
+- Connect to MCP servers and use their tools from within clawd
 - Add external capabilities (filesystem access, GitHub, databases, APIs) via MCP
 - Run local stdio-based MCP servers (npx, uvx, or any command)
 - Connect to remote HTTP/StreamableHTTP MCP servers
@@ -36,7 +36,7 @@ mcp_servers:
     args: ["mcp-server-time"]
 ```
 
-Restart Hermes Agent. On startup it will:
+Restart clawd. On startup it will:
 1. Connect to the server
 2. Discover available tools
 3. Register them with the prefix `mcp_time_*`
@@ -91,12 +91,12 @@ Note: A server config must have either `command` (stdio) or `url` (HTTP), not bo
 
 ### Startup Discovery
 
-When Hermes Agent starts, `discover_mcp_tools()` is called during tool initialization:
+When clawd starts, `discover_mcp_tools()` is called during tool initialization:
 
 1. Reads `mcp_servers` from `~/.hermes/config.yaml`
 2. For each server, spawns a connection in a dedicated background event loop
 3. Initializes the MCP session and calls `list_tools()` to discover available tools
-4. Registers each tool in the Hermes tool registry
+4. Registers each tool in the clawd tool registry
 
 ### Tool Naming Convention
 
@@ -115,7 +115,7 @@ Examples:
 
 ### Auto-Injection
 
-After discovery, MCP tools are automatically injected into all `hermes-*` platform toolsets (CLI, Discord, Telegram, etc.). This means MCP tools are available in every conversation without any additional configuration.
+After discovery, MCP tools are automatically injected into all `clawd-*` platform toolsets (CLI, Discord, Telegram, etc.). This means MCP tools are available in every conversation without any additional configuration.
 
 ### Connection Lifecycle
 
@@ -132,7 +132,7 @@ After discovery, MCP tools are automatically injected into all `hermes-*` platfo
 
 ### Stdio Transport
 
-The most common transport. Hermes launches the MCP server as a subprocess and communicates over stdin/stdout.
+The most common transport. clawd launches the MCP server as a subprocess and communicates over stdin/stdout.
 
 ```yaml
 mcp_servers:
@@ -161,7 +161,7 @@ If HTTP support is not available in your installed `mcp` version, the server wil
 
 ### Environment Variable Filtering
 
-For stdio servers, Hermes does NOT pass your full shell environment to MCP subprocesses. Only safe baseline variables are inherited:
+For stdio servers, clawd does NOT pass your full shell environment to MCP subprocesses. Only safe baseline variables are inherited:
 
 - `PATH`, `HOME`, `USER`, `LANG`, `LC_ALL`, `TERM`, `SHELL`, `TMPDIR`
 - Any `XDG_*` variables
@@ -214,14 +214,14 @@ Common causes:
 If the MCP dependencies are damaged, rebuild the recorded environment through PM:
 
 ```bash
-hermes pm repair
+clawd pm repair
 ```
 
 ### Tools not appearing
 
 - Check that the server is listed under `mcp_servers` (not `mcp` or `servers`)
 - Ensure the YAML indentation is correct
-- Look at Hermes Agent startup logs for connection messages
+- Look at clawd startup logs for connection messages
 - Tool names are prefixed with `mcp_{server}_{tool}` -- look for that pattern
 
 ### Connection keeps dropping
@@ -309,7 +309,7 @@ All tools from all servers are registered and available simultaneously. Each ser
 
 ## Sampling (Server-Initiated LLM Requests)
 
-Hermes supports MCP's `sampling/createMessage` capability — MCP servers can request LLM completions through the agent during tool execution. This enables agent-in-the-loop workflows (data analysis, content generation, decision-making).
+clawd supports MCP's `sampling/createMessage` capability — MCP servers can request LLM completions through the agent during tool execution. This enables agent-in-the-loop workflows (data analysis, content generation, decision-making).
 
 Sampling is **enabled by default**. Configure per server:
 
@@ -330,7 +330,7 @@ mcp_servers:
       log_level: "info"       # audit verbosity
 ```
 
-Servers can also include `tools` in sampling requests for multi-turn tool-augmented workflows. The `max_tool_rounds` config prevents infinite tool loops. Hermes does not advertise the extended `sampling.tools` client capability unless `expose_client_tools: true` is set, because some strict MCP servers reject unknown sampling sub-capabilities during initialization. Most servers only need normal sampling; enable `expose_client_tools` only for servers that explicitly support sampling tool callbacks. Per-server audit metrics (requests, errors, tokens, tool use count) are tracked via `get_mcp_status()`.
+Servers can also include `tools` in sampling requests for multi-turn tool-augmented workflows. The `max_tool_rounds` config prevents infinite tool loops. clawd does not advertise the extended `sampling.tools` client capability unless `expose_client_tools: true` is set, because some strict MCP servers reject unknown sampling sub-capabilities during initialization. Most servers only need normal sampling; enable `expose_client_tools` only for servers that explicitly support sampling tool callbacks. Per-server audit metrics (requests, errors, tokens, tool use count) are tracked via `get_mcp_status()`.
 
 Disable sampling for untrusted servers with `sampling: { enabled: false }`.
 

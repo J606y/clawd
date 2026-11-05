@@ -93,7 +93,7 @@ _SUDO_HEADLESS_FAILURES = ("sudo: a password is required", "sudo: no tty present
 
 def _handle_sudo_failure(output: str, env_type: str) -> str:
     """Append a SUDO_PASSWORD tip when sudo failed in a headless context
-    (gateway session, delegate_task child or `hermes chat -q`); otherwise return *output* as is."""
+    (gateway session, delegate_task child or `clawd chat -q`); otherwise return *output* as is."""
     is_gateway = env_var_enabled("HERMES_GATEWAY_SESSION")
     no_user = _no_sudo_user()
     if not (is_gateway or no_user) or not any(f in output for f in _SUDO_HEADLESS_FAILURES):
@@ -440,7 +440,7 @@ def _rewrite_compound_background(command: str) -> str:
 
 
 def _no_sudo_user() -> bool:
-    """A delegated child or a `hermes chat -q` run: nobody can answer a sudo prompt. Single-query only
+    """A delegated child or a `clawd chat -q` run: nobody can answer a sudo prompt. Single-query only
     (not _no_user_can_answer): cron strips HERMES_INTERACTIVE and unattended platforms register no sudo callback."""
     from tools.approval_context import _is_single_query_approval_context
     return _in_delegated_child_context() or _is_single_query_approval_context()

@@ -1,5 +1,5 @@
 {
-  description = "Hermes Agent - AI agent framework by Nous Research";
+  description = "clawd — AI agent framework derived from Hermes Agent by Nous Research";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -45,6 +45,9 @@
         "aarch64-darwin"
       ];
 
+      # Python packaging filter is nix/lib.nix pythonSrc (imported below).
+      # It drops the official web root (web/), apps/desktop, hermes_cli/web_dist,
+      # and in-tree build caches. plugins/web search providers stay.
       imports = [
         ./nix/packages.nix
         ./nix/overlays.nix

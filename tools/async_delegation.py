@@ -183,7 +183,7 @@ def _persist_dispatch(record: dict[str, Any]) -> None:
         owner_started_at = None
     task_payload = {
         key: record.get(key)
-        for key in ("goal", "goals", "context", "toolsets", "role", "model", "is_batch", "task_indexes", "task_transcripts", *_ROUTING_KEYS)
+        for key in ("goal", "goals", "context", "toolsets", "role", "model", "is_batch", "task_indexes", "task_transcripts", "child_links", *_ROUTING_KEYS)
         if key in record}
     try:  # where the children's terminals started; lets recovery add a git-state hint
         task_payload["owner_cwd"] = os.getcwd()
@@ -828,13 +828,62 @@ def active_count() -> int:
 
 
 def active_task_count() -> int:
-    """Number of running child subagents (a batch of N contributes N; a batch with
-    no goal list counts 1) — the truthful observability figure, unlike slots."""
+    """Live child goals in this process, minus children the durable receipt already finished.
+
+    Not the panel global count and not the drain completion-unit count. A ledger
+    that cannot be read does not become 0; the in-process figure is returned and
+    is not a cross-process total.
+    """
     with _records_lock:
-        return sum(
-            len(r.get("task_indexes") or r["goals"])
-            if r.get("is_batch") and isinstance(r.get("goals"), (list, tuple)) and r["goals"] else 1
-            for r in _records.values() if r.get("status") in {"running", "finalizing"})
+        live = [dict(r) for r in _records.values() if r.get("status") in {"running", "finalizing"}]
+    if not live:
+        return 0
+    finished = _durable_finished_sessions([r.get("delegation_id") for r in live if r.get("delegation_id")])
+    total = 0
+    for record in live:
+        links = record.get("child_links") if isinstance(record.get("child_links"), list) else None
+        if links:
+            for link in links:
+                if not isinstance(link, dict):
+                    continue
+                sid = link.get("child_session_id")
+                if isinstance(sid, str) and sid and sid in finished:
+                    continue
+                total += 1
+            continue
+        if record.get("is_batch") and isinstance(record.get("goals"), (list, tuple)) and record["goals"]:
+            total += len(record.get("task_indexes") or record["goals"])
+        else:
+            total += 1
+    return total
+
+
+def _durable_finished_sessions(delegation_ids: list[str]) -> set[str]:
+    if not delegation_ids:
+        return set()
+    try:
+        with _DB_LOCK, _transaction() as conn:
+            marks = ",".join("?" for _ in delegation_ids)
+            rows = conn.execute(
+                f"SELECT result_json FROM async_delegations WHERE delegation_id IN ({marks})",
+                delegation_ids,
+            ).fetchall()
+    except Exception:
+        return set()
+    done: set[str] = set()
+    for (raw,) in rows:
+        try:
+            partial = json.loads(raw) if raw else {}
+        except (TypeError, ValueError):
+            continue
+        for entry in (partial.get("results") if isinstance(partial, dict) else None) or []:
+            if isinstance(entry, dict) and str(entry.get("status") or "").lower() in {
+                "completed", "success", "error", "failed", "interrupted", "cancelled",
+            }:
+                sid = entry.get("child_session_id")
+                if isinstance(sid, str) and sid:
+                    done.add(sid)
+    return done
 
 
 def _session_records(statuses, session_key: str, origin_ui_session_id: str, parent_session_id: str) -> list:
@@ -918,6 +967,7 @@ def _dispatch_admitted(
     progress_fn: Optional[Callable[[], tuple]], capacity_error: str, slot_key: Optional[str] = None,
     task_indexes: Optional[list[int]] = None,
     task_transcripts: Optional[dict[str, str]] = None,
+    child_links: Optional[list[dict[str, Any]]] = None,
 ) -> dict[str, Any]:
     """Shared dispatch core for single (``goals is None``) and batch units. Capacity check +
     record insert happen under ONE lock hold so concurrent dispatches can't both pass the check
@@ -941,6 +991,7 @@ def _dispatch_admitted(
         "interrupt_fn": interrupt_fn, **({"is_batch": True} if is_batch else {}), "progress_fn": progress_fn,
         "slot_key": slot_key or delegation_id,
         **({"task_transcripts": dict(task_transcripts)} if task_transcripts else {}),
+        **({"child_links": list(child_links)} if child_links else {}),
         # Which of the call's ``goals`` this unit runs (None = all of them).
         **({"task_indexes": list(task_indexes)} if task_indexes is not None else {}),
         # The one stale-monitor thread serves every profile and starts with an empty Context;
@@ -1037,6 +1088,7 @@ def dispatch_async_delegation_batch(
     progress_fn: Optional[Callable[[], tuple]] = None, slot_key: Optional[str] = None,
     task_indexes: Optional[list[int]] = None,
     task_transcripts: Optional[dict[str, str]] = None,
+    child_links: Optional[list[dict[str, Any]]] = None,
 ) -> dict[str, Any]:
     """Dispatch a fan-out unit (a whole batch, or one ``group`` of a delegate_task call) as ONE
     background unit: ``runner`` runs its tasks and returns the combined ``{"results": [...],
@@ -1054,7 +1106,7 @@ def dispatch_async_delegation_batch(
         parent_session_id=parent_session_id, runner=runner,
         origin_ui_session_id=origin_ui_session_id, origin_session_id=origin_session_id,
         interrupt_fn=interrupt_fn, max_async_children=max_async_children, progress_fn=progress_fn, slot_key=slot_key,
-        task_indexes=task_indexes, task_transcripts=task_transcripts,
+        task_indexes=task_indexes, task_transcripts=task_transcripts, child_links=child_links,
         capacity_error=(
             f"Async delegation capacity reached ({max_async_children} running). Wait for one to finish "
             "(its result will re-enter the chat), or raise delegation.max_concurrent_children in "

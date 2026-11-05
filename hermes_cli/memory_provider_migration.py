@@ -135,7 +135,7 @@ def _pending_provider(home: Path, *, say: Callable[[str], None]) -> Optional[str
         return None
     if catalog_source(name) is None:
         say(f"  ⚠ Memory provider '{name}' is configured but not installed and not in the plugin catalog. "
-            f"Install it with `hermes plugins install <source>` or change memory.provider.")
+            f"Install it with `clawd plugins install <source>` or change memory.provider.")
         return None
     return name
 
@@ -146,10 +146,12 @@ def _install_command(name: str, home: Path) -> str:
     profile, never the home of the agent (Desktop, gateway, ``hermes -p``) that printed it."""
     from hermes_cli.profiles import get_active_profile
     from hermes_constants import profile_name_for_home
+    import os
     profile = profile_name_for_home(home)
+    cmd = "hermes" if os.environ.get("HERMES_BRAND") == "1" else "clawd"
     if profile is None or (profile == "default" and get_active_profile() == "default"):
-        return f"hermes plugins install {name}"
-    return f"hermes -p {profile} plugins install {name}"
+        return f"{cmd} plugins install {name}"
+    return f"{cmd} -p {profile} plugins install {name}"
 
 
 def _install_pending(home: Path, name: str, *, install: Callable[[str], dict],
@@ -161,7 +163,7 @@ def _install_pending(home: Path, name: str, *, install: Callable[[str], dict],
     if result.get("ok"):
         say(f"  ✓ Memory provider '{name}' moved out of core — installed its plugin from the catalog "
             f"(memory.provider and your stored memories are unchanged; check its settings with "
-            f"`hermes memory status`).")
+            f"`clawd memory status`).")
         return True
     error = str(result.get("error") or "unknown error").rstrip(". ")
     say(f"  ⚠ Memory provider '{name}' moved out of core and could not be installed automatically: "
@@ -274,7 +276,7 @@ def migrate_all_homes(*, say: Callable[[str], None] = print) -> list[str]:
                     break
     except KeyboardInterrupt:
         say("  ⚠ Memory provider migration cancelled. Profiles already migrated keep their plugin; "
-            "run `hermes plugins install <name>` (with `-p <profile>`) for the rest.")
+            "run `clawd plugins install <name>` (with `-p <profile>`) for the rest.")
     return installed
 
 

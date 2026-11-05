@@ -14,7 +14,7 @@ Query and edit a SiYuan knowledge base via its API.
 
 | | |
 |---|---|
-| Source | Optional — install with `hermes skills install official/productivity/siyuan` |
+| Source | Optional — install with `clawd skills install official/productivity/siyuan` |
 | Path | `optional-skills/productivity/siyuan` |
 | Version | `1.0.0` |
 | Author | FEUAZUR |
@@ -26,7 +26,7 @@ Query and edit a SiYuan knowledge base via its API.
 ## Reference: full SKILL.md
 
 :::info
-The following is the complete skill definition that Hermes loads when this skill is triggered. This is what the agent sees as instructions when the skill is active.
+The following is the complete skill definition that clawd loads when this skill is triggered. This is what the agent sees as instructions when the skill is active.
 :::
 
 # SiYuan Note API
@@ -294,7 +294,7 @@ Common `type` values in SQL queries:
 If you prefer a native integration instead of curl, install the SiYuan MCP server:
 
 ```yaml
-# In ~/.hermes/config.yaml under mcp_servers:
+# In ~/.clawd/config.yaml under mcp_servers:
 mcp_servers:
   siyuan:
     command: npx

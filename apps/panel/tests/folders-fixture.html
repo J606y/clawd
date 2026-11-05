@@ -1,0 +1,166 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>folders</title>
+  <style>
+    html, body, #root { margin: 0; height: 100%; }
+    .shell, aside { height: 650px; width: 320px; display: flex; flex-direction: column; min-height: 0; }
+    aside > .session-list { flex: 1; min-height: 0; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script>
+    var list, root, button, input, calls, snapshot, sessions, fillSearch;
+    calls = [];
+    window.failFolder = false;
+    window.failRead = false;
+    const session = (id, title, pinned = false) => ({
+      id, title, pinned, source: "api_server", started_at: 1800000000, last_active: 1800000000,
+      message_count: 1, preview: "fixture", archived: false, model: null,
+    });
+    window.sessions = [session("one", "第一条", true), session("two", "第二条")];
+    const empty = () => ({ projects: [], assignments: {} });
+    window.snapshot = JSON.parse(sessionStorage.getItem("folders-fixture") || "null") || empty();
+    if (!Array.isArray(window.snapshot.projects)) window.snapshot = empty();
+    window.deliveredSessions = [];
+    const remember = (rows) => {
+      const byId = new Map(window.deliveredSessions.map((item) => [item.id, item]));
+      for (const row of rows) byId.set(row.id, row);
+      window.deliveredSessions = [...byId.values()];
+    };
+    const page = (source, offset) => {
+      if (source == null || source === "api_server") {
+        if (offset > 0) return { data: [session("three", "第三条")], has_more: false };
+        return { data: window.sessions, has_more: true };
+      }
+      return { data: [], has_more: false };
+    };
+    window.fetch = async (input, init) => {
+      const raw = typeof input === "string" ? input : (input instanceof URL ? input.href : input.url);
+      const url = new URL(raw, location.href);
+      const method = ((init && init.method) || "GET").toUpperCase();
+      const json = (body, status = 200) => new Response(JSON.stringify(body), {
+        status,
+        headers: { "Content-Type": "application/json" },
+      });
+const PREVIEW_MISSING = {
+  operation: "preview",
+  read_only: true,
+  applied: false,
+  success: true,
+  source_missing: true,
+  source_preserved: true,
+  source_write_attempted: false,
+  guessed_paths: false,
+  cross_db_atomic: false,
+  explicit_project_id_supported: false,
+  archive_frees_path: false,
+  folders: [],
+  http_status: 200,
+  message: "没有旧文件夹库",
+};
+      if (url.pathname.includes("/sessions/folders")) return json({ folders: [], assignments: {} });
+      if (url.pathname.includes("/api/projects/migrations/preview")) return json(PREVIEW_MISSING);
+      if (url.pathname.includes("/files/roots")) return json({ data: [] });
+      if (url.pathname.includes("/api/projects/") && url.pathname.endsWith("/sessions") && method === "GET") {
+        const parts = url.pathname.split("/");
+        const id = decodeURIComponent(parts[parts.length - 2]);
+        if (!window.snapshot.projects.some((item) => item.id === id)) return json({ error: "project_not_found", message: "missing" }, 404);
+        const sessions = Object.entries(window.snapshot.assignments).filter(([, projectId]) => projectId === id).map(([sessionId]) => {
+          const known = window.sessions.find((item) => item.id === sessionId) || { title: sessionId, started_at: 1, last_active: 1, message_count: 0 };
+          return { session_id: sessionId, title: known.title, created_at: known.started_at, last_activity_at: known.last_active, message_count: known.message_count };
+        });
+        return json({ project_id: id, sessions });
+      }
+      if (url.pathname.endsWith("/api/projects") && method === "GET") {
+        if (window.failRead) return json({ error: "fixture read failed", message: "fixture read failed" }, 500);
+        return json({ projects: window.snapshot.projects });
+      }
+      if (url.pathname.endsWith("/api/projects") && method === "POST") {
+        const body = JSON.parse(init.body);
+        window.calls.push(body);
+        if (window.failFolder) return json({ error: "fixture storage failed", message: "fixture storage failed" }, 500);
+        window.snapshot.projects.push({ id: "folder-" + (window.snapshot.projects.length + 1), name: body.name, primary_path: body.primary_path, archived: false, created_at: 1 });
+        sessionStorage.setItem("folders-fixture", JSON.stringify(window.snapshot));
+        return json({ project: window.snapshot.projects[window.snapshot.projects.length - 1] }, 201);
+      }
+      if (url.pathname.includes("/api/projects/") && method === "PATCH") {
+        const id = decodeURIComponent(url.pathname.split("/").pop());
+        const body = JSON.parse(init.body);
+        window.calls.push({ id, ...body });
+        const found = window.snapshot.projects.find((item) => item.id === id);
+        if (!found) return json({ error: "project_not_found", message: "missing" }, 404);
+        if (typeof body.name === "string") found.name = body.name;
+        if (typeof body.archived === "boolean") found.archived = body.archived;
+        sessionStorage.setItem("folders-fixture", JSON.stringify(window.snapshot));
+        return json({ project: found });
+      }
+      if (url.pathname.includes("/api/sessions/") && url.pathname.endsWith("/project") && method === "POST") {
+        const sessionId = decodeURIComponent(url.pathname.split("/").at(-2));
+        const body = JSON.parse(init.body);
+        window.calls.push({ sessionId, project_id: body.project_id });
+        if (body.project_id) window.snapshot.assignments[sessionId] = body.project_id;
+        else delete window.snapshot.assignments[sessionId];
+        sessionStorage.setItem("folders-fixture", JSON.stringify(window.snapshot));
+        return json({ success: true, session_id: sessionId, project_id: body.project_id });
+      }
+      if (url.pathname.includes("/sessions/active")) return json({ data: [] });
+      if (url.pathname.includes("/api/sessions") && method === "GET") {
+        const source = url.searchParams.get("source");
+        const offset = Number(url.searchParams.get("offset") || "0");
+        const result = page(source, offset);
+        remember(result.data);
+        return json(result);
+      }
+      if (url.pathname.includes("/api/sessions/") && method === "PATCH") return json({ ok: true });
+      return json({ error: { message: "夹具没有这条路由", code: "fixture_not_found" } }, 404);
+    };
+  </script>
+  <script type="module">
+    import { createElement, useRef } from "react";
+    import { createRoot } from "react-dom/client";
+    import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
+    import { SessionList } from "/src/react/shell/session-list.tsx";
+    import { queryKeys } from "/src/react/lib/queries.ts";
+    import "/src/react/styles/index.css";
+    import "/src/react/shell/shell.css";
+
+    const setNative = (field, value) => {
+      const proto = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value");
+      proto.set.call(field, value);
+      field.dispatchEvent(new Event("input", { bubbles: true }));
+    };
+    window.root = () => document.querySelector(".session-list");
+    window.button = (text) => [...document.querySelectorAll("button")].find((item) => item.textContent.trim() === text);
+    window.input = (value) => setNative(window.root().querySelector('[aria-label="项目名称"]'), value);
+    window.fillPath = (value) => setNative(window.root().querySelector('[aria-label="项目目录"]'), value);
+    window.fillSearch = (value) => setNative(window.root().querySelector('input[type="search"]'), value);
+
+    window.list = { sessions: [], refresh() { return Promise.resolve(); }, refreshHead() { return Promise.resolve(); }, get updateComplete() { return Promise.resolve(); } };
+    function Harness() {
+      const ref = useRef(null);
+      const client = useQueryClient();
+      window.list = {
+        get sessions() { return window.deliveredSessions; },
+        get updateComplete() { return Promise.resolve(); },
+        refresh() { return client.refetchQueries({ queryKey: queryKeys.projects }); },
+        refreshHead() { return ref.current?.refreshHead() ?? Promise.resolve(); },
+      };
+      window.ready = true;
+      return createElement("div", { className: "shell" },
+        createElement("aside", null,
+          createElement(SessionList, { ref, onSelect() {}, onDeleted() {}, onRenamed() {} }),
+        ),
+      );
+    }
+    createRoot(document.getElementById("root")).render(
+      createElement(QueryClientProvider, { client: new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } }) },
+        createElement(Harness),
+      ),
+    );
+  </script>
+</body>
+</html>

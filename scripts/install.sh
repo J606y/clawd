@@ -94,6 +94,27 @@ case "$CHANNEL" in
     *) printf -- '--channel must be stable or main, not %s\n' "$CHANNEL" >&2; exit 2 ;;
 esac
 
+# clawd checkout: do not install the official desktop, and do not write an existing Hermes home.
+_script_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+if [ -f "$_script_root/clawd" ] || [ "${CLAWD_CLI:-}" = 1 ]; then
+    if [ "$INCLUDE_DESKTOP" = true ] || [ "$STAGE" = "desktop" ]; then
+        echo "refused: clawd does not install the official desktop UI" >&2
+        exit 2
+    fi
+    case "${HERMES_HOME%/}" in
+        "$HOME/.hermes")
+            echo "refused: clawd will not write the existing Hermes home ($HERMES_HOME). Set HERMES_HOME to a clawd directory (default CLAWD_HOME is ~/.clawd)." >&2
+            exit 2
+            ;;
+    esac
+    for _existing_hermes in "$HOME/.local/bin/hermes" /usr/local/bin/hermes; do
+        if [ -e "$_existing_hermes" ]; then
+            echo "refused: clawd will not publish over or shadow the existing Hermes command $_existing_hermes" >&2
+            exit 2
+        fi
+    done
+fi
+
 INSTALL_DIR="${INSTALL_DIR:-$HERMES_HOME/hermes-agent}"
 export HERMES_HOME
 

@@ -1,4 +1,6 @@
-# nix/overlays.nix — Expose pkgs.hermes-agent for external NixOS configs
+# nix/overlays.nix — Compatibility alias pkgs.hermes-agent for external NixOS configs.
+# The Python distribution name is clawd. This attribute name is kept so existing
+# configs, `nix build .#default`, and the NixOS module still share one derivation.
 #
 # The overlay is a pure alias for this flake's own package — NOT a
 # re-instantiation against the consumer's nixpkgs.  This guarantees

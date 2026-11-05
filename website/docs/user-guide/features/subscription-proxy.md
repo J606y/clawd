@@ -17,7 +17,7 @@ This is different from the [API server](./api-server.md):
 | | API server | Subscription proxy |
 |---|---|---|
 | What it serves | Your agent (full toolset, memory, skills) | Raw model inference |
-| Use case | "Use Hermes as a chat backend" | "Use my Portal sub from another app" |
+| Use case | "Use clawd as a chat backend" | "Use my Portal sub from another app" |
 | Auth | Your `API_SERVER_KEY` | Any bearer (proxy attaches the real one) |
 | Tool calls | Yes — the agent runs tools | No — passthrough only |
 
@@ -29,21 +29,21 @@ proxy when you just want **the model** through your subscription.
 ### 1. Log into your provider (one-time)
 
 ```bash
-hermes portal
+clawd portal
 ```
 
-This opens your browser for the Nous Portal OAuth flow. Hermes stores
-the refresh token in `~/.hermes/auth.json` — the same place all Hermes
+This opens your browser for the Nous Portal OAuth flow. clawd stores
+the refresh token in `~/.clawd/auth.json` — the same place all clawd
 provider logins live.
 
 ### 2. Start the proxy
 
 ```bash
-hermes proxy start
+clawd proxy start
 ```
 
 ```
-Starting Hermes proxy for Nous Portal
+Starting clawd proxy for Nous Portal
   Listening on:  http://127.0.0.1:8645/v1
   Forwarding to: (resolved per-request from your subscription)
   Use any bearer token in the client — the proxy attaches your real credential.
@@ -69,7 +69,7 @@ automatically when the bearer approaches expiry.
 ## Available providers
 
 ```bash
-hermes proxy providers
+clawd proxy providers
 ```
 
 Currently shipped: `nous` (Nous Portal) and `xai` (xAI / Grok). More
@@ -79,19 +79,19 @@ interface in `hermes_cli/proxy/adapters/`.
 ## Check status
 
 ```bash
-hermes proxy status
+clawd proxy status
 ```
 
 ```
-Hermes proxy upstream adapters
+clawd proxy upstream adapters
 
   [nous    ] Nous Portal — ready (bearer expires 2026-05-15T06:43:21Z)
 ```
 
-If you see `not logged in`, run `hermes portal`. If you see
+If you see `not logged in`, run `clawd portal`. If you see
 `credentials need attention`, your refresh token was revoked (rare —
 happens if you signed out from the Portal web UI) — just re-run
-`hermes portal`.
+`clawd portal`.
 
 ## Allowed paths
 
@@ -133,7 +133,7 @@ Then start your proxy in a terminal alongside `openviking-server`:
 
 ```bash
 # Terminal 1
-hermes proxy start
+clawd proxy start
 
 # Terminal 2
 openviking-server
@@ -170,7 +170,7 @@ neither header and are unaffected. To let other machines on your
 network use it:
 
 ```bash
-hermes proxy start --host 0.0.0.0 --port 8645
+clawd proxy start --host 0.0.0.0 --port 8645
 ```
 
 ⚠ **Be aware:** anyone on your network can now use your Portal

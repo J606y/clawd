@@ -6,6 +6,12 @@ description: "如何将 Hermes Agent 更新至最新版本或将其卸载"
 
 # 更新与卸载
 
+<!-- clawd-docs-note -->
+:::warning 不是 clawd 的更新器
+`clawd` 拒绝 `update`。本页的 `hermes update` 是上游 Hermes Agent 的行为，不是 clawd 更新器，而且可能覆盖已有的 Hermes 安装。
+:::
+
+
 ## 更新
 
 使用单条命令更新至最新版本：

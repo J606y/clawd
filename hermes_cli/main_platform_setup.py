@@ -26,13 +26,13 @@ def _yes_no(prompt: str) -> bool:
 
 
 def _whatsapp_choose_mode(get_env_value, save_env_value):
-    """Step 1 of ``hermes whatsapp``: ``"bot"`` / ``"self-chat"``, or None when cancelled."""
+    """Step 1 of ``clawd whatsapp``: ``"bot"`` / ``"self-chat"``, or None when cancelled."""
     current_mode = get_env_value("WHATSAPP_MODE") or ""
     if current_mode:
         mode_label = "separate bot number" if current_mode == "bot" else "personal number (self-chat)"
         print(f"\n✓ Mode: {mode_label}")
         return current_mode
-    _say("", "How will you use WhatsApp with Hermes?", "",
+    _say("", "How will you use WhatsApp with clawd?", "",
          "  1. Separate bot number (recommended)",
          "     People message the bot's number directly — cleanest experience.",
          "     Requires a second phone number with WhatsApp installed on a device.", "",
@@ -66,7 +66,7 @@ def _whatsapp_choose_mode(get_env_value, save_env_value):
 
 
 def _whatsapp_allowed_users(wa_mode: str, get_env_value, save_env_value) -> None:
-    """Step 3 of ``hermes whatsapp``: show / set WHATSAPP_ALLOWED_USERS."""
+    """Step 3 of ``clawd whatsapp``: show / set WHATSAPP_ALLOWED_USERS."""
     current_users = get_env_value("WHATSAPP_ALLOWED_USERS") or ""
     if current_users:
         print(f"✓ Allowed users: {current_users}")
@@ -94,7 +94,7 @@ def _whatsapp_allowed_users(wa_mode: str, get_env_value, save_env_value) -> None
 
 
 def _whatsapp_install_bridge(bridge_dir) -> bool:
-    """Step 4 of ``hermes whatsapp``: ``npm install`` the bridge when needed. False = stop."""
+    """Step 4 of ``clawd whatsapp``: ``npm install`` the bridge when needed. False = stop."""
     from hermes_constants import find_node_executable, with_hermes_node_path
     if (bridge_dir / "node_modules").exists():
         print("✓ Bridge dependencies already installed")
@@ -144,7 +144,7 @@ def cmd_whatsapp(args):
 
     # WHATSAPP_ENABLED=true is deliberately NOT written here: an aborted wizard (Ctrl+C, failed npm
     # install, missed QR scan) would leave .env claiming WhatsApp is ready with no creds.json, and
-    # every `hermes gateway` would pay a 30s bridge timeout + indefinite retries. Set only after
+    # every `clawd gateway` would pay a 30s bridge timeout + indefinite retries. Set only after
     # pairing succeeds; prior successful pairings stay enabled.
     print()
     if (get_env_value("WHATSAPP_ENABLED") or "").lower() == "true":
@@ -174,7 +174,7 @@ def cmd_whatsapp(args):
             # Older installs may have lost WHATSAPP_ENABLED; a kept pairing re-asserts it.
             if (get_env_value("WHATSAPP_ENABLED") or "").lower() != "true":
                 save_env_value("WHATSAPP_ENABLED", "true")
-            _say("\n✓ WhatsApp is configured and paired!", "  Start the gateway with: hermes gateway")
+            _say("\n✓ WhatsApp is configured and paired!", "  Start the gateway with: clawd gateway")
             return
 
     # QR code pairing
@@ -204,28 +204,28 @@ def cmd_whatsapp(args):
 
     print()
     if not (session_dir / "creds.json").exists():
-        print("⚠ Pairing may not have completed. Run 'hermes whatsapp' to try again.")
+        print("⚠ Pairing may not have completed. Run 'clawd whatsapp' to try again.")
         return
     # Only enable WhatsApp now that pairing actually succeeded (see above).
     save_env_value("WHATSAPP_ENABLED", "true")
     _say("✓ WhatsApp paired successfully!", "")
     if wa_mode == "bot":
-        _say("  Next steps:", "    1. Start the gateway:  hermes gateway",
+        _say("  Next steps:", "    1. Start the gateway:  clawd gateway",
              "    2. Send a message to the bot's WhatsApp number",
              "    3. The agent will reply automatically", "",
-             "  Tip: Agent responses are prefixed with '☤ Hermes Agent'")
+             "  Tip: Agent responses are prefixed with '☤ clawd'")
     else:
-        _say("  Next steps:", "    1. Start the gateway:  hermes gateway",
+        _say("  Next steps:", "    1. Start the gateway:  clawd gateway",
              "    2. Open WhatsApp → Message Yourself",
              "    3. Type a message — the agent will reply", "",
-             "  Tip: Agent responses are prefixed with '☤ Hermes Agent'",
+             "  Tip: Agent responses are prefixed with '☤ clawd'",
              "  so you can tell them apart from your own messages.")
-    _say("", "  Or install as a service: hermes gateway install")
+    _say("", "  Or install as a service: clawd gateway install")
 
 
 def cmd_whatsapp_cloud(args):
     """Set up WhatsApp Business Cloud API (official Meta integration) — complementary to the
-    ``hermes whatsapp`` Baileys bridge wizard. See ``plugins/platforms/whatsapp_cloud/setup_wizard.py``."""
+    ``clawd whatsapp`` Baileys bridge wizard. See ``plugins/platforms/whatsapp_cloud/setup_wizard.py``."""
     from hermes_cli.main import _require_tty
     _require_tty("whatsapp-cloud")
     from plugins.platforms.whatsapp_cloud.setup_wizard import run_whatsapp_cloud_setup
@@ -233,17 +233,17 @@ def cmd_whatsapp_cloud(args):
 
 
 def cmd_slack(args):
-    """``hermes slack <subcommand>``; ``manifest`` prints or writes a Slack app manifest with
+    """``clawd slack <subcommand>``; ``manifest`` prints or writes a Slack app manifest with
     every gateway command registered as a first-class slash."""
     sub = getattr(args, "slack_command", None)
     if sub in {None, ""}:
-        _err("usage: hermes slack <subcommand>\n"
+        _err("usage: clawd slack <subcommand>\n"
              "\n"
              "subcommands:\n"
              "  manifest   Generate a Slack app manifest with every gateway\n"
              "             command registered as a native slash\n"
              "\n"
-             "Run `hermes slack manifest -h` for details.")
+             "Run `clawd slack manifest -h` for details.")
         return 1
 
     if sub == "manifest":

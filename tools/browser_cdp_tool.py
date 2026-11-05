@@ -314,7 +314,7 @@ async def _cdp_call(ws_url: str, method: str, params: dict[str, Any], target_id:
 
 
 def _browser_cdp_via_supervisor(task_id: str, frame_id: str, method: str, params: Optional[dict[str, Any]],
-                                timeout: float) -> str:
+                                timeout: float, identity: tuple[str, str, str] | None = None) -> str:
     """Route a CDP call through the live supervisor session for an OOPIF frame."""
     try:
         from tools.browser_supervisor import SUPERVISOR_REGISTRY  # type: ignore[import-not-found]
@@ -328,22 +328,27 @@ def _browser_cdp_via_supervisor(task_id: str, frame_id: str, method: str, params
                           "/browser connect first so the supervisor can attach; Page.getFrameTree lists the "
                           "frame ids you can pass here.")
 
-    tree = supervisor.snapshot().frame_tree
-    frame_info: Optional[dict[str, Any]] = next(
-        (f for f in [tree.get("top"), *(tree.get("children") or [])] if f and f.get("frame_id") == frame_id), None)
-    if frame_info is None:  # frame_tree is capped at 30 entries — check the raw frames dict too.
-        with supervisor._state_lock:  # type: ignore[attr-defined]
-            raw = supervisor._frames.get(frame_id)  # type: ignore[attr-defined]
-        frame_info = raw.to_dict() if raw is not None else None
-    if frame_info is None:
-        return tool_error(f"frame_id {frame_id!r} not found in supervisor state. "
-                          "Call Page.getFrameTree to see the current frames.")
-
-    child_sid = frame_info.get("session_id")
-    if not child_sid:  # same-origin iframes have no dedicated session; reach them via contentWindow/contentDocument
-        return tool_error(f"frame_id {frame_id!r} is not an out-of-process iframe (no dedicated CDP session). "
-                          "For same-origin iframes, use `browser_cdp(method='Runtime.evaluate', params={'expression': "
-                          "\"document.querySelector('iframe').contentDocument.title\"})` at the top-level page instead.")
+    if identity is not None:
+        _task, session, _turn = identity
+        child_sid = supervisor.oopif_session(frame_id, session, _task)
+        if not child_sid:
+            return tool_error(f"frame_id {frame_id!r} is not a proven OOPIF of a page this task created")
+    else:
+        tree = supervisor.snapshot().frame_tree
+        frame_info: Optional[dict[str, Any]] = next(
+            (f for f in [tree.get("top"), *(tree.get("children") or [])] if f and f.get("frame_id") == frame_id), None)
+        if frame_info is None:  # frame_tree is capped at 30 entries — check the raw frames dict too.
+            with supervisor._state_lock:  # type: ignore[attr-defined]
+                raw = supervisor._frames.get(frame_id)  # type: ignore[attr-defined]
+            frame_info = raw.to_dict() if raw is not None else None
+        if frame_info is None:
+            return tool_error(f"frame_id {frame_id!r} not found in supervisor state. "
+                              "Call Page.getFrameTree to see the current frames.")
+        child_sid = frame_info.get("session_id")
+        if not child_sid:  # same-origin iframes have no dedicated session; reach them via contentWindow/contentDocument
+            return tool_error(f"frame_id {frame_id!r} is not an out-of-process iframe (no dedicated CDP session). "
+                              "For same-origin iframes, use `browser_cdp(method='Runtime.evaluate', params={'expression': "
+                              "\\\"document.querySelector('iframe').contentDocument.title\\\"})` at the top-level page instead.")
 
     loop = supervisor._loop  # type: ignore[attr-defined]
     if loop is None or not loop.is_running():
@@ -363,23 +368,233 @@ def _browser_cdp_via_supervisor(task_id: str, frame_id: str, method: str, params
                        "result": result_msg.get("result", {})}, ensure_ascii=False)
 
 
+def _browser_identity(task_id: Optional[str], session_id: Optional[str]) -> tuple[str, str, str] | None:
+    """Existing tool-call identity, or None when this call is not a tracked turn."""
+    if session_id is None:
+        return None
+    from tools.browser_task_registry import IdentityError, resolve_call_identity
+    try:
+        return resolve_call_identity(task_id, session_id)
+    except IdentityError:
+        return None
+
+
+def _cloud_supervisor(task_id: Optional[str]):
+    if not task_id:
+        return None
+    from tools.browser_supervisor import SUPERVISOR_REGISTRY
+    supervisor = SUPERVISOR_REGISTRY.get(task_id)
+    if supervisor is None or not str(supervisor.cdp_url).startswith("wss://"):
+        return None
+    return supervisor
+
+
+def _cdp_on_live_supervisor(supervisor, method: str, params: dict[str, Any], target_id: Optional[str],
+                            identity: tuple[str, str, str] | None, timeout: float) -> str:
+    """Cloud signed calls stay on the supervisor socket. A fresh websocket is not used."""
+    from tools.registry import tool_error
+    from tools.browser_task_registry import RegistryError, active_binding, register_created
+    task, session, turn = identity if identity is not None else ("", "", "")
+    if method in {"Target.closeTarget", "Target.activateTarget"}:
+        wanted = str((params or {}).get("targetId") or target_id or "")
+        if identity is None or active_binding(session, task, wanted) is None:
+            return tool_error("browser_cdp refused: target is not owned by this task", method=method)
+        try:
+            message = supervisor.call_browser(method, params)
+        except Exception as exc:
+            return tool_error(f"browser_cdp refused: {exc}", method=method)
+        return json.dumps({"success": True, "method": method, "result": message}, ensure_ascii=False)
+    if method == "Target.createTarget":
+        if identity is None:
+            return tool_error("browser_cdp refused: missing task, session, or turn identity", method=method)
+        try:
+            created = supervisor.create_blank_target()
+            if not supervisor.browser_id:
+                return tool_error("browser_cdp refused: cloud browser identity is missing", method=method)
+            register_created(task_id=task, session_id=session, turn_id=turn, target_id=created,
+                             browser_id=supervisor.browser_id, endpoint=supervisor.cdp_url)
+            supervisor.remember_created(created)
+        except (RegistryError, Exception) as exc:
+            return tool_error(f"browser_cdp refused: {exc}", method=method)
+        return json.dumps({"success": True, "method": method, "result": {"targetId": created}}, ensure_ascii=False)
+    if target_id:
+        if identity is None or active_binding(session, task, target_id) is None:
+            return tool_error("browser_cdp refused: target is not owned by this task", method=method)
+        try:
+            result = supervisor.call_owned(target_id, method, params)
+        except Exception as exc:
+            return tool_error(f"browser_cdp refused: {exc}", method=method)
+        return json.dumps({"success": True, "method": method, "target_id": target_id, "result": result}, ensure_ascii=False)
+    if method in {"Browser.close", "Target.disposeBrowserContext", "Page.close"}:
+        return tool_error("browser_cdp refused: that call would close pages outside this task", method=method)
+    try:
+        message = supervisor.call_browser(method, params, timeout=timeout)
+    except Exception as exc:
+        return tool_error(f"CDP call via supervisor failed: {type(exc).__name__}: {exc}", method=method)
+    return json.dumps({"success": True, "method": method, "result": message}, ensure_ascii=False)
+
+
+def _harness_grant_probe(directory: str, stem: str) -> str:
+    """``ok``, ``down``, or ``unsupported``. Does not open a websocket or kill a daemon."""
+    from tools.browser_task_cdp import CdpError, harness_exchange
+    try:
+        response = harness_exchange(directory, stem, {"meta": "capabilities"}, timeout=2.0)
+    except CdpError:
+        return "down"
+    if not isinstance(response, dict) or response.get("error"):
+        return "unsupported"
+    version = response.get("task_grant_version")
+    if (response.get("task_grants") is True and response.get("dialog_identity") is True
+            and type(version) is int and version == 1):
+        return "ok"
+    return "unsupported"
+
+
+def _close_new_harness_page(directory: str, stem: str, target_id: str, grant: str = "") -> None:
+    """Close only the page this call just created. Does not Browser.close."""
+    from tools.browser_task_cdp import CdpError, harness_exchange
+    payload = {"method": "Target.closeTarget", "params": {"targetId": target_id}}
+    if isinstance(grant, str) and grant and "\n" not in grant and "\r" not in grant:
+        payload["task_grant"] = grant
+    try:
+        harness_exchange(directory, stem, payload)
+    except CdpError:
+        return
+
+
+def _cdp_on_harness(conn: dict, method: str, params: dict[str, Any], target_id: Optional[str],
+                    identity: tuple[str, str, str] | None) -> str:
+    """Cloud calls use the daemon socket already holding the signed URL."""
+    from tools.browser_task_cdp import CdpError, harness_call
+    from tools.browser_task_registry import RegistryError, active_binding, register_created
+    from tools.registry import tool_error
+
+    if identity is None:
+        return tool_error("browser_cdp refused: missing task, session, or turn identity", method=method)
+    task, session, turn = identity
+    directory, stem, pid = conn["daemonDir"], conn["daemonStem"], int(conn["daemonPid"])
+    if method == "Target.getTargets":
+        return tool_error("browser_cdp refused: refusing to scan targets for ownership", method=method)
+    if method in {"Browser.close", "Target.disposeBrowserContext", "Page.close"}:
+        return tool_error("browser_cdp refused: that call would close pages outside this task", method=method)
+    if method in {"Target.closeTarget", "Target.activateTarget"}:
+        wanted = str((params or {}).get("targetId") or target_id or "")
+        if active_binding(session, task, wanted) is None:
+            return tool_error("browser_cdp refused: target is not owned by this task", method=method)
+        try:
+            message = harness_call(directory, stem, wanted, method, params, expected_pid=pid)
+        except CdpError as exc:
+            return tool_error(f"browser_cdp refused: {exc.code}", method=method)
+        return json.dumps({"success": True, "method": method, "result": message}, ensure_ascii=False)
+    if method == "Target.createTarget":
+        from tools import browser_task_cdp as task_cdp
+        probe = _harness_grant_probe(directory, stem)
+        if probe == "down":
+            return tool_error("browser_cdp refused: daemon_unavailable", method=method)
+        if probe != "ok":
+            return tool_error("browser_cdp refused: daemon_grant_unsupported", method=method)
+        created_id = ""
+        task_grant = ""
+        try:
+            ensure = getattr(task_cdp, "ensure_harness_task_grants", None)
+            create = getattr(task_cdp, "create_harness_target", None)
+            if ensure is None or create is None:
+                return tool_error("browser_cdp refused: daemon_grant_unsupported", method=method)
+            ensure(directory, stem, pid)
+            created = create(directory, stem, pid, url="about:blank")
+            if not isinstance(created, tuple) or len(created) != 2:
+                return tool_error("browser_cdp refused: createTarget returned no task grant", method=method)
+            created_id, task_grant = created
+            if (not isinstance(created_id, str) or not created_id or not isinstance(task_grant, str)
+                    or not task_grant or not conn.get("browserId") or not conn.get("endpoint")):
+                if isinstance(created_id, str) and created_id:
+                    _close_new_harness_page(directory, stem, created_id, task_grant if isinstance(task_grant, str) else "")
+                return tool_error("browser_cdp refused: createTarget returned no task grant", method=method)
+            register_created(task_id=task, session_id=session, turn_id=turn, target_id=created_id,
+                             browser_id=conn["browserId"], endpoint=conn["endpoint"], transport="harness",
+                             daemon_dir=directory, daemon_stem=stem, daemon_pid=pid, task_grant=task_grant)
+        except (CdpError, RegistryError, TypeError, ValueError):
+            if created_id:
+                _close_new_harness_page(directory, stem, created_id, task_grant if isinstance(task_grant, str) else "")
+            return tool_error("browser_cdp refused: created target was not registered", method=method)
+        return json.dumps({"success": True, "method": method, "result": {"targetId": created_id}}, ensure_ascii=False)
+    if not target_id or active_binding(session, task, target_id) is None:
+        return tool_error("browser_cdp refused: target is not owned by this task", method=method)
+    try:
+        result = harness_call(directory, stem, target_id, method, params, expected_pid=pid)
+    except CdpError as exc:
+        return tool_error(f"browser_cdp refused: {exc.code}", method=method)
+    return json.dumps({"success": True, "method": method, "target_id": target_id, "result": result}, ensure_ascii=False)
+
+
+def _guard_owned_cdp(method: str, params: dict[str, Any], endpoint: str, target_id: Optional[str],
+                     identity: tuple[str, str, str] | None) -> Optional[str]:
+    """Create registers the new id. Close/activate require that exact registration."""
+    from tools.registry import tool_error
+    watched = {"Target.createTarget", "Target.closeTarget", "Target.activateTarget"}
+    if method not in watched:
+        return None
+    if identity is None:
+        return tool_error("browser_cdp refused: missing task, session, or turn identity", method=method)
+    task, session, turn = identity
+    if method == "Target.createTarget":
+        return None
+    wanted = str((params or {}).get("targetId") or target_id or "")
+    from tools.browser_task_registry import owns
+    from tools.browser_task_cdp import CdpError, http_base, read_browser_id
+    try:
+        browser_id = read_browser_id(http_base(endpoint))
+    except CdpError as exc:
+        return tool_error(f"browser_cdp refused: {exc}", method=method)
+    if not owns(session, task, wanted, browser_id):
+        return tool_error("browser_cdp refused: target is not owned by this task", method=method)
+    return None
+
+
+def _register_created_cdp(method: str, result: Any, endpoint: str, identity: tuple[str, str, str]) -> Optional[str]:
+    if method != "Target.createTarget" or not isinstance(result, dict):
+        return None
+    target_id = result.get("targetId")
+    if not isinstance(target_id, str) or not target_id:
+        return "Target.createTarget returned no target"
+    from tools.browser_task_cdp import CdpError, http_base, read_browser_id
+    from tools.browser_task_registry import RegistryError, register_created
+    task, session, turn = identity
+    try:
+        base = http_base(endpoint)
+        register_created(task_id=task, session_id=session, turn_id=turn, target_id=target_id,
+                         browser_id=read_browser_id(base), endpoint=base)
+    except (CdpError, RegistryError) as exc:
+        return str(exc)
+    return None
+
+
 def browser_cdp(method: str, params: Optional[dict[str, Any]] = None, target_id: Optional[str] = None,
-                frame_id: Optional[str] = None, timeout: float = 30.0, task_id: Optional[str] = None) -> str:
+                frame_id: Optional[str] = None, timeout: float = 30.0, task_id: Optional[str] = None,
+                session_id: Optional[str] = None, turn_id: Optional[str] = None) -> str:
     """Send a raw CDP command (see ``CDP_DOCS_URL``). ``target_id`` attaches a fresh stateless connection
     to a tab; ``frame_id`` (an OOPIF from ``Page.getFrameTree``) routes through the supervisor's live
     WebSocket instead — the only reliable way to evaluate inside an iframe where fresh per-call connections
     hit signed-URL expiry (Browserbase). Both paths share the same private-page/SSRF guard. Returns JSON
     ``{"success": True, "method", "result"}`` or ``{"error": ...}``."""
     effective_task_id = task_id or "default"
+    if method in {"Browser.close", "Target.disposeBrowserContext"}:
+        return tool_error(
+            "browser_cdp refused: closing the browser requires exclusive browser ownership, which is not proven",
+            method=method,
+        )
 
     if frame_id:
+        if method in {"Target.createTarget", "Target.closeTarget", "Target.activateTarget"}:
+            return tool_error("browser_cdp refused: frame-scoped target changes are not registered", method=method)
+        identity = _browser_identity(task_id, session_id)
         # An OOPIF's frame id is its iframe target id, so the guard judges that frame (or fails closed).
         blocked = _browser_cdp_private_guard(method=method, params=params or {}, target_id=frame_id,
                                              endpoint=_resolve_cdp_endpoint() if _WS_AVAILABLE else "")
         if blocked:
             return blocked
         return _browser_cdp_via_supervisor(task_id=effective_task_id, frame_id=frame_id, method=method,
-                                           params=params, timeout=timeout)
+                                           params=params, timeout=timeout, identity=identity)
 
     if not method or not isinstance(method, str):
         return tool_error("'method' is required (e.g. 'Target.getTargets')", cdp_docs=CDP_DOCS_URL)
@@ -387,6 +602,23 @@ def browser_cdp(method: str, params: Optional[dict[str, Any]] = None, target_id:
         return tool_error("The 'websockets' Python package is required but not installed. "
                           "Run: hermes pm repair")
     endpoint = _resolve_cdp_endpoint()
+    identity = _browser_identity(task_id, session_id)
+    cloud = _cloud_supervisor(identity[0] if identity else task_id)
+    if endpoint.startswith("wss://") or (cloud is not None and not endpoint):
+        call_params: dict[str, Any] = params or {}
+        if not isinstance(call_params, dict):
+            return tool_error(f"'params' must be an object/dict, got {type(call_params).__name__}")
+        blocked = _browser_cdp_private_guard(method=method, params=call_params, endpoint=endpoint or (cloud.cdp_url if cloud else ""),
+                                             target_id=target_id)
+        if blocked:
+            return blocked
+        if cloud is None:
+            from tools.browser_task_registry import task_connection
+            conn = task_connection(identity[0]) if identity else None
+            if conn and conn.get("daemonDir") and conn.get("daemonStem") and int(conn.get("daemonPid") or 0) > 0:
+                return _cdp_on_harness(conn, method, call_params, target_id, identity)
+            return tool_error("cloud CDP stays on the daemon that holds the signed socket; refusing a second websocket", method=method)
+        return _cdp_on_live_supervisor(cloud, method, call_params, target_id, identity, timeout)
     if not endpoint:
         return tool_error("No CDP endpoint is available. Run '/browser connect' to attach to a running Chrome, "
                           "Brave, Chromium, or Edge browser, or set 'browser.cdp_url' in config.yaml.", cdp_docs=CDP_DOCS_URL)
@@ -401,6 +633,10 @@ def browser_cdp(method: str, params: Optional[dict[str, Any]] = None, target_id:
     blocked = _browser_cdp_private_guard(method=method, params=call_params, endpoint=endpoint, target_id=target_id)
     if blocked:
         return blocked
+    identity = _browser_identity(task_id, session_id)
+    refused = _guard_owned_cdp(method, call_params, endpoint, target_id, identity)
+    if refused:
+        return refused
 
     try:
         safe_timeout = float(timeout) if timeout else 30.0
@@ -420,6 +656,11 @@ def browser_cdp(method: str, params: Optional[dict[str, Any]] = None, target_id:
         logger.exception("browser_cdp unexpected error")
         return tool_error(f"Unexpected error: {type(exc).__name__}: {exc}", method=method)
 
+    if identity is not None:
+        registration_error = _register_created_cdp(method, result, endpoint, identity)
+        if registration_error:
+            return tool_error(f"browser_cdp refused: {registration_error}", method=method)
+
     payload: dict[str, Any] = {"success": True, "method": method, "result": _redact_cdp_output(
         result, always_paths=_CDP_ALWAYS_BINARY_PATHS.get(method, ()),
         flagged_paths=_CDP_FLAGGED_BINARY_PATHS.get(method, ()))}
@@ -435,9 +676,8 @@ BROWSER_CDP_SCHEMA: dict[str, Any] = {
         "browser tools don't cover.\n\n"
         "**Requires a reachable CDP endpoint.** Available when the user has run '/browser connect' to attach "
         "to a running Chrome, Brave, Chromium, or Edge browser, or when 'browser.cdp_url' is set in "
-        "config.yaml. Not currently wired up for cloud backends (Browserbase, Browser Use, Firecrawl) — "
-        "those expose CDP per session but live-session routing is a follow-up. If the tool is in your toolset "
-        "at all, a CDP endpoint is already reachable.\n\n"
+        "config.yaml. Cloud signed endpoints are sent through the live CDP supervisor, not a fresh "
+        "websocket. If the tool is in your toolset at all, a CDP endpoint is already reachable.\n\n"
         f"**CDP method reference:** {CDP_DOCS_URL} — use an available documentation lookup or extraction "
         "tool on a method's URL (e.g. '/tot/Page/#method-handleJavaScriptDialog') to look up parameters and "
         "return shape.\n\n"
@@ -496,14 +736,25 @@ def _browser_cdp_check() -> bool:
     return bool(browser_exec_available() and get_cdp_override_raw())
 
 
+def _handle_browser_cdp(args: dict, task_id: Optional[str] = None, session_id: Optional[str] = None, **_kw):
+    from tools.browser_task_registry import IdentityError, resolve_call_identity
+    from tools.registry import tool_error
+    try:
+        task, session, turn = resolve_call_identity(task_id, session_id)
+    except IdentityError as exc:
+        return tool_error(f"browser_cdp refused: {exc}")
+    return browser_cdp(
+        method=args.get("method", ""), params=args.get("params"), target_id=args.get("target_id"),
+        frame_id=args.get("frame_id"), timeout=args.get("timeout", 30.0), task_id=task,
+        session_id=session, turn_id=turn,
+    )
+
+
 registry.register(
     name="browser_cdp",
     toolset="browser-cdp",
     schema=BROWSER_CDP_SCHEMA,
-    handler=lambda args, **kw: browser_cdp(
-        method=args.get("method", ""), params=args.get("params"), target_id=args.get("target_id"),
-        frame_id=args.get("frame_id"), timeout=args.get("timeout", 30.0), task_id=kw.get("task_id"),
-    ),
+    handler=_handle_browser_cdp,
     check_fn=_browser_cdp_check,
     emoji="🧪",
 )

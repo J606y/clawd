@@ -7,6 +7,12 @@ sidebar_position: 2
 
 # Windows (WSL2) 指南
 
+<!-- clawd-docs-note -->
+:::warning 不是本检出
+本页的安装器、安装包和下载说明属于上游 Hermes Agent，不会安装 clawd。本检出不发布安装器地址。在本检出中运行 `./clawd`。配置命令写成 `clawd setup`。`clawd` 拒绝 `update`、`desktop`、`dashboard`、`gui` 和 `webapp`。本检出的 Web 界面是 `clawd panel`。
+:::
+
+
 Hermes Agent 现已同时支持原生 Windows 和 WSL2。本页介绍 WSL2 路径；如需原生 PowerShell 安装方式，请参阅专属的 **[Windows（原生）指南](./windows-native.md)**。
 
 **何时选择 WSL2 而非原生：**

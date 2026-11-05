@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>admission recovery</title>
+    <script>
+      window.__uploads = [];
+      const nativeOpen = XMLHttpRequest.prototype.open;
+      XMLHttpRequest.prototype.open = function (method, url, ...rest) {
+        this.__fixtureUrl = String(url);
+        return nativeOpen.call(this, method, url, ...rest);
+      };
+      XMLHttpRequest.prototype.send = function () {
+        if (!this.__fixtureUrl.includes("files/upload")) throw new Error("Unexpected fixture XHR");
+        window.__uploads.push(this);
+      };
+      window.releaseUpload = (index, name) => {
+        const xhr = window.__uploads[index];
+        if (!xhr || xhr.__released) throw new Error("Upload not pending");
+        xhr.__released = true;
+        Object.defineProperty(xhr, "status", { value: 200, configurable: true });
+        Object.defineProperty(xhr, "responseText", { value: JSON.stringify({ root: "uploads", path: name, absPath: `/fixture/uploads/${name}`, size: 4 }), configurable: true });
+        xhr.onload(new ProgressEvent("load"));
+      };
+      window.__generation = Number(sessionStorage.getItem("hp_admission_gen") || 0) + 1;
+      sessionStorage.setItem("hp_admission_gen", String(window.__generation));
+      if (!localStorage.getItem("hp_active_runs")) {
+        localStorage.setItem("hp_active_runs", JSON.stringify({
+          "sess-screenshot-old": {
+            runId: "",
+            idempotencyKey: "old-request-01-20",
+            userText: "尚未入库的原话",
+            startedAt: 1700000000000
+          }
+        }));
+      }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/tests/react-admission-recovery-fixture.tsx"></script>
+  </body>
+</html>

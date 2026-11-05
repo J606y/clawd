@@ -356,7 +356,9 @@ _BACKGROUND_NOTES = {
 }
 
 def _dispatched_payload(batch: _Batch, units: list[tuple[_Batch, str]]) -> dict:
-    """Model-facing handle for an accepted background call: one entry per async unit."""
+    """Model-facing handle for an accepted background call: one entry per child, not one batch id."""
+    from tools.delegate_tool import _child_dispatch_echo, _stamp_child_dispatch_link
+
     goals = [t["goal"] for t in batch.task_list]
     n = len(batch.children)  # running children; refused tasks are listed under "refused"
     payload = {
@@ -364,6 +366,13 @@ def _dispatched_payload(batch: _Batch, units: list[tuple[_Batch, str]]) -> dict:
         "delegation_id": batch.live_deleg_id or units[0][1], "goals": goals,
         "note": _BACKGROUND_NOTES["one"] if n == 1 else _BACKGROUND_NOTES["many"].format(n=n, k=len(units)),
     }
+    by_child = {id(child): uid for unit, uid in units for (_, _, child) in unit.children}
+    children = []
+    for index, task, child in batch.children:
+        delegation_id = by_child.get(id(child))
+        _stamp_child_dispatch_link(child, delegation_id=delegation_id)
+        children.append(_child_dispatch_echo(index, task, child, delegation_id))
+    payload["children"] = children
     if len(units) > 1:
         payload["units"] = [
             {"delegation_id": uid, "group": unit.group, "task_indexes": [i for (i, _, _) in unit.children]}
@@ -400,7 +409,10 @@ def _units_of(batch: _Batch) -> list[_Batch]:
 def _dispatch_unit(unit: _Batch, unit_id: Optional[str], slot_key: Optional[str], routing: dict) -> dict:
     """Hand ONE unit to the async registry; the runner joins on that unit's children only."""
     from tools.async_delegation import dispatch_async_delegation_batch
+    from tools.delegate_tool import _child_dispatch_echo, _stamp_child_dispatch_link
     child_agents = [c for (_, _, c) in unit.children]
+    for index, task, child in unit.children:
+        _stamp_child_dispatch_link(child, delegation_id=unit_id)
 
     def _interrupt():
         for c in child_agents:
@@ -416,6 +428,7 @@ def _dispatch_unit(unit: _Batch, unit_id: Optional[str], slot_key: Optional[str]
         runner=lambda: _execute_and_aggregate(unit, honor_parent_interrupt=False),
         interrupt_fn=_interrupt, delegation_id=unit_id, slot_key=slot_key,
         task_indexes=[i for (i, _, _) in unit.children] if len(unit.children) < len(unit.task_list) else None,
+        child_links=[_child_dispatch_echo(i, t, c, unit_id) for i, t, c in unit.children],
         # Persist locators before starting workers; live_paths omits failed writers and can be compressed.
         task_transcripts={str(i): str(unit.live_writers[i].path) for i, _, _ in unit.children
                           if i < len(unit.live_writers) and unit.live_writers[i] is not None

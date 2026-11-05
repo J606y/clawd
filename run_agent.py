@@ -317,6 +317,7 @@ class AIAgent(
         if getattr(self, "_persist_disabled", False) or self._session_db_created or not self._session_db:
             return
         source = session_source_for(self.platform)
+        from clawd_projects.inheritance import ProjectInheritanceError
         try:
             # Persist the profile name explicitly, including "default": profile-keyed consumers treat NULL
             # as unowned.
@@ -343,6 +344,14 @@ class AIAgent(
                 cwd=_launch_cwd_for_session(source), profile_name=profile_for_session,
             )
             self._session_db_created = True
+        except ProjectInheritanceError:
+            # Not transient: the child row was rolled back. Retrying the turn would
+            # run a model without the parent's project binding.
+            logger.warning(
+                "Session DB creation refused: project inheritance failed for session=%s",
+                getattr(self, "session_id", None),
+            )
+            raise
         except Exception as e:
             # Transient failure (e.g. SQLite lock): _session_db_created stays False so the next turn retries.
             logger.warning("Session DB creation failed (will retry next turn): %s", e)

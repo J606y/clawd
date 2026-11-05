@@ -1,13 +1,13 @@
 ---
 sidebar_position: 8
-title: "在 Hermes 中使用语音模式"
-description: "在 CLI、Telegram、Discord 及 Discord 语音频道中设置和使用 Hermes 语音模式的实用指南"
+title: "在 clawd 中使用语音模式"
+description: "在 CLI、Telegram、Discord 及 Discord 语音频道中设置和使用 clawd 语音模式的实用指南"
 ---
 
-# 在 Hermes 中使用语音模式
+# 在 clawd 中使用语音模式
 
 本页的 Python 依赖命令使用 [PM 准备的源码环境](../reference/package-management.md#developer-workflow)。
-依赖变更后，请重新激活该 checkout 并重启 Hermes。
+依赖变更后，请重新激活该 checkout 并重启 clawd。
 
 本指南是[语音模式功能参考](../user-guide/features/voice-mode.md)的实用配套文档。
 
@@ -18,12 +18,12 @@ description: "在 CLI、Telegram、Discord 及 Discord 语音频道中设置和�
 语音模式在以下情况特别有用：
 - 需要免手持的 CLI 工作流
 - 希望在 Telegram 或 Discord 中获得语音回复
-- 希望 Hermes 加入 Discord 语音频道进行实时对话
+- 希望 clawd 加入 Discord 语音频道进行实时对话
 - 边走动边快速记录想法、调试问题或来回交流，而不是打字
 
 ## 选择你的语音模式方案
 
-Hermes 中实际上有三种不同的语音体验。
+clawd 中实际上有三种不同的语音体验。
 
 | 模式 | 最适合 | 平台 |
 |---|---|---|
@@ -36,15 +36,15 @@ Hermes 中实际上有三种不同的语音体验。
 2. 再启用语音回复
 3. 最后如需完整体验，再切换到 Discord 语音频道
 
-## 第一步：确保普通 Hermes 先正常运行
+## 第一步：确保普通 clawd 先正常运行
 
 在接触语音模式之前，请确认：
-- Hermes 能正常启动
+- clawd 能正常启动
 - 已配置好 provider（提供商）
 - Agent 能正常回答文本 prompt（提示词）
 
 ```bash
-hermes
+clawd
 ```
 
 问一个简单的问题：
@@ -77,8 +77,8 @@ cd ~/.hermes/hermes-agent && python -c "import pm; pm.sync_venv(['tts-premium'],
 
 ### 本地 NeuTTS（可选）
 
-声明的 `neutts` 依赖要求 Python 低于 3.14，而 Hermes 运行时要求 Python 3.14。
-因此该 extra 不会在 Hermes 运行时安装 NeuTTS。请选择兼容的提供商。
+声明的 `neutts` 依赖要求 Python 低于 3.14，而 clawd 运行时要求 Python 3.14。
+因此该 extra 不会在 clawd 运行时安装 NeuTTS。请选择兼容的提供商。
 独立的 NeuTTS 命令提供商需要自行管理兼容的 Python 环境。
 
 ### 同时启用语音和消息平台
@@ -113,7 +113,7 @@ sudo apt install espeak-ng
 
 ## 第四步：选择 STT 和 TTS 提供商
 
-Hermes 同时支持本地和云端语音处理方案。
+clawd 同时支持本地和云端语音处理方案。
 
 ### 最简单 / 最低成本的方案
 
@@ -125,7 +125,7 @@ Hermes 同时支持本地和云端语音处理方案。
 
 ### 环境变量文件示例
 
-添加到 `~/.hermes/.env`：
+添加到 `~/.clawd/.env`：
 
 ```bash
 # 云端 STT 选项（本地无需密钥）
@@ -152,12 +152,12 @@ ELEVENLABS_API_KEY=***
 - `openai` → 良好的中间选项
 - `mistral` → 多语言，原生 Opus
 
-### 如果使用 `hermes setup`
+### 如果使用 `clawd setup`
 
 设置向导通过 PM 请求声明的 Python extras，不能绕过版本或平台限制：
 
-声明的 `neutts` 依赖要求 Python 低于 3.14，而 Hermes 运行时要求 Python 3.14。
-因此该 extra 不会在 Hermes 运行时安装 NeuTTS。请选择兼容的提供商。
+声明的 `neutts` 依赖要求 Python 低于 3.14，而 clawd 运行时要求 Python 3.14。
+因此该 extra 不会在 clawd 运行时安装 NeuTTS。请选择兼容的提供商。
 独立的 NeuTTS 命令提供商需要自行管理兼容的 Python 环境。
 
 如果依赖不支持当前平台，请选择其他提供商。
@@ -215,10 +215,10 @@ tts:
 
 ## 开启方式
 
-启动 Hermes：
+启动 clawd：
 
 ```bash
-hermes
+clawd
 ```
 
 在 CLI 内执行：
@@ -236,7 +236,7 @@ hermes
 1. 按下 `Ctrl+B`
 2. 说话
 3. 等待静音检测自动停止录音
-4. Hermes 转录并回复
+4. clawd 转录并回复
 5. 如果开启了 TTS，它会朗读答案
 6. 循环可自动重启以持续使用
 
@@ -270,17 +270,17 @@ I keep getting a docker permission error. Help me debug it.
 非常适合：
 - 边走动边思考
 - 口述半成形的想法
-- 让 Hermes 实时整理你的思路
+- 让 clawd 实时整理你的思路
 
 #### 无障碍 / 少打字场景
 
-如果打字不方便，语音模式是保持完整 Hermes 工作流的最快方式之一。
+如果打字不方便，语音模式是保持完整 clawd 工作流的最快方式之一。
 
 ## 调整 CLI 行为
 
 ### 静音阈值
 
-如果 Hermes 开始/停止过于激进，调整：
+如果 clawd 开始/停止过于激进，调整：
 
 ```yaml
 voice:
@@ -311,12 +311,12 @@ voice:
 
 此模式比完整语音频道更简单。
 
-Hermes 仍作为普通聊天机器人运行，但可以朗读回复。
+clawd 仍作为普通聊天机器人运行，但可以朗读回复。
 
 ### 启动 gateway
 
 ```bash
-hermes gateway
+clawd gateway
 ```
 
 ### 开启语音回复
@@ -353,7 +353,7 @@ hermes gateway
 适用于：
 - 离开电脑时
 - 发送语音备忘并获取快速语音回复
-- 希望 Hermes 充当便携式研究或运维助手
+- 希望 clawd 充当便携式研究或运维助手
 
 #### Discord 私信中的语音输出
 
@@ -363,7 +363,7 @@ hermes gateway
 
 这是最高级的模式。
 
-Hermes 加入 Discord 语音频道（VC），监听用户语音，转录后运行正常的 agent 流水线，并将回复朗读回频道。
+clawd 加入 Discord 语音频道（VC），监听用户语音，转录后运行正常的 agent 流水线，并将回复朗读回频道。
 
 ## 所需的 Discord 权限
 
@@ -390,9 +390,9 @@ Hermes 加入 Discord 语音频道（VC），监听用户语音，转录后运�
 ### 加入后的行为
 
 - 用户在语音频道中说话
-- Hermes 检测语音边界
+- clawd 检测语音边界
 - 转录内容发布到关联的文本频道
-- Hermes 以文字和音频形式回复
+- clawd 以文字和音频形式回复
 - 文本频道为执行 `/voice join` 的那个频道
 
 ### Discord 语音频道使用最佳实践
@@ -457,8 +457,8 @@ Hermes 加入 Discord 语音频道（VC），监听用户语音，转录后运�
 
 如果你想走最短的成功路径：
 
-1. 让文本 Hermes 正常工作
-2. 运行 `hermes setup voice` 以启用语音支持
+1. 让文本 clawd 正常工作
+2. 运行 `clawd setup voice` 以启用语音支持
 3. 使用本地 STT + Edge TTS 的 CLI 语音模式
 4. 然后在 Telegram 或 Discord 中启用 `/voice on`
 5. 只有在此之后，再尝试 Discord 语音频道模式

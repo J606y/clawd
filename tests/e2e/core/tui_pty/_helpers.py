@@ -49,7 +49,7 @@ _DIGITS = re.compile(r"\d")
 _SPINNER = re.compile(r"[\u2800-\u28ff]")
 _STATUS_BAR = re.compile(r"│ fake model")
 # The status bar's first cell once the startup session is live: "─ ready │ fake model │ …". Before
-# that it reads "summoning hermes…" / "forging session…" / "starting agent…" / "resuming…".
+# that it reads "summoning clawd…" / "forging session…" / "starting agent…" / "resuming…".
 _READY = re.compile(r"─ ready │")
 _STATUS_ROW = re.compile(r"^ ─ (.+?) │")
 # AF_UNIX sun_path is 108 bytes; stay well inside it.
@@ -382,7 +382,7 @@ class TmuxTui:
         return not (lflag & (termios.ICANON | termios.ECHO) or iflag & termios.ICRNL)
 
     def status(self) -> str:
-        """The status bar's first cell (``ready``, ``summoning hermes…``, ``running…``), or ''."""
+        """The status bar's first cell (``ready``, ``summoning clawd…``, ``running…``), or ''."""
         for row in reversed(self.rows()):
             if m := _STATUS_ROW.match(row):
                 return m.group(1)

@@ -14,7 +14,7 @@ Audio spectrograms/features (mel, chroma, MFCC) via CLI.
 
 | | |
 |---|---|
-| Source | Optional — install with `hermes skills install official/media/songsee` |
+| Source | Optional — install with `clawd skills install official/media/songsee` |
 | Path | `optional-skills/media/songsee` |
 | Version | `1.0.0` |
 | Author | community |
@@ -25,7 +25,7 @@ Audio spectrograms/features (mel, chroma, MFCC) via CLI.
 ## Reference: full SKILL.md
 
 :::info
-The following is the complete skill definition that Hermes loads when this skill is triggered. This is what the agent sees as instructions when the skill is active.
+The following is the complete skill definition that clawd loads when this skill is triggered. This is what the agent sees as instructions when the skill is active.
 :::
 
 # songsee

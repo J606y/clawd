@@ -442,7 +442,7 @@ def _prepare_fal_request(model_id, meta, prompt, aspect_ratio, seed, overrides, 
         raise ValueError(
             f"Model '{display}' ({model_id}) is not capable of image-to-image / editing. "
             f"Provide a text-only prompt (omit image_url), or switch to an edit-capable model "
-            f"via `hermes tools` → Image Generation.")
+            f"via `clawd tools` → Image Generation.")
     aspect_lc = (aspect_ratio or DEFAULT_ASPECT_RATIO).lower().strip()
     if aspect_lc not in VALID_ASPECT_RATIOS:
         logger.warning("Invalid aspect_ratio '%s', defaulting to '%s'", aspect_ratio, DEFAULT_ASPECT_RATIO)
@@ -722,7 +722,7 @@ def _dispatch_to_plugin_provider(
             return _provider_error(
                 f"Provider '{pname}' does not support image-to-image / editing (its generate() "
                 f"signature is out of date with the image_generate schema). Omit image_url for "
-                f"text-to-image, or pick a backend that supports editing via `hermes tools` → "
+                f"text-to-image, or pick a backend that supports editing via `clawd tools` → "
                 f"Image Generation.", "modality_unsupported")
         logger.warning("Image gen provider '%s' raised%s: %s", pname,
                        " TypeError" if is_type_error else "", exc)

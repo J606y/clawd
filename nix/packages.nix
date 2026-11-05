@@ -1,4 +1,5 @@
-# nix/packages.nix — Hermes Agent package built with uv2nix
+# nix/packages.nix — clawd package built with uv2nix.
+# nix/hermes-agent.nix and pkgs.hermes-agent stay as compatibility names.
 { inputs, ... }:
 {
   perSystem =

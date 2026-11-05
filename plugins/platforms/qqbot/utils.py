@@ -10,10 +10,10 @@ from .constants import QQBOT_VERSION
 
 
 def _get_hermes_version() -> str:
-    """Return the hermes-agent package version, or 'dev' if unavailable."""
+    """Return the clawd distribution version, or 'dev' if unavailable."""
     try:
         from importlib.metadata import version
-        return version("hermes-agent")
+        return version("clawd")
     except Exception:
         return "dev"
 

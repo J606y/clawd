@@ -7,6 +7,7 @@ gateway, sessions, …) is built by ``hermes_cli/subcommands/<group>.py`` and wi
 
 import argparse
 import difflib
+import os
 import re
 from functools import lru_cache
 
@@ -141,6 +142,46 @@ For more help on a command:
 """
 
 
+_CLAWD_EPILOGUE = """
+Examples:
+    clawd                          Start interactive chat
+    clawd --tui                    Launch the TUI
+    clawd config                   View configuration
+    clawd config path              Print the config file path
+    clawd gateway                  Run the messaging gateway
+    clawd gateway status           Show gateway status
+    clawd panel                    Start the clawd panel (the only web UI)
+    clawd -p <profile> <cmd>       Run a command in a clawd profile
+
+Upstream update, the official web dashboard, and the desktop app are not
+supported. Those commands refuse instead of restoring official UI or writing
+an existing Hermes install.
+"""
+
+
+def cli_command_name() -> str:
+    """User-visible command. ``HERMES_BRAND=1`` keeps upstream wording."""
+    return "hermes" if os.environ.get("HERMES_BRAND") == "1" else "clawd"
+
+
+def cli_product_name() -> str:
+    """User-visible product name. ``HERMES_BRAND=1`` is the explicit upstream bridge."""
+    return "Hermes Agent" if os.environ.get("HERMES_BRAND") == "1" else "clawd"
+
+
+def display_command_text(text: str) -> str:
+    """Rewrite a generated ``hermes <cmd>`` suggestion. Protocol tokens are left alone."""
+    if not text or os.environ.get("HERMES_BRAND") == "1":
+        return text
+    return re.sub(r"(?<![\w./@-])hermes(?=\s)", "clawd", text)
+
+
+def _clawd_cli() -> bool:
+    # Product default. CLAWD_CLI is still set by the clawd entry; this flag only
+    # restores upstream help text, it does not select ~/.hermes.
+    return os.environ.get("HERMES_BRAND") != "1"
+
+
 def _add_top_level_flags(parser: argparse.ArgumentParser) -> None:
     """Top-level (pre-subcommand) flags; ``-m/--provider`` pair with ``-z`` without ``chat``."""
     add, inherited = parser.add_argument, _inherited_flag
@@ -164,7 +205,7 @@ def _add_top_level_flags(parser: argparse.ArgumentParser) -> None:
     inherited(parser, "--provider", default=None, help=(
         "Provider override for this invocation (e.g. openrouter, anthropic). "
         "Applies to -z/--oneshot and --tui. The persistent provider lives in config.yaml "
-        "under model.provider — use `hermes setup` or edit the file to change it."))
+        f"under model.provider — use `{cli_command_name()} setup` or edit the file to change it."))
     inherited(parser, "--reasoning", default=None, metavar="LEVEL", help=(
         "Reasoning effort for this invocation: none, minimal, low, medium, "
         "high, xhigh, max, or ultra. Overrides agent.reasoning_effort in "
@@ -227,7 +268,7 @@ def _build_chat_parser(subparsers) -> argparse.ArgumentParser:
     """
     chat_parser = subparsers.add_parser(
         "chat", help="Interactive chat with the agent",
-        description="Start an interactive chat session with Hermes Agent")
+        description=f"Start an interactive chat session with {cli_product_name()}")
     add, inherited, SUPPRESS = chat_parser.add_argument, _inherited_flag, argparse.SUPPRESS
     _query_group = chat_parser.add_mutually_exclusive_group()
     _query_group.add_argument("-q", "--query", help=(
@@ -330,22 +371,27 @@ def _build_chat_parser(subparsers) -> argparse.ArgumentParser:
 def _plugin_command_install_hint(prog: str, value: str):
     """Install command when *value* names a catalog memory plugin that resolves nowhere: its
     ``hermes <name>`` command exists only once the plugin is installed. Top level only; never raises."""
-    if prog != "hermes" or not re.fullmatch(r"[a-z0-9_-]{1,64}", value):
+    if prog not in {"hermes", "clawd"} or not re.fullmatch(r"[a-z0-9_-]{1,64}", value):
         return None
     try:
         from plugins.memory import find_provider_dir
         if find_provider_dir(value) is not None:
             return None
         from hermes_cli.memory_provider_migration import catalog_install_hint
-        return catalog_install_hint(value, category="memory")
+        return display_command_text(catalog_install_hint(value, category="memory"))
     except Exception:
         return None
 
 
 def _moved_command_hint(prog: str, value: str) -> str:
-    """Where a command that left core went (``hermes auth spotify``, ``hermes mcp serve``, ...)."""
+    """Where a command that left core went. Lookup keys stay ``hermes``; the shown command is clawd."""
     from hermes_cli.left_core_migration import moved_command_hint
-    return moved_command_hint(prog, value)
+    lookup = prog
+    if prog == "clawd":
+        lookup = "hermes"
+    elif prog.startswith("clawd "):
+        lookup = "hermes" + prog[len("clawd"):]
+    return display_command_text(moved_command_hint(lookup, value))
 
 
 class HermesArgumentParser(argparse.ArgumentParser):
@@ -384,9 +430,16 @@ def build_top_level_parser():
     ``chat_parser.set_defaults(func= cmd_chat)`` and registers further subparsers via
     ``subparsers.add_parser(...)``.
     """
+    clawd = _clawd_cli()
     parser = HermesArgumentParser(
-        prog="hermes", description="Hermes Agent - AI assistant with tool-calling capabilities",
-        formatter_class=argparse.RawDescriptionHelpFormatter, epilog=_EPILOGUE)
+        prog="clawd" if clawd else "hermes",
+        description=(
+            "clawd - AI assistant with tool-calling capabilities"
+            if clawd else
+            "Hermes Agent - AI assistant with tool-calling capabilities"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog=_CLAWD_EPILOGUE if clawd else _EPILOGUE)
     _add_top_level_flags(parser)
     # metavar keeps the usage line to ``hermes [...] <command>`` instead of the brace list of
     # every subcommand name; ``hermes --help`` still lists each command with its help row.

@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>agent origin</title>
+  <link rel="stylesheet" href="/src/react/styles/index.css" />
+  <link rel="stylesheet" href="/src/react/shell/shell.css" />
+</head>
+<body>
+  <button id="source" type="button" data-view-agent="agent-1" style="position:fixed;left:300px;top:700px;width:48px;height:32px">查看</button>
+  <div id="cover" style="position:fixed;inset:0;z-index:80"></div>
+  <div id="root" class="shell"></div>
+  <script type="module">
+    import { createElement } from "react";
+    import { createRoot } from "react-dom/client";
+    import { flushSync } from "react-dom";
+    import { MemoryRouter } from "react-router";
+    import { DockHost } from "/src/react/shell/dock-host.tsx";
+
+    const source = document.querySelector("#source");
+    const root = createRoot(document.querySelector("#root"));
+    let closeCount = 0;
+
+    const box = (el) => {
+      if (!el) return null;
+      const rect = el.getBoundingClientRect();
+      return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+    };
+    const center = (rect) => rect ? { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 } : null;
+    const origin = () => box(source);
+
+    function view() {
+      return { kind: "agent", sessionId: "parent-1", agentId: "agent-1", key: "agent-1", origin: origin() };
+    }
+
+    function paint(state, narrow) {
+      flushSync(() => {
+        root.render(createElement(MemoryRouter, null, createElement(DockHost, {
+          state,
+          narrow,
+          onClose() { closeCount += 1; },
+        })));
+      });
+    }
+
+    function scrub(at) {
+      const sheet = document.querySelector(".agent-sheet");
+      const dialog = document.querySelector("dialog.agent-modal");
+      const anim = sheet?.getAnimations?.()[0] ?? null;
+      if (anim) {
+        anim.pause();
+        const duration = Number(anim.effect.getComputedTiming().duration) || 0;
+        anim.currentTime = at === "end" ? duration : 0;
+      }
+      const sheetBox = box(sheet);
+      return {
+        sheet: sheetBox,
+        sheetCenter: center(sheetBox),
+        modal: dialog ? dialog.matches(":modal") : false,
+        position: dialog ? getComputedStyle(dialog).position : "",
+        dialogAnimation: dialog ? getComputedStyle(dialog).animationName : "",
+        radius: sheet ? getComputedStyle(sheet).borderRadius : "",
+        dialogOverflow: dialog ? getComputedStyle(dialog).overflow : "",
+      };
+    }
+
+    window.motion = {
+      origin,
+      async open() {
+        closeCount = 0;
+        paint({ current: view(), leaving: null, pending: null }, true);
+        return scrub(0);
+      },
+      end() { return scrub("end"); },
+      leave() {
+        paint({ current: null, leaving: view(), pending: null }, true);
+        const sheet = document.querySelector(".agent-sheet");
+        const anim = sheet ? [...sheet.getAnimations()].at(-1) : null;
+        if (anim) {
+          anim.pause();
+          anim.currentTime = Number(anim.effect.getComputedTiming().duration) || 0;
+        }
+        return { sheetCenter: center(box(sheet)), count: sheet ? sheet.getAnimations().length : 0 };
+      },
+      desktop() {
+        paint({ current: view(), leaving: null, pending: null }, false);
+        return {
+          modal: !!document.querySelector("dialog.agent-modal"),
+          side: document.querySelector(".side-dock")?.getAttribute("data-kind") || "",
+        };
+      },
+      hit() {
+        const before = closeCount;
+        const top = document.elementFromPoint(8, 8);
+        top?.dispatchEvent(new MouseEvent("click", { bubbles: true, clientX: 8, clientY: 8 }));
+        return { tag: top ? `${top.tagName}.${top.className || top.id}` : "", closed: closeCount > before };
+      },
+      escape() {
+        const before = closeCount;
+        document.querySelector("dialog.agent-modal")?.dispatchEvent(new Event("cancel", { cancelable: true }));
+        const dialog = document.querySelector("dialog.agent-modal");
+        return { closed: closeCount > before, stillModal: dialog?.matches(":modal") === true };
+      },
+      cover() {
+        return document.elementsFromPoint(180, 400).slice(0, 3).map((el) => el.id || `${el.tagName}.${el.className || ""}`);
+      },
+    };
+    window.ready = true;
+  </script>
+</body>
+</html>

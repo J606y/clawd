@@ -1,0 +1,20 @@
+[Unit]
+Description=Hermes Panel sidecar (host status, skills, config for the self-hosted panel)
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 -I /opt/hermes-panel-sidecar/hermes_panel_sidecar.py
+Restart=always
+RestartSec=3
+# 本进程常驻约 13MB，但每次调 hermes CLI 会在本 cgroup 里起一个约 70MB 的子进程（最多同时 3 个）。
+# 2026-10-06 实测：上限 96M 时子进程被持续限速（memory.events high 累计 1.4 万次），页面加载慢且磁盘 IO 压力高。
+# 上限只为防止异常拖累整机，别再调低（2026-10-06 用户确认面板无内存泄漏，放宽到 512M/768M）。
+MemoryHigh=512M
+MemoryMax=768M
+NoNewPrivileges=true
+ProtectHome=false
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

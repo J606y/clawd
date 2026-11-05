@@ -1,0 +1,10 @@
+#!/usr/bin/env python3
+"""clawd CLI launcher.
+
+Behaves like the installed ``clawd`` command. Does not replace the system
+``hermes`` command.
+"""
+
+if __name__ == "__main__":
+    from clawd_cli.main import main
+    main()

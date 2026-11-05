@@ -246,7 +246,7 @@ export function displayStatus(status: string): string {
     return s.running
   }
 
-  if (status === 'summoning hermes…') {
+  if (status === 'summoning clawd…') {
     return s.summoning
   }
 

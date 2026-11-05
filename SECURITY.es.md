@@ -1,5 +1,7 @@
 # Política de Seguridad de Hermes Agent
 
+> **El nombre del producto en este checkout es clawd, no clawed.** El texto siguiente sigue siendo el modelo de confianza y el canal de reporte de Hermes Agent upstream. Las vulnerabilidades se reportan por el canal upstream indicado abajo: [Security Advisories de NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent/security/advisories/new) o **security@nousresearch.com**. Este archivo no inventa un correo, un bounty ni un repositorio de clawd. MIT y Copyright (c) 2025 Nous Research permanecen en `LICENSE`. `hermes --version` es un campo del reporte upstream; el comando del producto en este checkout es `clawd`. Esta pasada no ejecutó una sonda de versión.
+
 Este documento describe el modelo de confianza de Hermes Agent, identifica el
 único límite de seguridad que el proyecto trata como estructural y define el
 alcance para los informes de vulnerabilidades.

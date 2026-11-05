@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>composer sizing</title>
+  <style>
+    html, body, #root { margin: 0; height: 100%; }
+    #layout { height: 100dvh; display: flex; flex-direction: column; }
+    #history { flex: 1; min-height: 0; overflow: auto; }
+    #messages { height: 3000px; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script>
+    window.fetch = async () => new Response(JSON.stringify({}), { headers: { "Content-Type": "application/json" } });
+  </script>
+  <script type="module">
+    import { createElement, useState } from "react";
+    import { createRoot } from "react-dom/client";
+    import { Composer } from "/src/react/pages/chat/composer.tsx";
+    import { ChatStyles } from "/src/react/pages/chat/chat-styles.tsx";
+    import "/src/react/styles/index.css";
+
+    function Harness() {
+      const [value, setValue] = useState("");
+      window.input = async (text) => {
+        setValue(text);
+        await window.frames();
+      };
+      return createElement("div", { id: "layout", className: "hp-chat" },
+        createElement(ChatStyles),
+        createElement("div", { id: "history" }, createElement("div", { id: "messages" }, "Synthetic history")),
+        createElement("div", { className: "composer" },
+          createElement(Composer, {
+            sessionId: "composer-sizing",
+            value,
+            attachments: [],
+            disabled: false,
+            running: false,
+            canSteer: false,
+            preparing: false,
+            stopping: false,
+            flash: "",
+            onChange: (next) => setValue(next),
+            onPreparing() {},
+            onFlash() {},
+            onSend() {},
+            onSteer() {},
+            onStop() {},
+          }),
+        ),
+      );
+    }
+    window.frames = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    createRoot(document.getElementById("root")).render(createElement(Harness));
+    const arm = () => {
+      window.ta = document.querySelector('.hp-chat textarea[aria-label="消息"]');
+      window.historyBox = document.querySelector("#history");
+      window.composer = document.querySelector(".hp-chat .composer");
+      if (!window.ta) return false;
+      window.ready = true;
+      return true;
+    };
+    if (!arm()) requestAnimationFrame(() => requestAnimationFrame(arm));
+  </script>
+</body>
+</html>

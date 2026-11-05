@@ -1,11 +1,11 @@
-"""``hermes peer`` — bot-to-bot DMs across machines/gateways.
+"""``clawd peer`` — bot-to-bot DMs across machines/gateways.
 
-A *peer* is another Hermes gateway running the ``api_server`` platform; its stock
+A *peer* is another clawd gateway running the ``api_server`` platform; its stock
 API is the transport (no new server surface). ``dm`` resolves the remote canonical
 "Bot Chat" session (creating it when missing) and runs ONE synchronous turn — the
-cross-machine twin of ``hermes -p <bot> chat --in ~ -c "Bot Chat"``. ``run``/``status``
+cross-machine twin of ``clawd -p <bot> chat --in ~ -c "Bot Chat"``. ``run``/``status``
 /``stop`` do the same turn through the async Runs API. Peer labels/URLs live in
-config.yaml (``bot_peers``); the key lives in ``~/.hermes/.env`` as
+config.yaml (``bot_peers``); the key lives in ``~/.clawd/.env`` as
 ``HERMES_PEER_<NAME>_KEY``. ``<peer>/<profile>`` targets the ``/p/<profile>/`` mirror.
 """
 
@@ -79,7 +79,7 @@ def _request(
     if headers:
         request_headers.update(headers)
     req = urllib.request.Request(url, data=data, method=method, headers=request_headers)
-    # The peer URL is user-registered (``hermes peer add``); a redirect to a
+    # The peer URL is user-registered (``clawd peer add``); a redirect to a
     # different origin must not carry the Authorization: Bearer key with it —
     # a compromised/MITM'd peer could otherwise harvest it. open_credentialed_url
     # strips non-safelisted headers across a cross-origin redirect.
@@ -193,11 +193,11 @@ def _parse_target(target: str) -> tuple[str, str | None]:
     peer = peer.strip()
     profile = profile.strip() or None
     if not peer:
-        raise ValueError("Peer name required (hermes peer dm <peer>[/<agent>] ...)")
+        raise ValueError("Peer name required (clawd peer dm <peer>[/<agent>] ...)")
     if profile and not _PROFILE_RE.match(profile):
         raise ValueError(f"Invalid agent/profile name: {profile!r}")
     if profile:
-        # Profile ids are lowercase (normalize_profile_name); 'box/Hermes' must address the
+        # Profile ids are lowercase (normalize_profile_name); 'box/clawd' must address the
         # peer's real 'hermes' profile on every peer, including those that compare prefixes exactly.
         from hermes_cli.profiles import normalize_profile_name
         profile = normalize_profile_name(profile)
@@ -219,12 +219,12 @@ def _resolve_peer_target(target: str) -> tuple[str, str | None, dict, str]:
     peer_name, profile = _parse_target(target)
     peer = _load_peers().get(peer_name)
     if not isinstance(peer, dict) or not peer.get("url"):
-        raise LookupError(f"No peer named '{peer_name}'. Run: hermes peer list")
+        raise LookupError(f"No peer named '{peer_name}'. Run: clawd peer list")
     key = _peer_secret(peer_name)
     if not key:
         raise PermissionError(
-            f"No API key for peer '{peer_name}'. Set it: hermes peer add {peer_name} "
-            f"--url <url> --key <key> (or add {_peer_key_env(peer_name)}=<key> to ~/.hermes/.env)")
+            f"No API key for peer '{peer_name}'. Set it: clawd peer add {peer_name} "
+            f"--url <url> --key <key> (or add {_peer_key_env(peer_name)}=<key> to ~/.clawd/.env)")
     return peer_name, profile, peer, key
 
 
@@ -287,12 +287,12 @@ def _peer_add(args) -> int:
         from hermes_cli.config import save_env_value
 
         save_env_value(_peer_key_env(name), key)
-        print(f"Peer '{name}' saved ({url}) — key stored as {_peer_key_env(name)} in ~/.hermes/.env")
+        print(f"Peer '{name}' saved ({url}) — key stored as {_peer_key_env(name)} in ~/.clawd/.env")
     else:
         print(
             f"Peer '{name}' saved ({url}). No key given — set the peer's API_SERVER_KEY with:\n"
-            f"  hermes peer add {name} --url {url} --key <key>\n"
-            f"  (or add {_peer_key_env(name)}=<key> to ~/.hermes/.env)")
+            f"  clawd peer add {name} --url {url} --key <key>\n"
+            f"  (or add {_peer_key_env(name)}=<key> to ~/.clawd/.env)")
     return 0
 
 
@@ -311,7 +311,7 @@ def _peer_remove(args) -> int:
 def _peer_list(args) -> int:
     peers = _load_peers()
     if not peers:
-        print("No peers registered. Add one: hermes peer add <name> --url http://host:port --key <API_SERVER_KEY>")
+        print("No peers registered. Add one: clawd peer add <name> --url http://host:port --key <API_SERVER_KEY>")
         return 0
     for name in sorted(peers):
         entry = peers[name] if isinstance(peers[name], dict) else {}
@@ -427,7 +427,7 @@ def _peer_dm(args, message: str, peer_name: str, profile: str | None, base: str,
     # the turn stays in the peer's own transcript, the sending agent never
     # sees NO_REPLY/[SILENT] as a real reply. Same rule as the gateway's live
     # Bot Chat completion, the Desktop bot_relay.deliver RPC and the one-shot
-    # local `hermes chat -Q` transport (tools/bot_mode_dm.py) — this is the
+    # local `clawd chat -Q` transport (tools/bot_mode_dm.py) — this is the
     # 4th Bot Mode delivery door and was missing the same check.
     from gateway.response_filters import is_intentional_silence_response, strip_trailing_silence_marker
     reply = "" if is_intentional_silence_response(reply) else strip_trailing_silence_marker(reply)
@@ -446,7 +446,7 @@ def cmd_peer(args) -> int:
     if action in _REGISTRY_ACTIONS:
         return _REGISTRY_ACTIONS[action](args)
     if action not in {"dm", "run", "status", "stop"}:
-        print("Unknown peer action. See: hermes peer --help", file=sys.stderr)
+        print("Unknown peer action. See: clawd peer --help", file=sys.stderr)
         return 2
     try:
         peer_name, profile, peer, key = _resolve_peer_target(args.target)
@@ -474,23 +474,23 @@ def cmd_peer(args) -> int:
 def build_peer_parser(subparsers) -> None:
     """Attach the ``peer`` subcommand to ``subparsers``."""
     parser = subparsers.add_parser(
-        "peer", help="Bot-to-bot DMs across machines (peer Hermes gateways)",
-        description="Register other Hermes gateways as peers and message their agents. "
-            "'hermes peer dm <peer>[/<agent>] \"...\"' delivers into the remote "
+        "peer", help="Bot-to-bot DMs across machines (peer clawd gateways)",
+        description="Register other clawd gateways as peers and message their agents. "
+            "'clawd peer dm <peer>[/<agent>] \"...\"' delivers into the remote "
             "agent's canonical Bot Chat over the peer's API server and prints "
-            "the reply — the cross-machine twin of 'hermes -p <bot> chat'. "
+            "the reply — the cross-machine twin of 'clawd -p <bot> chat'. "
             "The peer must run the api_server platform; its API_SERVER_KEY is "
-            "stored locally as a credential in ~/.hermes/.env.",
+            "stored locally as a credential in ~/.clawd/.env.",
         epilog=(
             "Examples:\n"
-            "  hermes peer add spark --url http://spark.lan:8377 --key <API_SERVER_KEY>\n"
-            "  hermes peer list\n"
-            '  hermes peer dm spark "Message from 🤖 dixie (@dixie): disk status?"\n'
-            '  hermes peer dm spark/researcher "..."   # named profile on a multiplexed peer\n'
-            "  hermes peer run spark --idempotency-key ticket-123 < long-task.txt\n"
-            "  hermes peer status spark run_abc123\n"
-            "  hermes peer stop spark run_abc123\n"
-            "  hermes peer remove spark\n"
+            "  clawd peer add spark --url http://spark.lan:8377 --key <API_SERVER_KEY>\n"
+            "  clawd peer list\n"
+            '  clawd peer dm spark "Message from 🤖 dixie (@dixie): disk status?"\n'
+            '  clawd peer dm spark/researcher "..."   # named profile on a multiplexed peer\n'
+            "  clawd peer run spark --idempotency-key ticket-123 < long-task.txt\n"
+            "  clawd peer status spark run_abc123\n"
+            "  clawd peer stop spark run_abc123\n"
+            "  clawd peer remove spark\n"
             "\n"
             "Exit codes: 0 ok, 1 delivery/peer error, 2 usage error."),
         formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -499,7 +499,7 @@ def build_peer_parser(subparsers) -> None:
     add_p = peer_sub.add_parser("add", aliases=["set"], help="Register (or update) a peer gateway")
     add_p.add_argument("name", help="Peer name (lowercase slug, e.g. spark, homelab)")
     add_p.add_argument("--url", required=True, help="Peer gateway base URL, e.g. http://spark.lan:8377")
-    add_p.add_argument("--key", default="", help="The peer's API_SERVER_KEY (stored in ~/.hermes/.env)")
+    add_p.add_argument("--key", default="", help="The peer's API_SERVER_KEY (stored in ~/.clawd/.env)")
     add_p.add_argument("--note", default="", help="Optional description")
 
     peer_sub.add_parser("list", aliases=["ls"], help="List registered peers")
@@ -511,7 +511,7 @@ def build_peer_parser(subparsers) -> None:
         sp = peer_sub.add_parser(name, help=help)
         sp.add_argument("target", help="<peer> or <peer>/<agent> (named profile on a multiplexed peer)")
         if run_id:
-            sp.add_argument("run_id", help="Run ID returned by 'hermes peer run'")
+            sp.add_argument("run_id", help="Run ID returned by 'clawd peer run'")
         else:
             sp.add_argument("message", nargs="?", default=None, help="Message text (or stdin)")
             if name == "run":

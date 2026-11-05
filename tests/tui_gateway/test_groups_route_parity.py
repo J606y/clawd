@@ -35,7 +35,7 @@ _PNG = base64.b64decode(
 
 def _assert_not_available(error: dict, method: str) -> None:
     assert error["code"] == -32601, error
-    assert error["message"] == f"unknown method: {method} — not available on this Hermes backend"
+    assert error["message"] == f"unknown method: {method} — not available on this clawd backend"
     assert "out of sync" not in error["message"]
 
 

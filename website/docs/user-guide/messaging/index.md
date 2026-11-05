@@ -1,14 +1,14 @@
 ---
 sidebar_position: 1
 title: "Messaging Gateway"
-description: "Chat with Hermes from Telegram, Discord, Slack, WhatsApp, Signal, SMS, Email, Home Assistant, Mattermost, Matrix, DingTalk, Yuanbao, Microsoft Teams, LINE, Raft, Webhooks, or any OpenAI-compatible frontend via the API server — architecture and setup overview"
+description: "Chat with clawd from Telegram, Discord, Slack, WhatsApp, Signal, SMS, Email, Home Assistant, Mattermost, Matrix, DingTalk, Yuanbao, Microsoft Teams, LINE, Raft, Webhooks, or any OpenAI-compatible frontend via the API server — architecture and setup overview"
 ---
 
 # Messaging Gateway
 
-Chat with Hermes from Telegram, Discord, Slack, WhatsApp, Signal, SMS, Email, Home Assistant, Mattermost, Matrix, DingTalk, Feishu/Lark, WeCom, Weixin, BlueBubbles (iMessage), QQ, Yuanbao, Microsoft Teams, LINE, ntfy, or your browser. The gateway is a single background process that connects to all your configured platforms, handles sessions, runs cron jobs, and delivers voice messages.
+Chat with clawd from Telegram, Discord, Slack, WhatsApp, Signal, SMS, Email, Home Assistant, Mattermost, Matrix, DingTalk, Feishu/Lark, WeCom, Weixin, BlueBubbles (iMessage), QQ, Yuanbao, Microsoft Teams, LINE, ntfy, or your browser. The gateway is a single background process that connects to all your configured platforms, handles sessions, runs cron jobs, and delivers voice messages.
 
-For the full voice feature set — including CLI microphone mode, spoken replies in messaging, and Discord voice-channel conversations — see [Voice Mode](../features/voice-mode.md) and [Use Voice Mode with Hermes](../../guides/use-voice-mode-with-hermes.md).
+For the full voice feature set — including CLI microphone mode, spoken replies in messaging, and Discord voice-channel conversations — see [Voice Mode](../features/voice-mode.md) and [Use Voice Mode with clawd](../../guides/use-voice-mode-with-hermes.md).
 
 :::tip
 Bots need both a model provider and tool providers (TTS, web). A [Nous Portal](../../integrations/nous-portal.md) subscription bundles all of them.
@@ -17,7 +17,7 @@ Bots need both a model provider and tool providers (TTS, web). A [Nous Portal](.
 ## Messaging status in Desktop and the dashboard
 
 Messaging status belongs to the selected profile on the selected machine. Credentials
-saved by `hermes gateway setup` can enable a credential-based platform without a
+saved by `clawd gateway setup` can enable a credential-based platform without a
 `platforms` entry in `config.yaml`; an explicit `platforms.<name>.enabled: false`
 still disables it. A different profile never inherits the server process's credentials.
 Platforms without required credential fields are not enabled merely because that list
@@ -63,15 +63,15 @@ connected. An enabled platform can correctly show **Messaging gateway stopped**.
 
 **Voice** = TTS audio replies and/or voice message transcription. **Images** = send/receive images. **Files** = send/receive file attachments. **Threads** = threaded conversations. **Reactions** = emoji reactions on messages. **Typing** = typing indicator while processing. **Streaming** = progressive message updates via editing.
 
-:::note Hermes Relay
-[Hermes Relay](./relay.md) (experimental) is not a chat platform itself — it is a connector system that fronts platforms like Discord, Telegram, Slack, and WhatsApp through an external connector that owns the platform credentials. Capabilities (media, native approval/clarify prompts, reactions, threads, typing, streaming) are negotiated per connector at handshake rather than fixed in the table above.
+:::note clawd Relay
+[clawd Relay](./relay.md) (experimental) is not a chat platform itself — it is a connector system that fronts platforms like Discord, Telegram, Slack, and WhatsApp through an external connector that owns the platform credentials. Capabilities (media, native approval/clarify prompts, reactions, threads, typing, streaming) are negotiated per connector at handshake rather than fixed in the table above.
 :::
 
 ## Architecture
 
 ```mermaid
 flowchart TB
-    subgraph Gateway["Hermes Gateway"]
+    subgraph Gateway["clawd Gateway"]
         subgraph Adapters["Platform adapters"]
             tg[Telegram]
             dc[Discord]
@@ -132,7 +132,7 @@ Each platform adapter receives messages, routes them through a per-chat session 
 
 ## Intentional Silence Tokens
 
-For group chats, hooks, and automation flows, Hermes supports explicit silence tokens. If the agent's final response is exactly one supported token, the gateway suppresses outbound delivery and sends nothing to the chat.
+For group chats, hooks, and automation flows, clawd supports explicit silence tokens. If the agent's final response is exactly one supported token, the gateway suppresses outbound delivery and sends nothing to the chat.
 
 Supported tokens:
 
@@ -144,7 +144,7 @@ Supported tokens:
 
 Whitespace and case are normalized, but the whole final response must be the token. A sentence like "Use `[SILENT]` when nothing changed" is delivered normally.
 
-Silence is a delivery decision only. Hermes keeps the assistant silence turn in the session transcript, so the conversation still alternates normally:
+Silence is a delivery decision only. clawd keeps the assistant silence turn in the session transcript, so the conversation still alternates normally:
 
 ```text
 user: side-channel chatter
@@ -152,7 +152,7 @@ assistant: [SILENT]   # stored, not delivered
 user: next message
 ```
 
-Failed turns still surface as errors; Hermes does not hide failures just because the text resembles a silence token.
+Failed turns still surface as errors; clawd does not hide failures just because the text resembles a silence token.
 
 On a message from a person, a bare silence token is replaced by a short notice, because a message that needed a reply must not vanish. Internal wakes such as background-process notifications may stay silent, and so may a message the platform adapter reports as not addressed to the bot. Slack reports this for messages that open by @mentioning someone else and for unmentioned top-level messages that start a new thread in a free-response channel. Telegram reports it for [group messages not addressed to the bot](telegram.md#letting-the-bot-stay-silent-in-a-group). Other platforms always get the notice.
 
@@ -161,7 +161,7 @@ On a message from a person, a bare silence token is replaced by a short notice, 
 The easiest way to configure messaging platforms is the interactive wizard:
 
 ```bash
-hermes gateway setup        # Interactive setup for all messaging platforms
+clawd gateway setup        # Interactive setup for all messaging platforms
 ```
 
 This walks you through configuring each platform with arrow-key selection, shows which platforms are already configured, and offers to start/restart the gateway when done.
@@ -169,20 +169,20 @@ This walks you through configuring each platform with arrow-key selection, shows
 ## Gateway Commands
 
 ```bash
-hermes gateway              # Run in foreground
-hermes gateway setup        # Configure messaging platforms interactively
-hermes gateway install      # Install as a user service (Linux) / launchd service (macOS)
-sudo hermes gateway install --system   # Linux only: install a boot-time system service
-hermes gateway start        # Start the default service
-hermes gateway stop         # Stop the default service
-hermes gateway status       # Check default service status
-hermes gateway status --system         # Linux only: inspect the system service explicitly
+clawd gateway              # Run in foreground
+clawd gateway setup        # Configure messaging platforms interactively
+clawd gateway install      # Install as a user service (Linux) / launchd service (macOS)
+sudo clawd gateway install --system   # Linux only: install a boot-time system service
+clawd gateway start        # Start the default service
+clawd gateway stop         # Stop the default service
+clawd gateway status       # Check default service status
+clawd gateway status --system         # Linux only: inspect the system service explicitly
 ```
 
 ### Stack dump on demand (`SIGUSR2`)
 
 On Linux and macOS, `kill -USR2 <gateway pid>` appends a dump of every thread's
-stack to `~/.hermes/logs/gateway_faulthandler.log` and the gateway keeps
+stack to `~/.clawd/logs/gateway_faulthandler.log` and the gateway keeps
 running — use it to see what a stalled or misbehaving gateway is doing without
 restarting it.
 
@@ -195,7 +195,7 @@ probes (default 3), housekeeping, the cron scheduler and the embedded kanban
 dispatcher have all frozen with it, so the watchdog dumps every thread's stack
 to the log, stamps `gateway_state.json` with `gateway_state: degraded` and
 `exit_reason: loop_liveness_watchdog`, and exits with code `75` so the service
-supervisor restarts the process. `hermes gateway status` renders that record as
+supervisor restarts the process. `clawd gateway status` renders that record as
 `⚠ Gateway exited degraded: event loop stopped dispatching …` until a new
 gateway process overwrites it, and the dashboard's gateway badge shows
 **Degraded** with the same reason. Set `gateway.loop_watchdog: false` in
@@ -203,7 +203,7 @@ gateway process overwrites it, and the dashboard's gateway badge shows
 
 Housekeeping also re-stamps `gateway_state.json`'s `updated_at` every tick
 (60 s), so it doubles as a heartbeat: when the process is still alive but that
-stamp is more than 120 s old, `hermes gateway status` prints
+stamp is more than 120 s old, `clawd gateway status` prints
 `⚠ Gateway heartbeat stale: housekeeping has not refreshed gateway_state.json
 for N s …` and the dashboard badge reads **Heartbeat stale** — the "looks
 running but nothing is scheduled" case. Restart the gateway.
@@ -214,7 +214,7 @@ A systemd-managed gateway can opt into process recovery when Python's asyncio
 event loop stops receiving scheduling time. This covers whole-process stalls
 that also prevent platform-specific liveness tasks from running:
 
-```yaml title="~/.hermes/config.yaml"
+```yaml title="~/.clawd/config.yaml"
 gateway:
   systemd_watchdog_seconds: 120
 ```
@@ -222,11 +222,11 @@ gateway:
 Regenerate the service unit after changing this setting:
 
 ```bash
-hermes gateway install --force
+clawd gateway install --force
 ```
 
 A positive value makes the generated unit use `Type=notify`,
-`NotifyAccess=main`, and the matching `WatchdogSec`. Hermes sends heartbeats
+`NotifyAccess=main`, and the matching `WatchdogSec`. clawd sends heartbeats
 only while its event loop is making timely progress; systemd restarts the
 process when they stop. The default `0` keeps the existing `Type=simple`
 behavior. This setting is Linux/systemd-only and does not treat an ordinary
@@ -259,7 +259,7 @@ platform network disconnect as an event-loop failure.
 | `/bg <prompt>` | Run a prompt in a separate background session |
 | `/btw <question>` | Ask a side question about the current conversation without interrupting it |
 | `/reload-mcp` | Reload MCP servers from config |
-| `/update` | Update Hermes Agent to the latest version |
+| `/update` | Update clawd to the latest version |
 | `/help` | Show available commands |
 | `/<skill-name>` | Invoke any installed skill |
 
@@ -316,16 +316,16 @@ Gateway conversations do not reset after inactivity or at a daily boundary. Use 
 or `/reset` for an explicit new conversation; context compression remains automatic.
 Core ignores legacy `session_reset` settings, reset-policy overrides and reset-timer
 environment variables. If your config still sets `session_reset.mode` to `idle`, `daily`
-or `both`, gateway startup and `hermes doctor` warn about it. To keep time-based resets,
+or `both`, gateway startup and `clawd doctor` warn about it. To keep time-based resets,
 install the catalog plugin that reads the same block unchanged:
-`hermes plugins install hermes-session-reset-policy`. Cached agents may be released to reclaim resources without
+`clawd plugins install hermes-session-reset-policy`. Cached agents may be released to reclaim resources without
 replacing the durable conversation. Restart-recovery freshness limits automatic
 continuation, not the history loaded when you send a message.
 
 
 ## Per-Channel Model & System Prompt Overrides
 
-Different channels can run different models and personas from a **single gateway** — e.g. a cheap fast model in `#daily` and a frontier model with a specialist prompt in `#dev`. Configure `channel_overrides` under the platform in `~/.hermes/config.yaml`:
+Different channels can run different models and personas from a **single gateway** — e.g. a cheap fast model in `#daily` and a frontier model with a specialist prompt in `#dev`. Configure `channel_overrides` under the platform in `~/.clawd/config.yaml`:
 
 ```yaml
 platforms:
@@ -350,7 +350,7 @@ Details:
 ## Per-Room Intentional Silence
 
 In multi-agent rooms, a model may choose to end its turn with an explicit silence marker such as
-`NO_REPLY` or `[SILENT]`. To let a successful marker-only turn stay silent even when Hermes was
+`NO_REPLY` or `[SILENT]`. To let a successful marker-only turn stay silent even when clawd was
 mentioned or directly addressed, enable `allow_silence` for that room in the serving profile's
 `config.yaml`:
 
@@ -414,11 +414,11 @@ Instead of manually configuring user IDs, unknown users receive a one-time pairi
 ```bash
 # The user sees: "Pairing code: XKGH5N7P"
 # You approve them with:
-hermes pairing approve telegram XKGH5N7P
+clawd pairing approve telegram XKGH5N7P
 
 # Other pairing commands:
-hermes pairing list          # View pending + approved users
-hermes pairing revoke telegram 123456789  # Remove access
+clawd pairing list          # View pending + approved users
+clawd pairing revoke telegram 123456789  # Remove access
 ```
 
 Pairing codes expire after 1 hour, are rate-limited, and use cryptographic randomness.
@@ -487,7 +487,7 @@ display:
 
 All four keys are read from each profile's own `config.yaml`, so multiplexed profiles keep independent busy policies; there is no process-environment override.
 
-The first time you message a busy agent on any platform, Hermes appends a one-line reminder to the busy-ack explaining the knob (`"💡 First-time tip — …"`). The reminder fires once per install — a flag under `onboarding.seen.busy_input_prompt` latches it. Delete that key to see the tip again.
+The first time you message a busy agent on any platform, clawd appends a one-line reminder to the busy-ack explaining the knob (`"💡 First-time tip — …"`). The reminder fires once per install — a flag under `onboarding.seen.busy_input_prompt` latches it. Delete that key to see the tip again.
 
 If you find the busy acknowledgment noisy, set `display.busy_ack_enabled: false`. Input handling is unchanged; only the confirmation message is hidden.
 
@@ -502,7 +502,7 @@ Single-select prompts behave as before: pick one option by number, button, or te
 
 ## Tool Progress Notifications
 
-Control how much tool activity is displayed in `~/.hermes/config.yaml`:
+Control how much tool activity is displayed in `~/.clawd/config.yaml`:
 
 ```yaml
 display:
@@ -517,13 +517,13 @@ display:
 
 ### `log` mode — audit file instead of chat messages
 
-Setting `display.tool_progress: log` sends **no** progress bubbles to chat. Instead, each tool call is appended as a line to `~/.hermes/logs/tool_calls.log` — a rotating audit file (5 MB × 3 backups) run through the same secret-redacting formatter as regular logs, so credentials never land on disk. Use it when you want a full tool-call trail without any chat noise.
+Setting `display.tool_progress: log` sends **no** progress bubbles to chat. Instead, each tool call is appended as a line to `~/.clawd/logs/tool_calls.log` — a rotating audit file (5 MB × 3 backups) run through the same secret-redacting formatter as regular logs, so credentials never land on disk. Use it when you want a full tool-call trail without any chat noise.
 
 ### Configurable status phrases
 
 Long-running gateway status lines ("still working…"-style heartbeats) draw from a phrase catalog. Built-in defaults ship in `gateway/assets/status_phrases.yaml`; you can add your own with profile-portable files under `HERMES_HOME`:
 
-- `~/.hermes/status_phrases.yaml` or any `*.yaml` in `~/.hermes/status_phrases/` (conventional paths, auto-loaded), or
+- `~/.clawd/status_phrases.yaml` or any `*.yaml` in `~/.clawd/status_phrases/` (conventional paths, auto-loaded), or
 - point config at a relative path:
 
 ```yaml
@@ -537,7 +537,7 @@ Phrase files map a surface (`status`, `generic`) to a list of strings (max 80 ph
 
 ### Message timestamps in model context
 
-Off by default. When enabled, Hermes prepends a human-readable timestamp
+Off by default. When enabled, clawd prepends a human-readable timestamp
 (e.g. `[Tue 2026-04-28 13:40:53 CEST]`) onto each **user** message *in the
 model's context* so the agent knows when messages were sent — useful for
 temporal reasoning ("you asked this morning…", noticing a long gap). It is
@@ -570,7 +570,7 @@ Run a prompt in a separate background session so the agent works on it independe
 /bg Check all servers in the cluster and report any that are down
 ```
 
-Hermes confirms immediately:
+clawd confirms immediately:
 
 ```
 🔄 Background task started: "Check all servers in the cluster..."
@@ -588,7 +588,7 @@ Each `/bg` prompt spawns a **separate agent instance** that runs asynchronously:
 
 ### Background Process Notifications
 
-When the agent running a background session uses `terminal(background=true)` to start long-running processes (servers, builds, etc.), the gateway can push status updates to your chat. Control this with `display.background_process_notifications` in `~/.hermes/config.yaml`:
+When the agent running a background session uses `terminal(background=true)` to start long-running processes (servers, builds, etc.), the gateway can push status updates to your chat. Control this with `display.background_process_notifications` in `~/.clawd/config.yaml`:
 
 ```yaml
 display:
@@ -627,26 +627,26 @@ Background tasks on messaging platforms are fire-and-forget — you don't need t
 ### Linux (systemd)
 
 ```bash
-hermes gateway install               # Install as user service
-hermes gateway start                 # Start the service
-hermes gateway stop                  # Stop the service
-hermes gateway status                # Check status
+clawd gateway install               # Install as user service
+clawd gateway start                 # Start the service
+clawd gateway stop                  # Stop the service
+clawd gateway status                # Check status
 journalctl --user -u hermes-gateway -f  # View logs
 
 # Enable lingering (keeps running after logout)
 sudo loginctl enable-linger $USER
 
 # Or install a boot-time system service that still runs as your user
-sudo hermes gateway install --system
-sudo hermes gateway start --system
-sudo hermes gateway status --system
+sudo clawd gateway install --system
+sudo clawd gateway start --system
+sudo clawd gateway status --system
 journalctl -u hermes-gateway -f
 ```
 
 Use the user service on laptops and dev boxes. Use the system service on VPS or headless hosts that should come back at boot without relying on systemd linger.
 
 :::danger Don't add a custom `ExecStopPost` kill drop-in
-The unit Hermes installs already shuts the gateway down cleanly with `KillMode=mixed` + `KillSignal=SIGTERM`, and uses `Restart=always` with `RestartForceExitStatus` so updates and `/restart` respawn correctly. Do **not** add a systemd drop-in such as `ExecStopPost=/bin/kill -9 $MAINPID` — `ExecStopPost` fires on *every* stop, including clean restarts, so it `SIGKILL`s the freshly spawned instance before it stabilizes and `Restart=always` immediately respawns it. The result is an infinite restart loop (and, on Telegram, a flood of restart messages). If you've added such a drop-in, remove it: `systemctl --user edit hermes-gateway` (or `sudo systemctl edit hermes-gateway` for a system service) and delete the `ExecStopPost` line, then `systemctl --user daemon-reload`.
+The unit clawd installs already shuts the gateway down cleanly with `KillMode=mixed` + `KillSignal=SIGTERM`, and uses `Restart=always` with `RestartForceExitStatus` so updates and `/restart` respawn correctly. Do **not** add a systemd drop-in such as `ExecStopPost=/bin/kill -9 $MAINPID` — `ExecStopPost` fires on *every* stop, including clean restarts, so it `SIGKILL`s the freshly spawned instance before it stabilizes and `Restart=always` immediately respawns it. The result is an infinite restart loop (and, on Telegram, a flood of restart messages). If you've added such a drop-in, remove it: `systemctl --user edit hermes-gateway` (or `sudo systemctl edit hermes-gateway` for a system service) and delete the `ExecStopPost` line, then `systemctl --user daemon-reload`.
 :::
 
 ### Direct `systemctl restart` / `stop` exits cleanly
@@ -657,9 +657,9 @@ The installed unit declares `ExecStop=` to record a planned-stop marker for `$MA
 systemctl --user restart hermes-gateway   # or: sudo systemctl restart hermes-gateway
 ```
 
-Prefer `hermes gateway restart` when in-flight agent turns matter: it asks the gateway to drain first (`SIGUSR1`, honoring the restart wait budget) and waits for the replacement, while a raw `systemctl restart` stops the current process on systemd's schedule. After updating Hermes, run `hermes gateway restart` once so the running service picks up the regenerated unit that contains the `ExecStop=` line (`hermes gateway status` warns while the installed unit is outdated).
+Prefer `clawd gateway restart` when in-flight agent turns matter: it asks the gateway to drain first (`SIGUSR1`, honoring the restart wait budget) and waits for the replacement, while a raw `systemctl restart` stops the current process on systemd's schedule. After updating clawd, run `clawd gateway restart` once so the running service picks up the regenerated unit that contains the `ExecStop=` line (`clawd gateway status` warns while the installed unit is outdated).
 
-The installed unit also maps `systemctl reload hermes-gateway` to `SIGUSR1`. For Hermes, `reload` therefore means a graceful drain, process exit, and supervisor relaunch; it is **not** an in-process configuration reload. Use `hermes gateway restart` when you want the CLI to wait for and verify the replacement process.
+The installed unit also maps `systemctl reload hermes-gateway` to `SIGUSR1`. For clawd, `reload` therefore means a graceful drain, process exit, and supervisor relaunch; it is **not** an in-process configuration reload. Use `clawd gateway restart` when you want the CLI to wait for and verify the replacement process.
 
 :::tip Headless VMs: user service + linger avoids root prompts
 A system service needs root for every restart — including the automatic gateway restart at the end of `hermes update`. When `hermes update` runs as a non-root user, it tries passwordless `sudo systemctl`; if that's unavailable, it skips the restart and prints the manual `sudo systemctl restart hermes-gateway` command (it never blocks on an interactive password prompt).
@@ -667,64 +667,64 @@ A system service needs root for every restart — including the automatic gatewa
 For a headless VM you never log into, a **user** service with lingering enabled gives you the same start-at-boot behavior with zero root involvement:
 
 ```bash
-hermes gateway install          # user service
+clawd gateway install          # user service
 sudo loginctl enable-linger $USER   # one-time: start at boot, survive logout
 ```
 
 After that, `hermes update` can restart the gateway without any privileges. If you prefer to keep the system service, either run updates with `sudo hermes update`, or grant the service account passwordless sudo for systemctl, e.g. in `sudo visudo -f /etc/sudoers.d/hermes-gateway`:
 
 ```
-hermes ALL=(root) NOPASSWD: /usr/bin/systemctl --no-ask-password reset-failed hermes-gateway*, /usr/bin/systemctl --no-ask-password start hermes-gateway*, /usr/bin/systemctl --no-ask-password restart hermes-gateway*
+clawd ALL=(root) NOPASSWD: /usr/bin/systemctl --no-ask-password reset-failed hermes-gateway*, /usr/bin/systemctl --no-ask-password start hermes-gateway*, /usr/bin/systemctl --no-ask-password restart hermes-gateway*
 ```
 :::
 
-Avoid keeping both the user and system gateway units installed at once unless you really mean to. Hermes will warn if it detects both because start/stop/status behavior gets ambiguous.
+Avoid keeping both the user and system gateway units installed at once unless you really mean to. clawd will warn if it detects both because start/stop/status behavior gets ambiguous.
 
-An installed unit (or launchd plist) belongs to the `HERMES_HOME` it pins. A gateway started from a different home, such as a test or scratch home that happens to resolve to the same service name, never rewrites it: `gateway run`, `start`, `restart` and `install --force` refuse with a message naming both homes and leave the file alone. To deliberately point an existing service at the current home, run `hermes gateway install --force-unit-path`.
+An installed unit (or launchd plist) belongs to the `HERMES_HOME` it pins. A gateway started from a different home, such as a test or scratch home that happens to resolve to the same service name, never rewrites it: `gateway run`, `start`, `restart` and `install --force` refuse with a message naming both homes and leave the file alone. To deliberately point an existing service at the current home, run `clawd gateway install --force-unit-path`.
 
 :::note Inside a container, only the system scope is offered
-`hermes gateway install` (and the `hermes gateway setup` wizard) refuse to install a **user** service when Hermes detects it is running inside a container. A user unit lands in `~/.config/systemd/user`, and when that home is bind-mounted from the host (podman/distrobox), the host's own `systemd --user` enables and starts the same unit — a second gateway polling the same bot token. Run the gateway as the container's main process (`hermes gateway run`, with a container restart policy), or in a systemd container (systemd as PID 1) install the isolated system scope: `sudo hermes gateway install --system --run-as-user <user>`.
+`clawd gateway install` (and the `clawd gateway setup` wizard) refuse to install a **user** service when clawd detects it is running inside a container. A user unit lands in `~/.config/systemd/user`, and when that home is bind-mounted from the host (podman/distrobox), the host's own `systemd --user` enables and starts the same unit — a second gateway polling the same bot token. Run the gateway as the container's main process (`clawd gateway run`, with a container restart policy), or in a systemd container (systemd as PID 1) install the isolated system scope: `sudo clawd gateway install --system --run-as-user <user>`.
 :::
 
 :::info Multiple installations
-If you run multiple Hermes installations on the same machine (with different `HERMES_HOME` directories), each gets its own systemd service name. The default `~/.hermes` uses `hermes-gateway`; other installations use `hermes-gateway-<hash>`. The `hermes gateway` commands automatically target the correct service for your current `HERMES_HOME`.
+If you run multiple clawd installations on the same machine (with different `HERMES_HOME` directories), each gets its own systemd service name. The default `~/.hermes` uses `hermes-gateway`; other installations use `hermes-gateway-<hash>`. The `clawd gateway` commands automatically target the correct service for your current `HERMES_HOME`.
 :::
 
 ### macOS (launchd)
 
 ```bash
-hermes gateway install               # Install as launchd agent
-hermes gateway start                 # Start the service
-hermes gateway stop                  # Stop the service
-hermes gateway status                # Check status
-tail -f ~/.hermes/logs/gateway.log   # View logs
+clawd gateway install               # Install as launchd agent
+clawd gateway start                 # Start the service
+clawd gateway stop                  # Stop the service
+clawd gateway status                # Check status
+tail -f ~/.clawd/logs/gateway.log   # View logs
 ```
 
 The generated plist lives at `~/Library/LaunchAgents/ai.hermes.gateway.plist`. It includes three environment variables:
 
 - **PATH** — your full shell PATH at install time, with the venv `bin/` and `node_modules/.bin` prepended. This ensures user-installed tools (Node.js, ffmpeg, etc.) are available to gateway subprocesses like the WhatsApp bridge.
 - **VIRTUAL_ENV** — points to the Python virtualenv so tools can resolve packages correctly.
-- **HERMES_HOME** — scopes the gateway to your Hermes installation.
+- **HERMES_HOME** — scopes the gateway to your clawd installation.
 
 :::tip PATH changes after install
-launchd plists are static — if you install new tools (e.g. a new Node.js version via nvm, or ffmpeg via Homebrew) after setting up the gateway, run `hermes gateway install` again to capture the updated PATH. The gateway will detect the stale plist and reload automatically.
+launchd plists are static — if you install new tools (e.g. a new Node.js version via nvm, or ffmpeg via Homebrew) after setting up the gateway, run `clawd gateway install` again to capture the updated PATH. The gateway will detect the stale plist and reload automatically.
 :::
 
 :::info Installing without starting
-The plist sets `RunAtLoad`, so loading it starts the gateway. `hermes gateway install --no-start-now`, like answering No to "Start the gateway now?" in `hermes gateway setup`, writes the plist without loading it: the gateway starts at your next login, or when you run `hermes gateway start`. A gateway that launchd is already running is reloaded onto the new plist, not stopped.
+The plist sets `RunAtLoad`, so loading it starts the gateway. `clawd gateway install --no-start-now`, like answering No to "Start the gateway now?" in `clawd gateway setup`, writes the plist without loading it: the gateway starts at your next login, or when you run `clawd gateway start`. A gateway that launchd is already running is reloaded onto the new plist, not stopped.
 :::
 
 :::info Local Network access (LAN devices fail with "No route to host")
-macOS Local Network Privacy attributes a socket to the executable launchd spawned for the job. A bare venv Python has no application identity, so a launchd-run gateway could not reach LAN hosts (Home Assistant, local model servers) — every connect failed with `errno 65 No route to host` while the same URL worked from Terminal, and no prompt was ever shown to grant it. The generated plist therefore runs the gateway through `/usr/bin/osascript`; a JXA `system()` call starts the gateway without an interactive event-polling loop, and macOS treats its children as osascript's own — an Apple platform binary, exempt from the check. `ps` shows `osascript → stderr_timestamp → gateway run`; stop/restart/KeepAlive behave exactly as before. A plist installed by an older Hermes is refreshed by `hermes gateway install` (or on the next `hermes gateway start`).
+macOS Local Network Privacy attributes a socket to the executable launchd spawned for the job. A bare venv Python has no application identity, so a launchd-run gateway could not reach LAN hosts (Home Assistant, local model servers) — every connect failed with `errno 65 No route to host` while the same URL worked from Terminal, and no prompt was ever shown to grant it. The generated plist therefore runs the gateway through `/usr/bin/osascript`; a JXA `system()` call starts the gateway without an interactive event-polling loop, and macOS treats its children as osascript's own — an Apple platform binary, exempt from the check. `ps` shows `osascript → stderr_timestamp → gateway run`; stop/restart/KeepAlive behave exactly as before. A plist installed by an older clawd is refreshed by `clawd gateway install` (or on the next `clawd gateway start`).
 
-Without an installed service, the gateway Hermes starts for you (Hermes Desktop, a chat or TUI client, or the restart after `hermes update`) runs the same way, as a one-off launchd job labelled `com.nousresearch.hermes.runtime.<id>`. A plain child process would lose LAN access as soon as the app that started it quits: macOS then holds the gateway itself responsible, and denies it. The one-off job is never installed in `~/Library/LaunchAgents`, never starts at login and is never restarted by launchd. Because osascript is the responsible app, macOS file-access prompts for that gateway (Documents, Downloads, …) name **osascript**, not Hermes.
+Without an installed service, the gateway clawd starts for you (Hermes Desktop, a chat or TUI client, or the restart after `hermes update`) runs the same way, as a one-off launchd job labelled `com.nousresearch.hermes.runtime.<id>`. A plain child process would lose LAN access as soon as the app that started it quits: macOS then holds the gateway itself responsible, and denies it. The one-off job is never installed in `~/Library/LaunchAgents`, never starts at login and is never restarted by launchd. Because osascript is the responsible app, macOS file-access prompts for that gateway (Documents, Downloads, …) name **osascript**, not clawd.
 :::
 
-:::tip Picking up new credentials after `hermes auth add` / `hermes auth reset`
-Agents run as threads inside the one gateway process; the only child processes are tool subprocesses (terminal commands, browsers), which never hold provider credentials. A running gateway also re-reads the `openai-codex` login it seeded from `auth.json` the next time its pool selects that entry after it had gone `exhausted` or `dead` (entries added with `hermes auth add openai-codex` are independent accounts and are not resynced). When you want every session on the fresh login at once, restart the gateway — but prefer the drain-aware path over a bare kill:
+:::tip Picking up new credentials after `clawd auth add` / `clawd auth reset`
+Agents run as threads inside the one gateway process; the only child processes are tool subprocesses (terminal commands, browsers), which never hold provider credentials. A running gateway also re-reads the `openai-codex` login it seeded from `auth.json` the next time its pool selects that entry after it had gone `exhausted` or `dead` (entries added with `clawd auth add openai-codex` are independent accounts and are not resynced). When you want every session on the fresh login at once, restart the gateway — but prefer the drain-aware path over a bare kill:
 
-- `hermes gateway restart` asks the gateway (SIGUSR1) to refuse new turns, waits up to `agent.restart_after_turn_timeout` (default 1800 s) for in-flight turns to finish, exits, and lets launchd's `KeepAlive` relaunch it; the new process reads `auth.json` from scratch.
-- `launchctl kickstart -k gui/$UID/ai.hermes.gateway` sends SIGTERM instead: the gateway interrupts in-flight chat turns after `agent.restart_drain_timeout` (default `0` — immediately; the user is told and the turn resumes on their next message), gives cron runs and api_server (`/v1`) runs `agent.cron_drain_timeout` (default 30 s), kills tool subprocesses and exits, then launchd relaunches it. Nothing from the old process survives, so a session that still fails with `401` after the relaunch is talking to a different gateway process — check `hermes gateway status` (and `launchctl list | grep hermes`) for a second PID, such as a manually started `hermes gateway run`, and stop that one too.
+- `clawd gateway restart` asks the gateway (SIGUSR1) to refuse new turns, waits up to `agent.restart_after_turn_timeout` (default 1800 s) for in-flight turns to finish, exits, and lets launchd's `KeepAlive` relaunch it; the new process reads `auth.json` from scratch.
+- `launchctl kickstart -k gui/$UID/ai.hermes.gateway` sends SIGTERM instead: the gateway interrupts in-flight chat turns after `agent.restart_drain_timeout` (default `0` — immediately; the user is told and the turn resumes on their next message), gives cron runs and api_server (`/v1`) runs `agent.cron_drain_timeout` (default 30 s), kills tool subprocesses and exits, then launchd relaunches it. Nothing from the old process survives, so a session that still fails with `401` after the relaunch is talking to a different gateway process — check `clawd gateway status` (and `launchctl list | grep clawd`) for a second PID, such as a manually started `clawd gateway run`, and stop that one too.
 :::
 
 :::info Multiple installations
@@ -734,26 +734,26 @@ Like the Linux systemd service, each `HERMES_HOME` directory gets its own launch
 ### Windows (Task Scheduler)
 
 ```powershell
-hermes gateway install               # Register the Hermes_Gateway Scheduled Task (runs at logon)
-hermes gateway start                 # Start the gateway hidden, without a console window
-hermes gateway stop                  # Drain and stop the service
-hermes gateway status                # Check status, including registration drift
+clawd gateway install               # Register the Hermes_Gateway Scheduled Task (runs at logon)
+clawd gateway start                 # Start the gateway hidden, without a console window
+clawd gateway stop                  # Drain and stop the service
+clawd gateway status                # Check status, including registration drift
 ```
 
 The Scheduled Task runs `wscript.exe` on a generated `.vbs` launcher under `%USERPROFILE%\.hermes\gateway-service\`. The launcher starts `python.exe -m hermes_cli.main gateway run` with a hidden window and **exits immediately** — by design: `wscript.exe` has no console, so at logon it never receives the `CTRL_CLOSE_EVENT` that kills a `cmd.exe`-hosted gateway, and the gateway inherits one hidden console instead of every subprocess flashing its own (see `hermes_cli/gateway_windows.py::_build_gateway_vbs_script`).
 
 :::warning RestartOnFailure covers the launcher, not the gateway
-Because the launcher returns as soon as the gateway is spawned, Task Scheduler only ever sees the launcher's exit code. The `<RestartOnFailure>` policy in the registered task therefore fires only when `wscript.exe` itself fails to start the gateway — it does **not** restart a gateway that crashes or is killed later. Gateway auto-restart on Windows relies on the gateway's own in-process restart path (`/restart`, updates, and the `hermes gateway restart` command); a gateway killed from outside stays down until `hermes gateway start` or `schtasks /Run /TN <task>`.
+Because the launcher returns as soon as the gateway is spawned, Task Scheduler only ever sees the launcher's exit code. The `<RestartOnFailure>` policy in the registered task therefore fires only when `wscript.exe` itself fails to start the gateway — it does **not** restart a gateway that crashes or is killed later. Gateway auto-restart on Windows relies on the gateway's own in-process restart path (`/restart`, updates, and the `clawd gateway restart` command); a gateway killed from outside stays down until `clawd gateway start` or `schtasks /Run /TN <task>`.
 :::
 
-`hermes gateway install` writes the task from the current template; a task registered by an older build would otherwise keep its old settings (no `RestartOnFailure`, no logon `Delay`, an older launcher command line) indefinitely. `hermes gateway status` compares the registered task with the current template and warns when it predates it:
+`clawd gateway install` writes the task from the current template; a task registered by an older build would otherwise keep its old settings (no `RestartOnFailure`, no logon `Delay`, an older launcher command line) indefinitely. `clawd gateway status` compares the registered task with the current template and warns when it predates it:
 
 ```
 ⚠ Scheduled Task registration predates the current template (missing: RestartOnFailure, LogonTrigger Delay; version 1.3 vs 1.4)
-  Repair: hermes gateway start  (or: hermes gateway install)
+  Repair: clawd gateway start  (or: clawd gateway install)
 ```
 
-`hermes gateway start` and `hermes update` run the same comparison and re-register a drifted task from the current template automatically (like the systemd unit refresh on Linux); when `schtasks` refuses without elevation, re-run `hermes gateway install`, which can request administrator approval. The check is silent when the task cannot be queried, and it only inspects a few settings Hermes owns (task version, `RestartOnFailure`, the logon trigger delay and the launcher arguments), so deliberate local edits elsewhere in the task are not flagged.
+`clawd gateway start` and `hermes update` run the same comparison and re-register a drifted task from the current template automatically (like the systemd unit refresh on Linux); when `schtasks` refuses without elevation, re-run `clawd gateway install`, which can request administrator approval. The check is silent when the task cannot be queried, and it only inspects a few settings clawd owns (task version, `RestartOnFailure`, the logon trigger delay and the launcher arguments), so deliberate local edits elsewhere in the task are not flagged.
 
 ## Platform-Specific Toolsets
 
@@ -807,13 +807,13 @@ See also the broader status summary command [`/platforms`](../../reference/slash
 
 ### Disabling a platform whose credentials are still in `.env`
 
-`platforms.<name>.enabled: false` in `~/.hermes/config.yaml` is authoritative.
+`platforms.<name>.enabled: false` in `~/.clawd/config.yaml` is authoritative.
 Credentials for that platform left in the environment (`TELEGRAM_BOT_TOKEN`,
 `WEIXIN_TOKEN`, `HASS_TOKEN`, `EMAIL_*`, `TWILIO_ACCOUNT_SID`, ...) are still
 wired into the platform's config so send-only tooling keeps working, but they
 no longer start the adapter:
 
-```yaml title="~/.hermes/config.yaml"
+```yaml title="~/.clawd/config.yaml"
 platforms:
   weixin:
     enabled: false   # wins over WEIXIN_TOKEN in .env
@@ -845,7 +845,7 @@ sees — a local Clash/V2Ray listener that isn't running yet — and log
 `Cannot connect to host 127.0.0.1:7890` on every poll. Turn the inherited
 proxy off for all adapters at once:
 
-```yaml title="~/.hermes/config.yaml"
+```yaml title="~/.clawd/config.yaml"
 gateway:
   trust_env: false
 ```
@@ -863,7 +863,7 @@ The breaker does **not** auto-resume — it stays open until you run `/platform 
 
 When an adapter is paused, check:
 
-1. **Gateway log** (`~/.hermes/logs/gateway.log` or the systemd / launchd unit log). Search for the platform name and `circuit breaker`, `paused`, or `disabled`. The trip event includes the failure count and the last error.
+1. **Gateway log** (`~/.clawd/logs/gateway.log` or the systemd / launchd unit log). Search for the platform name and `circuit breaker`, `paused`, or `disabled`. The trip event includes the failure count and the last error.
 2. **`/platform list`** output — shows the current state and last reason.
 3. **The provider's status page** (Telegram bot API status, Discord status, etc.). The breaker tripped because the platform was unhealthy; don't try to resume until it's back.
 
@@ -924,7 +924,7 @@ Telegram is usually a mobile inbox, so the defaults are tuned for that surface:
 - **`interim_assistant_messages`** stays **on** — real mid-turn assistant commentary (the model literally telling you what it's about to do) is signal, not noise.
 - **`long_running_notifications`** stays **on** — a single edit-in-place "⏳ Working — N min" bubble updates every few minutes so you have a heartbeat instead of staring at `typing…` for half an hour.
 
-These per-platform defaults apply only while the same key is unset directly under `display:`. A global `display.tool_progress`, `display.show_reasoning`, `display.busy_ack_detail`, `display.interim_assistant_messages` or `display.long_running_notifications` applies to every platform and replaces its default. A `config.yaml` copied from an older `cli-config.yaml.example` sets all five globally, and an older first-time `hermes setup` wrote `tool_progress: all`; delete those lines to get the per-platform defaults back.
+These per-platform defaults apply only while the same key is unset directly under `display:`. A global `display.tool_progress`, `display.show_reasoning`, `display.busy_ack_detail`, `display.interim_assistant_messages` or `display.long_running_notifications` applies to every platform and replaces its default. A `config.yaml` copied from an older `cli-config.yaml.example` sets all five globally, and an older first-time `clawd setup` wrote `tool_progress: all`; delete those lines to get the per-platform defaults back.
 
 Opt out of either of the kept-on defaults or opt back into verbose progress per platform:
 

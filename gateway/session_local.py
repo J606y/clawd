@@ -315,6 +315,9 @@ def stage_local_session(authority, actor, params, *, trusted_policy=None, truste
         marks = {LOCAL_DESKTOP_CHAT: True} if desktop_local and policy.source == 'gui' else {}
         if policy.model is None:
             from hermes_cli.anon_auth import GUEST_MODEL
+            # Empty resolve is an unset launch (no profile model name), persisted as
+            # None. A missing credential or an inactive welcome trial is not a reason
+            # to refuse the receipt; restore_policy accepts this unset model.
             policy = replace(policy, model=_resolve_gateway_model(policy.config()) or None)
             if policy.model == GUEST_MODEL:
                 # Follows its profile, so the provider the user connects later replaces the trial model.

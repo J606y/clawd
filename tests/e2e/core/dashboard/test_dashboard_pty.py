@@ -116,12 +116,12 @@ class Chat:
 
     def wait_composer(self, term: WsTerm) -> None:
         """The TUI painted its composer prompt and session banner, and its status bar no longer
-        reports a boot phase ("summoning hermes…", "starting agent…"). Profile-agnostic on purpose:
+        reports a boot phase ("summoning clawd…", "starting agent…"). Profile-agnostic on purpose:
         which profile answered is judged by the provider/state.db assertions, not by this wait."""
         def ready() -> bool:
             s = term.text()
             return term.closed or ("❯" in s and "Session:" in s
-                                   and "startingagent" not in s and "summoninghermes" not in s)
+                                   and "startingagent" not in s and "summoningclawd" not in s and "summoninghermes" not in s)
         try:
             poll(ready, 120, "the TUI composer to be ready")
             assert not term.closed, f"/api/pty closed (code={term.close_code}) during TUI startup"

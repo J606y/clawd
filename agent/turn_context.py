@@ -512,9 +512,14 @@ class TurnContext:
 
 def _persist_under_lock(agent: Any, fn, failure_msg: str, pending_cli_message: Any) -> None:
     """Run ``fn`` under the session persist lock (when the agent has one), log-and-swallow
-    failures, then drop staged CLI input — unless it is an unmarked handoff kept for a
+    transient failures, then drop staged CLI input — unless it is an unmarked handoff kept for a
     close retry (once ``_db_persisted`` the close path must not treat it as pre-worker
-    UI input). Eager clearing keeps a preflight crash from leaking stale input."""
+    UI input). Eager clearing keeps a preflight crash from leaking stale input.
+
+    ``ProjectInheritanceError`` is not transient. It must leave this helper so turn
+    setup stops before compaction, the model, or any tool.
+    """
+    from clawd_projects.inheritance import ProjectInheritanceError
     try:
         lock = getattr(agent, "_session_persist_lock", None)
         if lock is None:
@@ -522,6 +527,8 @@ def _persist_under_lock(agent: Any, fn, failure_msg: str, pending_cli_message: A
         else:
             with lock:
                 fn()
+    except ProjectInheritanceError:
+        raise
     except Exception:
         logger.warning(failure_msg, agent.session_id or "none", exc_info=True)
     finally:

@@ -1,7 +1,7 @@
 ---
 sidebar_position: 12
 title: "Video Generation Provider Plugins"
-description: "How to build a video-generation backend plugin for Hermes Agent"
+description: "How to build a video-generation backend plugin for clawd"
 ---
 
 # Building a Video Generation Provider Plugin
@@ -23,13 +23,13 @@ Edit and extend are intentionally out of scope. Most backends don't support them
 
 ## How discovery works
 
-Hermes scans for video-gen backends in three places:
+clawd scans for video-gen backends in three places:
 
 1. **Bundled** — `<repo>/plugins/video_gen/<name>/` (auto-loaded with `kind: backend`)
-2. **User** — `~/.hermes/plugins/video_gen/<name>/` (opt-in via `plugins.enabled`)
+2. **User** — `~/.clawd/plugins/video_gen/<name>/` (opt-in via `plugins.enabled`)
 3. **Pip** — packages declaring a `hermes_agent.plugins` entry point
 
-Each plugin's `register(ctx)` function calls `ctx.register_video_gen_provider(...)`. The active provider is picked by `video_gen.provider` in `config.yaml`; `hermes tools` → Video Generation walks users through selection. Unlike `image_generate`, there is no in-tree legacy backend — every provider is a plugin.
+Each plugin's `register(ctx)` function calls `ctx.register_video_gen_provider(...)`. The active provider is picked by `video_gen.provider` in `config.yaml`; `clawd tools` → Video Generation walks users through selection. Unlike `image_generate`, there is no in-tree legacy backend — every provider is a plugin.
 
 ## Directory structure
 
@@ -101,7 +101,7 @@ class MyVideoGenProvider(VideoGenProvider):
         return {
             "name": "My Backend",
             "badge": "paid",
-            "tag": "Short description shown in `hermes tools`",
+            "tag": "Short description shown in `clawd tools`",
             "env_vars": [
                 {
                     "key": "MY_API_KEY",
@@ -182,7 +182,7 @@ The tool exposes one schema across every backend. Providers ignore parameters th
 
 There is deliberately no `model` parameter: the backend and model are user configuration (`video_gen.provider` / `video_gen.model`), never an agent choice. Your `generate()` still receives `model=` — it is the configured model, resolved by the tool layer.
 
-The provider's `capabilities()` advertises which of these are honored. The agent sees the active backend's capabilities in the tool description, dynamically rebuilt when the user changes backend via `hermes tools`.
+The provider's `capabilities()` advertises which of these are honored. The agent sees the active backend's capabilities in the tool description, dynamically rebuilt when the user changes backend via `clawd tools`.
 
 ## Model families and endpoint routing (the FAL pattern)
 
@@ -203,7 +203,7 @@ def generate(self, prompt, *, image_url=None, model=None, **kwargs):
     # ... build payload from family's declared capability flags, call endpoint ...
 ```
 
-The user picks `veo3.1` once in `hermes tools`. The agent never thinks about endpoints — it just passes (or doesn't pass) `image_url`.
+The user picks `veo3.1` once in `clawd tools`. The agent never thinks about endpoints — it just passes (or doesn't pass) `image_url`.
 
 ## Selection precedence
 

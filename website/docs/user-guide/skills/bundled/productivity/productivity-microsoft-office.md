@@ -26,7 +26,7 @@ Create, read, and edit Word, PowerPoint, and Excel files.
 ## Reference: full SKILL.md
 
 :::info
-The following is the complete skill definition that Hermes loads when this skill is triggered. This is what the agent sees as instructions when the skill is active.
+The following is the complete skill definition that clawd loads when this skill is triggered. This is what the agent sees as instructions when the skill is active.
 :::
 
 # Microsoft Office Skill
@@ -59,17 +59,17 @@ Deeper notes: `references/revisions-and-comments.md` (Word review markup) and
 - Python 3.10+ with `python-docx`, `python-pptx`, and `openpyxl` (import names
   `docx`, `pptx`, `openpyxl`).
 - Pick the interpreter with `terminal`. Use `python` when it already imports
-  the libraries (the Hermes Docker image ships them). Otherwise, when `hermes`
-  is on PATH, let Hermes build its shared, pinned documents environment under
-  the Hermes home: it survives container restarts, never touches the Hermes
+  the libraries (the clawd Docker image ships them). Otherwise, when `clawd`
+  is on PATH, let clawd build its shared, pinned documents environment under
+  the clawd home: it survives container restarts, never touches the clawd
   install itself, and is safe to run from several agents at once. When it is
-  not (the terminal runs in a Docker sandbox, which has no Hermes), the block
+  not (the terminal runs in a Docker sandbox, which has no clawd), the block
   builds a venv in the sandbox home with the same pinned versions. Use this
   exact block in every document skill so they all share one environment:
 
   ```bash
-  python -c "import docx, pptx, openpyxl" 2>/dev/null && PY=python || if command -v hermes >/dev/null 2>&1; then
-    PY="$(hermes pm environment documents --extra documents --extra documents-pdf)"
+  python -c "import docx, pptx, openpyxl" 2>/dev/null && PY=python || if command -v clawd >/dev/null 2>&1; then
+    PY="$(clawd pm environment documents --extra documents --extra documents-pdf)"
   else
     PY="$HOME/.cache/hermes-docs-venv/bin/python"
     "$PY" -c "import docx, openpyxl, pptx, reportlab, pypdf, pdfplumber, pypdfium2" 2>/dev/null || (
@@ -93,11 +93,11 @@ Deeper notes: `references/revisions-and-comments.md` (Word review markup) and
   "$PY" scripts/docx_create.py --help
   ```
 
-  Run every helper with `"$PY"`. In PowerShell (Hermes runs on that host, so
+  Run every helper with `"$PY"`. In PowerShell (clawd runs on that host, so
   it is on PATH):
-  `$env:PY = hermes pm environment documents --extra documents --extra documents-pdf`.
-  Never `pip install` into the interpreter that runs Hermes or into the
-  `hermes pm environment` one; Hermes owns both.
+  `$env:PY = clawd pm environment documents --extra documents --extra documents-pdf`.
+  Never `pip install` into the interpreter that runs clawd or into the
+  `clawd pm environment` one; clawd owns both.
 - Optional: LibreOffice (`soffice`) for PDF export, Excel recalculation, and
   slide rendering, plus poppler (`pdftoppm` or `pdftocairo`) for slide PNGs.
   The helpers that need them report what is missing and exit 0.

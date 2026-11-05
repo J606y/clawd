@@ -1,4 +1,4 @@
-"""``hermes computer-use screen`` — the Bot Desktop screen a profile's ``computer_use`` drives on a
+"""``clawd computer-use screen`` — the Bot Desktop screen a profile's ``computer_use`` drives on a
 headless Linux gateway host, viewable from Hermes Desktop. ``status`` / ``start`` / ``stop`` /
 ``install`` mirror the Desktop pane's controls for ops shells and cloud images."""
 
@@ -20,7 +20,7 @@ def _screen_status(args) -> int:
         return 1
     if not st.installed:
         print("Bot Desktop: packages missing → " + ", ".join(st.missing))
-        print("  Install: " + (st.install_command or "hermes computer-use screen install"))
+        print("  Install: " + (st.install_command or "clawd computer-use screen install"))
         return 1
     if st.running:
         holder = lease.public_view(lease.get())
@@ -32,7 +32,7 @@ def _screen_status(args) -> int:
     if st.blocker:
         print(f"Bot Desktop [{st.profile}]: installed, not running. {st.blocker}")
         return 1
-    print(f"Bot Desktop [{st.profile}]: installed, not running. Start: hermes computer-use screen start")
+    print(f"Bot Desktop [{st.profile}]: installed, not running. Start: clawd computer-use screen start")
     return 1
 
 
@@ -95,7 +95,7 @@ def _screen_install(args) -> int:
     if missing:
         print("Bot Desktop: still missing " + ", ".join(missing))
         return 1
-    print("Bot Desktop: ready. Start with `hermes computer-use screen start` or from Hermes Desktop.")
+    print("Bot Desktop: ready. Start with `clawd computer-use screen start` or from Hermes Desktop.")
     return 0
 
 
@@ -105,7 +105,7 @@ SCREEN_ACTIONS = {"status": _screen_status, "start": _screen_start, "stop": _scr
 def build_screen_parser(computer_use_sub, add_json_flag) -> None:
     screen = computer_use_sub.add_parser(
         "screen", help="Bot Desktop: the headless screen this profile's computer_use drives (Linux)",
-        description="On a headless Linux gateway host Hermes gives each profile its own Xfce screen\n"
+        description="On a headless Linux gateway host clawd gives each profile its own Xfce screen\n"
             "(TigerVNC Xvnc on a private Unix socket). The agent's computer_use and headed\n"
             "browser act on it; Hermes Desktop shows it live and lets a human take over for\n"
             "logins, 2FA or CAPTCHAs, then hand control back.\n\n"

@@ -21,6 +21,36 @@ from agent.i18n import t
 logger = logging.getLogger("hermes_cli.main")
 
 
+def _product_command() -> str:
+    """User-visible CLI name. Internal module names stay hermes_cli."""
+    return "clawd" if os.environ.get("CLAWD_CLI") == "1" else "hermes"
+
+
+def _refuse_upstream_update() -> None:
+    print(
+        "refused: clawd does not run the upstream Hermes update. "
+        "That path would restore the official UI or overwrite an existing Hermes install.",
+        file=sys.stderr,
+    )
+    raise SystemExit(2)
+
+
+def _pin_clawd_tui_command(env: dict) -> None:
+    """TUI children must not exec a hermes console script."""
+    if os.environ.get("CLAWD_CLI") != "1":
+        return
+    env["CLAWD_CLI"] = "1"
+    env.pop("HERMES_BIN", None)
+    from hermes_cli.main import PROJECT_ROOT
+
+    launcher = PROJECT_ROOT / "clawd"
+    if launcher.is_file():
+        env["CLAWD_BIN"] = str(launcher.resolve())
+    pinned = os.environ.get("CLAWD_BIN", "").strip()
+    if pinned and os.path.isfile(pinned):
+        env["CLAWD_BIN"] = pinned
+
+
 def _bypass_chat_launch(args) -> bool:
     """--safe-mode / --ignore-user-config chat: the gateway owner freezes code defaults and runs
     the turn out of process, so the profile's display.interface must not pick a surface and the
@@ -111,9 +141,9 @@ def _print_tui_exit_summary(session_id: Optional[str], active_session_file: Opti
     from hermes_cli.profiles import get_active_profile_name
     active_profile = get_active_profile_name()
     profile_flag = "" if active_profile in ("default", "custom") else f" -p {active_profile}"
-    print(f"\n{t('cli.session.exit_resume_hint')}\n  hermes --tui --resume {resume_id}{profile_flag}")
+    print(f"\n{t('cli.session.exit_resume_hint')}\n  {_product_command()} --tui --resume {resume_id}{profile_flag}")
     if title:
-        print(f'  hermes --tui -c "{title}"{profile_flag}')
+        print(f'  {_product_command()} --tui -c "{title}"{profile_flag}')
     print(f"\nSession:        {resume_id}")
     if title:
         print(f"Title:          {title}")
@@ -179,16 +209,26 @@ def _ensure_tui_workspace(tui_dir: Path) -> None:
             print(f"Restored missing TUI workspace: {tui_dir}")
         return
 
-    print(
-        "Error: the TUI workspace is missing from this Hermes checkout.\n"
-        f"Expected directory: {tui_dir}\n"
-        "This usually means `hermes update` left tracked ui-tui files deleted.\n"
-        "Recovery:\n"
-        "  1. From the Hermes checkout, run `git restore -- ui-tui`\n"
-        "  2. Run `npm install --silent --no-fund --no-audit --progress=false`\n"
-        "  3. Retry `hermes --tui`\n"
-        "If the checkout is still inconsistent, run `hermes update --force`.",
-        file=sys.stderr)
+    cmd = _product_command()
+    if cmd == "clawd":
+        print(
+            "Error: the TUI workspace is missing from this clawd checkout.\n"
+            f"Expected directory: {tui_dir}\n"
+            "Restore ui-tui in the clawd checkout, then retry `clawd --tui`.\n"
+            "clawd will not run the upstream Hermes update to restore it.",
+            file=sys.stderr,
+        )
+    else:
+        print(
+            "Error: the TUI workspace is missing from this Hermes checkout.\n"
+            f"Expected directory: {tui_dir}\n"
+            "This usually means `hermes update` left tracked ui-tui files deleted.\n"
+            "Recovery:\n"
+            "  1. From the Hermes checkout, run `git restore -- ui-tui`\n"
+            "  2. Run `npm install --silent --no-fund --no-audit --progress=false`\n"
+            "  3. Retry `hermes --tui`\n"
+            "If the checkout is still inconsistent, run `hermes update --force`.",
+            file=sys.stderr)
     sys.exit(1)
 
 
@@ -201,10 +241,11 @@ def _tui_node_bin(bin: str) -> str:
     from pm import ensure
     path = shutil.which(bin, path=ensure(bin).env["PATH"])
     if not path:
+        cmd = _product_command()
         print(
             f"Node.js is required for the TUI but `{bin}` was not found. Install it from "
-            "https://nodejs.org (run `hermes doctor` for the install hint for your OS), then "
-            "retry `hermes --tui`. To keep working now, run `hermes --cli`."
+            f"https://nodejs.org (run `{cmd} doctor` for the install hint for your OS), then "
+            f"retry `{cmd} --tui`. To keep working now, run `{cmd} --cli`."
         )
         sys.exit(1)
     return path
@@ -439,7 +480,7 @@ def _require_bypass_model(env: dict, model: Optional[str], resume_session_id: Op
     if bypass and not resume_session_id and not (model or env.get("HERMES_MODEL", "").strip()):
         print("Error: --safe-mode / --ignore-user-config (or HERMES_IGNORE_USER_CONFIG=1) read no profile "
               "default model: pass --model explicitly.\n"
-              "  Example: hermes --tui --safe-mode --provider openrouter --model anthropic/claude-sonnet-4",
+              f"  Example: {_product_command()} --tui --safe-mode --provider openrouter --model anthropic/claude-sonnet-4",
               file=sys.stderr)
         raise SystemExit(1)
 
@@ -454,7 +495,7 @@ def _refuse_unforwarded_tui_flags(args) -> None:
     flags = [flag for name, flag in _TUI_UNFORWARDED.items() if getattr(args, name, None)]
     if flags:
         print(f"Error: Unsupported --tui options: {', '.join(flags)}. No session was started.\n"
-              f"  Use classic chat for this launch: hermes chat --cli {' '.join(flags)} ...\n"
+              f"  Use classic chat for this launch: {_product_command()} chat --cli {' '.join(flags)} ...\n"
               "  Or set model.base_url / agent.reasoning_effort in config.yaml (/reasoning in the TUI).",
               file=sys.stderr)
         raise SystemExit(2)
@@ -555,6 +596,7 @@ def _launch_tui(
     if not any(t.startswith("--max-old-space-size=") for t in _tokens):
         _tokens.append(f"--max-old-space-size={_resolve_tui_heap_mb()}")
     env["NODE_OPTIONS"] = " ".join(_tokens)
+    _pin_clawd_tui_command(env)
     # HERMES_TUI_RESUME is an internal hand-off to the Ink app. We start from a
     # full os.environ snapshot, so a stale exported value would make a plain
     # `hermes --tui` try to resume a non-existent session; only forward the id
@@ -597,9 +639,10 @@ def _launch_tui(
                                              get_hermes_home() / "state.db")
             print(f"Worktree retained for this session: {wt_info['path']}", file=sys.stderr)
 
-    # Exit code 42 = TUI requested an update. Relaunch as `hermes update`;
-    # preserve_inherited=False keeps --tui and other flags out of the subcommand.
+    # Exit code 42 = TUI requested an update. clawd refuses; it must not exec hermes update.
     if code == 42:
+        if _product_command() == "clawd":
+            _refuse_upstream_update()
         from hermes_cli.relaunch import relaunch
         print("\n☤ Launching update...\n")
         relaunch(["update"], preserve_inherited=False)

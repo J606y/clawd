@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>液态玻璃组件回归（合成数据）</title>
+</head>
+<body data-stage="effort">
+  <div id="root"></div>
+  <script>
+    window.unmatched = [];
+    window.actions = [];
+    window.fixtureErrors = [];
+    window.addEventListener('error', event => window.fixtureErrors.push(event.message));
+    window.addEventListener('unhandledrejection', event => window.fixtureErrors.push(String(event.reason)));
+    window.fetch = async (input, init) => {
+      const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url, location.href);
+      const method = init?.method || 'GET';
+      const json = body => new Response(JSON.stringify(body), { headers: { 'Content-Type': 'application/json' } });
+      if (method === 'GET' && url.pathname.endsWith('/sessions/folders')) return json({ folders: [], assignments: {} });
+      if (method === 'GET' && url.pathname.includes('/api/projects')) return json({ projects: [] });
+      if (method === 'GET' && url.pathname.endsWith('/sessions/active')) return json({ data: [] });
+      if (method === 'GET' && url.pathname.endsWith('/api/sessions')) return json({ data: [{ id: 'glass-fixture', source: 'tui', title: '玻璃样式验收', model: null, started_at: 1700000000, last_active: 1700000000, message_count: 2, preview: '合成会话，不读取真实历史', pinned: false, archived: false }], has_more: false });
+      window.unmatched.push(method + ' ' + url.pathname);
+      return new Response('Unexpected fixture request', { status: 500 });
+    };
+  </script>
+  <script type="module">
+    import { createElement as h, useState, useEffect } from 'react';
+    import { createRoot } from 'react-dom/client';
+    import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+    import '/src/react/styles/index.css';
+    import '/src/react/shell/shell.css';
+    import { ChatStyles } from '/src/react/pages/chat/chat-styles.tsx';
+    import { ModelPicker, EffortPicker, ContextRing } from '/src/react/pages/chat/pickers.tsx';
+    import { Composer } from '/src/react/pages/chat/composer.tsx';
+    import { HistoryTurn } from '/src/react/pages/chat/turns.tsx';
+    import { SessionList } from '/src/react/shell/session-list.tsx';
+
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
+    const noop = () => {};
+    const fixtureCSS = `
+      .fixture-stage { display: none; }
+      body[data-stage="effort"] .fixture-effort,
+      body[data-stage="model"] .fixture-model,
+      body[data-stage="composer"] .fixture-composer,
+      body[data-stage="jump"] .fixture-jump,
+      body[data-stage="session"] .fixture-session,
+      body[data-stage="context"] .fixture-context,
+      body[data-stage="control"] .fixture-control { display: block; }
+      .fixture-stage.hp-chat, .fixture-stage.fixture-session {
+        position: relative; width: 100%; height: 560px; overflow: visible;
+      }
+      .fixture-backdrop { position: absolute; inset: 0; pointer-events: none;
+        background: linear-gradient(110deg, #aab9c6 0 46%, #d1b7ad 48% 100%); }
+      :root[data-theme="dark"] .fixture-backdrop {
+        background: linear-gradient(110deg, #253c4a 0 46%, #503e3c 48% 100%);
+      }
+      body[data-scene="plain"] .fixture-backdrop { background: var(--bg); }
+      .fixture-stage > .fixture-anchor { position: absolute; bottom: 32px; right: 20px; }
+      .fixture-control > .fixture-anchor { right: 50%; bottom: 160px; transform: translateX(50%); }
+      .fixture-stage > .composer { position: absolute; bottom: 40px; left: 0; right: 0; }
+      .fixture-lines { position: absolute; inset: 0 10px; overflow: hidden; white-space: pre;
+        font: 14px/24px sans-serif; color: var(--text); opacity: 0.55; }
+      .fixture-session > .session-list { position: relative; height: 540px; padding-top: 100px; }
+      .fixture-heading { position: absolute; top: 36px; left: 20px; margin: 0;
+        color: var(--text); font-size: 18px; font-weight: 600; }
+      .fixture-caption { position: absolute; top: 68px; left: 20px; margin: 0;
+        color: var(--text-secondary); font-size: 12px; }
+    `;
+    function stage(name, title, child) {
+      return h('section', { className: `fixture-stage fixture-${name}${name === 'session' ? '' : ' hp-chat'}` },
+        h('div', { className: 'fixture-backdrop', 'aria-hidden': true }, name === 'context'
+          ? h('div', { className: 'fixture-lines' }, Array.from({ length: 24 }, (_, i) => `背景测试 Sample text ${i + 1}`).join('\n'))
+          : null),
+        h('h1', { className: 'fixture-heading' }, title),
+        h('p', { className: 'fixture-caption' }, '真实组件 · 合成数据 · 不访问生产接口'), child);
+    }
+    function App() {
+      const [effort, setEffort] = useState('ultra');
+      const [model, setModel] = useState('grok-4.7');
+      const [value, setValue] = useState('');
+      useEffect(() => { window.fixtureReady = true; }, []);
+      return h(QueryClientProvider, { client },
+        h(ChatStyles),
+        h('style', null, fixtureCSS),
+        stage('effort', '思考强度', h('div', { className: 'fixture-anchor' }, h(EffortPicker, { model: 'grok-4.7', stored: effort, sessionId: 'glass-fixture', onChange: level => { window.actions.push(['effort', level]); setEffort(level); } }))),
+        stage('model', '模型菜单', h('div', { className: 'fixture-anchor' }, h(ModelPicker, {
+          value: model, provider: 'fixture', failed: false, onOpen: noop,
+          options: { current: { model: 'grok-4.7', provider: 'fixture' }, choices: Array.from({ length: 24 }, (_, i) => ({ model: i === 0 ? 'grok-4.7' : `fixture-model-${i}`, provider: 'fixture', providerName: '回归模型' })) },
+          onSelect: next => { window.actions.push(['model', next]); setModel(next); },
+        }))),
+        stage('composer', '输入条', h('div', { className: 'composer' }, h(Composer, {
+          value, attachments: [], disabled: false, running: false, canSteer: false, preparing: false, stopping: false, flash: '',
+          onChange: text => setValue(text), onPreparing: noop, onFlash: noop,
+          onSend: () => window.actions.push(['send', value]), onSteer: noop, onStop: noop,
+        }))),
+        stage('jump', '回到底部', h('button', { className: 'jump', 'aria-label': '回到底部', onClick: () => window.actions.push(['jump']) }, h('svg', { width: 16, height: 16, viewBox: '0 0 24 24', 'aria-hidden': true }, h('path', { d: 'M12 5v14m-6-6 6 6 6-6', fill: 'none', stroke: 'currentColor', strokeWidth: 2, strokeLinecap: 'round', strokeLinejoin: 'round' })))),
+        stage('session', '会话菜单', h(SessionList, { onSelect: noop, onDeleted: noop, onRenamed: noop })),
+        stage('context', '上下文窗口', h('div', { className: 'fixture-anchor' }, h(ContextRing, {
+          sessionId: 'glass-fixture', failed: false, onOpen: noop,
+          usage: { used: 1250, window: 8000, cached: 1000, out: 75, model: 'fixture-model', at: '2024-01-02 03:04:05', source: 'config', session: { input: 2500, output: 750, cacheRead: 5000, apiCalls: 4, messages: 10 } },
+        }))),
+        stage('control', '未点名浮层', h('div', { className: 'fixture-anchor' }, h(HistoryTurn, {
+          turn: { role: 'user', message: {}, text: '合成消息', images: [], files: [], uploads: [], droppedImages: 0 },
+          pending: false, outcome: '', editDisabled: '', editing: false, messageKey: 'fixture',
+          onEditStart: noop, onEditEnd: noop, onEditSend: async () => {},
+        }))),
+      );
+    }
+    createRoot(document.getElementById('root')).render(h(App));
+  </script>
+</body>
+</html>

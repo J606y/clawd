@@ -1,0 +1,356 @@
+{
+  "meta": {
+    "reviewer": "核心原生输入与存储剩余审查复核",
+    "model": "grok-4.7",
+    "method": "只读产品源码与 CPython v3.14.9 公开源码；另核对 v3.11.9 简单类型 paramfunc。未运行测试、构建、导入、FFI 或探针，未改产品。",
+    "not_run": true,
+    "product_modified": false,
+    "third_party_not_judged": true,
+    "python": "3.14.9",
+    "cpython_tag": "v3.14.9",
+    "cpython_reference": "artifacts/core-audit-native-reference/",
+    "note": "不宣布内核或第三方 native 安全。libcuda、Windows 内核、CoreFoundation 实现本体未审计。需验证只表示缺平台/ABI/API 契约证据，对应函数体已读。",
+    "counts": {
+      "ids": 14,
+      "仍成立": 9,
+      "已修复": 0,
+      "误报": 3,
+      "需验证": 2,
+      "duplicate": 0,
+      "仍成立_高": 0,
+      "仍成立_中": 2,
+      "仍成立_低": 7
+    }
+  },
+  "items": [
+    {
+      "id": "inp-empty-key",
+      "status": "仍成立",
+      "severity": "低",
+      "confidence": "确定",
+      "title": "默认 profile 空密钥时请求检查放行；已读到的生产监听都先过启动门禁",
+      "locations": [
+        "gateway/platforms/api_server.py:1415-1428",
+        "gateway/platforms/api_server.py:3948-4005",
+        "clawd_server/server.py:174-182",
+        "gateway/run_adapters.py:197"
+      ],
+      "description": "expected_key 为空且不是具名 profile 时 _check_auth 返回 None。具名 profile 无密钥返回 401。connect() 在密钥缺失、过短或强度无法核验时拒绝监听，且在创建 Application 和加路由之前返回。面板 _start_api 只在 connect() 成功后才记录监听地址。网关启动调用 adapter.connect()。没有找到生产代码把同一 handler 挂到监听器上却跳过该门禁。因此这不是已确认的未授权入口，而是检查器里留给测试或手工接线的失败开放。",
+      "trigger": "有代码不经过 _api_key_passes_startup_guard 就把 handler 挂上监听，或启动后把默认 profile 的密钥清成空。本次已读的生产启动路径不会这样。",
+      "fix": "请求路径也失败关闭。测试要注入测试密钥，不要留生产放行分支。\nif not expected_key:\n    return self._auth_failed_response()",
+      "origin": "input-security.md#4",
+      "code_hash": {
+        "gateway/platforms/api_server.py": "b95284ed570ea9f3ed4f0218af12eff91891373a32a93f60f89658b43ba839de",
+        "clawd_server/server.py": "ea3534ab92e054fe38c79f6533b8797c86dea07facdfb09d3badc5a060dd03ab"
+      },
+      "call_chain": "_check_auth ← 路由装饰与 clawd_effort_routes/api_server_runs；监听入口 connect() 与面板 _start_api；网关 run_adapters.adapter.connect",
+      "duplicate_of": null,
+      "static_note": "只读。未发请求。未把失败开放升成已确认绕过。"
+    },
+    {
+      "id": "inp-webhook-v1",
+      "status": "仍成立",
+      "severity": "低",
+      "confidence": "确定",
+      "title": "遗留 V1 仍接受无时间戳的 body HMAC，重放不靠授权缺失",
+      "locations": [
+        "gateway/platforms/webhook.py:77-80",
+        "gateway/platforms/webhook.py:534-557",
+        "gateway/platforms/webhook.py:887-912",
+        "gateway/platforms/webhook.py:675",
+        "gateway/platforms/webhook.py:723-733",
+        "gateway/platforms/webhook.py:812-813",
+        "gateway/platforms/webhook_ingress.py:241-267"
+      ],
+      "description": "空、空白或非字符串 secret 在请求时拒绝。出现 X-Webhook-Signature-V2 却没有时间戳则拒绝，不退回 V1。只带 X-Webhook-Signature 时，比较的是 body 的 HMAC-SHA256，没有时间戳。比较走 bytes compare_digest。GitHub、GitLab、Svix、Linear 头在更早的分支返回，不走 V1。这是持有一次有效签名后的重放，不是未授权入口。",
+      "trigger": "路由仍用 V1。捕获一次有效 body 和签名后重放。没有 GitHub/Svix/webhook-id/X-Request-ID 时 _header_delivery_id 生成新 uuid，内存幂等和以 message_id 为键的持久 admission 都不会把它当成重复。带稳定 delivery id 时，非持久路径只在进程内 TTL 3600 秒去重；持久 agent 路径按同一 message_id 认重复。",
+      "fix": "默认拒绝 V1，只在路由显式 allow_legacy_v1 时接受。\ngeneric_sig = headers.get(\"X-Webhook-Signature\", \"\")\nif generic_sig:\n    if not route_config.get(\"allow_legacy_v1\"):\n        return False\n    return _hmac_str_equal(generic_sig, _hex_hmac(secret, body))",
+      "origin": "input-security.md#5",
+      "code_hash": {
+        "gateway/platforms/webhook.py": "31e8fcc00d4649ad760aaeba8fe0bfda47e97dc4587622d74b8e1674285907f8",
+        "gateway/platforms/webhook_ingress.py": "a9f899fff699d243fd847de36842ce027453a762f1f65490af744194295ae741"
+      },
+      "call_chain": "_handle_webhook → _read_authenticated_body → _validate_signature；之后 _header_delivery_id → _record_delivery_id 或 admit_producer(message_id=delivery_id) → _webhook_retry",
+      "duplicate_of": null,
+      "static_note": "只读签名、重放键和授权拒绝。未发 webhook。"
+    },
+    {
+      "id": "inp-password",
+      "status": "仍成立",
+      "severity": "低",
+      "confidence": "确定",
+      "title": "面板口令是固定前缀的 SHA-256；同用户读文件不升格",
+      "locations": [
+        "clawd_server/auth.py:15-25",
+        "clawd_server/auth.py:51-72",
+        "clawd_server/auth.py:85-88",
+        "clawd_server/server.py:242-247",
+        "clawd_server/server.py:264-274"
+      ],
+      "description": "credential_hash 把源码常量前缀、小写用户名和口令拼在一起做 SHA-256，没有每用户随机盐，也没有拉伸。比较使用 compare_digest。空用户列表使 hash_allowed 失败。auth.json 写入时 chmod 0o600。Cookie 的值就是这个哈希。能读该文件的同一用户可以直接把哈希当作 cookie，不必离线猜口令。这不构成超出文件读权限的提权。哈希偏弱只在哈希泄漏给本来读不到文件的人时，才额外暴露可复用口令。",
+      "trigger": "auth.json 被复制到文件权限边界之外后，攻击者离线猜测口令。同一用户读取 0o600 文件不是这个触发。",
+      "fix": "每用户随机盐，并用 scrypt 或 argon2。不要把盐写成源码常量。登录 cookie 不要等于存储的口令哈希。\ndef credential_hash(user: str, password: str, salt: bytes) -> str:\n    digest = hashlib.scrypt(f\"{user.strip().lower()}\\n{password}\".encode(), salt=salt, n=2**15, r=8, p=1)\n    return digest.hex()",
+      "origin": "input-security.md#6",
+      "code_hash": {
+        "clawd_server/auth.py": "db2dc7f169dbe4e4da6e9c1b9f1b8858c9ca2ecee3577e515e1b2c2d4b9e96ca",
+        "clawd_server/server.py": "ea3534ab92e054fe38c79f6533b8797c86dea07facdfb09d3badc5a060dd03ab"
+      },
+      "call_chain": "add_user → credential_hash → auth.json；_authed/_renew → cookie_value → hash_allowed → load_hashes",
+      "duplicate_of": null,
+      "static_note": "不记录盐原文。未读生产 auth.json。"
+    },
+    {
+      "id": "inp-lazy",
+      "status": "仍成立",
+      "severity": "低",
+      "confidence": "确定",
+      "title": "懒安装默认开启，但 sink 是锁文件钉死的 extra，不是任意包名",
+      "locations": [
+        "hermes_cli/config_defaults.py:1779-1782",
+        "pm/install.py:168-197",
+        "pm/install.py:434-495",
+        "pm/install.py:613-623",
+        "pm/extras.py:187-221",
+        "pm/registry.py:42-46",
+        "tools/vision_tools.py:402-416"
+      ],
+      "description": "security.allow_lazy_installs 默认 True。配置读失败时 lazy_installs_allowed 失败关闭；缺键时默认仍是 True。危险 sink 已读：ensure_import(extra) 在锚点缺失时 sync_venv([extra])，再进入 ensure → _install。包名必须在内置登记表，否则 KeyError。版本和制品来自 lockfile，没有制品就拒绝。下载后按 lockfile 的 sha256 校验。vision 的调用传入固定字符串 \"vision\"，不是请求体里的包名或 URL。这是不安全默认：操作者或模型启用需要 extra 的后端时，进程会按锁文件取回并安装钉死的制品。不是未授权入口，也不是攻击者指定任意 PyPI 包。",
+      "trigger": "默认配置下，已登记 extra 尚未安装，且进程能访问锁文件指向的制品源。关闭该设置或设置 HERMES_DISABLE_LAZY_INSTALLS 则拒绝。",
+      "fix": "默认 false。安装文档要求显式打开。不要把请求或模型文本拼进包名。\n\"allow_lazy_installs\": False,",
+      "origin": "input-security.md#7",
+      "code_hash": {
+        "hermes_cli/config_defaults.py": "2c7f02045f582d03565dbb59972f09fc21fcac71a26adb5117d5754759ccb634",
+        "pm/install.py": "2f48a18bb2b8c452432ddd675599bb859e7a1dcdcbadd5326b252376d1b4b1a0",
+        "pm/extras.py": "737c049835933464bbf12b9042b37b17c1eef5a803d690130a1bf3f9158429db"
+      },
+      "call_chain": "config_defaults → lazy_installs_allowed → ensure/ensure_import → get_package → _install(lockfile.artifacts)",
+      "duplicate_of": null,
+      "static_note": "未执行安装。不把锁文件制品源判成已审计的供应链。"
+    },
+    {
+      "id": "nat-peek",
+      "status": "误报",
+      "severity": "中",
+      "confidence": "确定",
+      "title": "未设 argtypes 时 c_void_p 实例传入的是句柄值，不是对象地址",
+      "locations": [
+        "tools/environments/base_output.py:450-458"
+      ],
+      "description": "原报告说未设 argtypes 时 c_void_p 实例被当成对象缓冲区地址传入，PeekNamedPipe 因此失败。CPython v3.14.9 与 v3.11.9 的 PyCSimpleType_paramfunc 对简单类型 memcpy 对象内部值，并用该类型的 ffi 类型。c_void_p 的 _type_ 是 P，P 的 ffi 类型是 ffi_type_pointer。结构体才把缓冲区地址当作参数。因此这次调用传入的是 raw_handle 的指针值，不是 Python 对象地址，也不是截断成 c_int。仓库内没有给 PeekNamedPipe 设 argtypes。未在 Windows 上执行，不把这次调用判成已成功，也不把内核判成安全。原报告的失败机制不成立。",
+      "trigger": "原报告的「对象地址当句柄」触发不成立。",
+      "fix": "不要按对象地址或截断去改排空逻辑。若要消除未声明原型，应声明 HANDLE 并传入整数，而不是再包一层实例。\nkernel32.PeekNamedPipe.argtypes = [wintypes.HANDLE, ctypes.c_void_p, wintypes.DWORD, ctypes.POINTER(wintypes.DWORD), ctypes.POINTER(wintypes.DWORD), ctypes.POINTER(wintypes.DWORD)]\nkernel32.PeekNamedPipe.restype = wintypes.BOOL\nok = kernel32.PeekNamedPipe(raw_handle, None, 0, None, ctypes.byref(available), None)",
+      "origin": "native-safety.md#2",
+      "code_hash": {
+        "tools/environments/base_output.py": "e951f16776fa76589e03ea035d8ec40543993eb85e80ea609963190781a8d0b5",
+        "artifacts/core-audit-native-reference/callproc.c": "6800f829135dc34940011243dbcd733eaeca8aa29074f3aa94a980469185ce69",
+        "artifacts/core-audit-native-reference/_ctypes.c": "78482188c25a175a1fe5fbf97bbfa828d28abaf667b29c5935576df80c2c419d"
+      },
+      "call_chain": "_drain_fd_windows → msvcrt.get_osfhandle → ctypes.c_void_p(raw_handle) → windll.kernel32.PeekNamedPipe；ConvParam → PyCSimpleType_paramfunc",
+      "duplicate_of": null,
+      "static_note": "证据是 v3.14.9 callproc.c:667-690、_ctypes.c:2321-2348、cfield.c:1697，以及 v3.11.9 同一 memcpy。未运行 FFI。"
+    },
+    {
+      "id": "nat-console",
+      "status": "误报",
+      "severity": "中",
+      "confidence": "确定",
+      "title": "GetConsoleMode 收到的是句柄值，不能据此断定真实控制台被当成非交互",
+      "locations": [
+        "tools/mcp_oauth.py:312-331"
+      ],
+      "description": "与 nat-peek 同一转换规则。未设 argtypes 时，c_void_p(handle) 走简单类型 paramfunc，拷贝句柄并以 ffi_type_pointer 传入。原报告说真实控制台也会因对象地址失败、交互判断恒为假，这个机制不成立。失败仍会被 except 收成 False，那是异常路径，不是这次类型错误的已证实后果。方向若失败仍是少启动浏览器，不是放行。未在 Windows 执行。",
+      "trigger": "原报告的「传错句柄所以真实控制台恒失败」不成立。",
+      "fix": "不要按恒失败去改 OAuth 放行。声明原型即可，传入整数句柄。\nk32.GetConsoleMode.argtypes = [wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD)]\nk32.GetConsoleMode.restype = wintypes.BOOL\nreturn bool(k32.GetConsoleMode(handle, ctypes.byref(mode)))",
+      "origin": "native-safety.md#3",
+      "code_hash": {
+        "tools/mcp_oauth.py": "b25655d6a2ca717b3697f2fe98b5f817da5605c203ebdce8823da55398a8b99f"
+      },
+      "call_chain": "_is_interactive → _stdin_is_console → get_osfhandle → GetConsoleMode(c_void_p(handle), byref(mode))",
+      "duplicate_of": null,
+      "static_note": "转换证据同 nat-peek。未运行 FFI。"
+    },
+    {
+      "id": "nat-cuda",
+      "status": "误报",
+      "severity": "低",
+      "confidence": "确定",
+      "title": "未设 argtypes 时 c_int 实例传入的是设备序号整数，不是对象地址",
+      "locations": [
+        "hermes_cli/local_runtime/hardware.py:302-314",
+        "hermes_cli/local_runtime/hardware.py:361"
+      ],
+      "description": "dev 是 ctypes.c_int()。cuDeviceGet 用 byref 写入它。随后 cuDeviceTotalMem 和 cuDeviceGetAttribute 把 dev 这个实例传入，且这些函数没有 argtypes。简单类型 paramfunc 拷贝内部整数，ffi 类型是 c_int 的整数类型，不是指针。设备号是 dev 里的整数，不是对象地址。原报告据此断定驱动必然返回错误、函数返回 None，不成立。byref 本身传指针，那一部分与原型是否声明无关。libcuda 未审计，不把这条路径判成安全，也不把缺失原型说成已证实的驱动越界。",
+      "trigger": "原报告的「设备号传成指针」不成立。",
+      "fix": "不要按地址去改设备号。若声明原型，第二、三个参数用 c_int，并传 dev 或 dev.value 与声明一致。\ngetter.argtypes = [ctypes.POINTER(ctypes.c_size_t), ctypes.c_int]\ngetter.restype = ctypes.c_int\ncuda.cuDeviceGetAttribute.argtypes = [ctypes.POINTER(ctypes.c_int), ctypes.c_int, ctypes.c_int]",
+      "origin": "native-safety.md#4",
+      "code_hash": {
+        "hermes_cli/local_runtime/hardware.py": "83ba7592a640ba6b2d1502ec7febe1006232dea26c361a1ee0ca703d3b66f923"
+      },
+      "call_chain": "_device_pool_view → _cuda_driver_pool → cuDeviceGet(byref(dev), 0) → getter(byref(total), dev) / cuDeviceGetAttribute(..., dev)；失败则 _engine_device_pool",
+      "duplicate_of": null,
+      "static_note": "只判断自有调用的转换。不替 libcuda 背书。"
+    },
+    {
+      "id": "nat-job",
+      "status": "需验证",
+      "severity": "中",
+      "confidence": "需验证",
+      "title": "GetCurrentProcess 默认 restype 截成 c_int -1；x64 寄存器是否仍是伪句柄未证实",
+      "locations": [
+        "hermes_cli/process_identity.py:800-816",
+        "hermes_platform/host/facts.py:62-63"
+      ],
+      "description": "本函数的 WinDLL 没有设置 restype 或 argtypes。facts.py 在另一个 WinDLL 实例上设置 restype，不作用于这里。CPython v3.14.9 在 restype 为 NULL 时用 ffi_type_sint，GetResult 读 32 位 int。GetCurrentProcess 的伪句柄是 (HANDLE)-1，低 32 位是 0xFFFFFFFF，Python 得到 int -1。这个截断是确定的。随后 -1 作为 Python int、无 argtypes，再按 ffi_type_sint 传入 AssignProcessToJobObject。官方 x64 ABI 写明 32 位整数参数右对齐，被调用方可以忽略高位；它没有要求调用方把 32 位 -1 符号扩展成 64 位伪句柄。本次没有读到匹配的 libffi Win64 代码，不能断定内核看到的是 0xFFFFFFFFFFFFFFFF 还是 0x00000000FFFFFFFF。失败被 except 吞掉并返回 False。这不是 UAF。不能把附着失败写成已证实。",
+      "trigger": "缺口：Windows x64 上，ffi_type_sint 的 -1 进入 HANDLE 参数寄存器后的高 32 位。没有这份 ABI 或 libffi 证据，就不能判定 kill-on-close 是否静默失败。",
+      "fix": "先声明类型，不要用裸 except 把附着失败当成已附着。在补上 ABI 证据之前，不要按「当前一定失败」改调用方。\nkernel32.GetCurrentProcess.restype = wintypes.HANDLE\nkernel32.GetCurrentProcess.argtypes = []\nkernel32.AssignProcessToJobObject.argtypes = [wintypes.HANDLE, wintypes.HANDLE]\nkernel32.AssignProcessToJobObject.restype = wintypes.BOOL",
+      "origin": "native-safety.md#5",
+      "code_hash": {
+        "hermes_cli/process_identity.py": "0e30d07f84e2bae9dee41fd6260e2e83b791a46b0a0042a665a6b72f25f143be",
+        "hermes_platform/host/facts.py": "52eef216017ca8e18d7365ec10a9494b2d261280cfc70d9e0b94a2cc7b363d7a"
+      },
+      "call_chain": "attach_self_to_kill_on_close_job → CreateJobObjectW → SetInformationJobObject → GetCurrentProcess → AssignProcessToJobObject；失败 CloseHandle 后返回 False",
+      "duplicate_of": null,
+      "static_note": "截断证据：callproc.c:792-793 与 1005-1006。ABI 页只证明高位可被 32 位被调用方忽略，不够证明 64 位 HANDLE。"
+    },
+    {
+      "id": "nat-cf",
+      "status": "仍成立",
+      "severity": "低",
+      "confidence": "确定",
+      "title": "CFString 创建失败后仍 CFRelease；Apple 文档写明 NULL 会崩溃",
+      "locations": [
+        "hermes_platform/host/darwin_pci.py:31-39",
+        "hermes_platform/host/darwin_pci.py:59",
+        "hermes_platform/host/darwin_pci.py:73-76"
+      ],
+      "description": "CFStringCreateWithCString 的 restype 是 c_void_p，失败得到 None。finally 对 keys 里的每个值调用 CFRelease，没有空检查。argtypes 已设为 c_void_p，None 会变成 NULL。Apple 文档写明参数不得为 NULL，传入 NULL 会造成运行时错误并崩溃。两个键是固定 ASCII「class-code」「vendor-id」，编码常量是 UTF-8，正常输入不会让创建失败。触发是创建失败，常见于分配失败。IOServiceGetMatchingServices 失败时在创建字符串之前返回，不会走到这里。这不是远程入口。",
+      "trigger": "macOS，迭代器已创建，随后 CFStringCreateWithCString 返回空。不是请求参数可控。",
+      "fix": "空指针不要释放。\nfor key in keys.values():\n    if key:\n        cf.CFRelease(key)",
+      "origin": "native-safety.md#6",
+      "code_hash": {
+        "hermes_platform/host/darwin_pci.py": "2ecbf4c68873f16f6de855794503c3ba781e3f26ea8da910a8ce5cd513f96fcb"
+      },
+      "call_chain": "display_vendor_ids → IOServiceGetMatchingServices → CFStringCreateWithCString → finally CFRelease",
+      "duplicate_of": null,
+      "static_note": "崩溃契约引自 Apple CFRelease 文档：参数不得为 NULL，NULL 会导致运行时错误并崩溃。未在 macOS 执行。"
+    },
+    {
+      "id": "nat-pe",
+      "status": "需验证",
+      "severity": "低",
+      "confidence": "需验证",
+      "title": "固定版本信息的返回长度未使用；成功时是否保证至少 16 字节没有契约",
+      "locations": [
+        "hermes_platform/resolver/app.py:246-272",
+        "hermes_platform/resolver/app.py:113-117"
+      ],
+      "description": "缓冲长度来自 GetFileVersionInfoSizeW，不是 VS_FIXEDFILEINFO 的长度。VerQueryValueW 的 length 已取出，但在 ptr+8 和 ptr+12 读 DWORD 之前没有使用。根路径「\\\\」的文档说成功时返回指向 VS_FIXEDFILEINFO 的指针，没有写明成功时 puLen 是否保证至少 16 或 52 字节。因此不能把越界写成已证实，也不能把 Windows 判成会拒绝短块。size 没有上限，恶意资源可要求巨大分配；路径来自解析器定位到的厂商 PE，不是 HTTP 请求体。except Exception 接不住访问违例。",
+      "trigger": "缺口：Windows 是否允许 VerQueryValueW 在根路径上以 length < 16 成功，且指针靠近 buf 末尾。没有这份契约或运行证据，就不能升成已证实越界。",
+      "fix": "先限制 size，并在读取前核对 length。这不能代替尚未取得的 API 契约。\nif size > 1_048_576:\n    return Observation(CheckState.ERROR, detail=\"version resource too large\")\nif length.value < 16:\n    return Observation(CheckState.UNAVAILABLE, detail=\"fixed file info too small\")",
+      "origin": "native-safety.md#7",
+      "code_hash": {
+        "hermes_platform/resolver/app.py": "ee5ff2a8d9d67534df22e722d7a7235e4c98810aeeedaf2d3948ea5d53db0063"
+      },
+      "call_chain": "inspect → _version(kind=pe_resource) → _pe_version → GetFileVersionInfoSizeW → GetFileVersionInfoW → VerQueryValueW(\"\\\\\") → 读 ptr+8/+12",
+      "duplicate_of": null,
+      "static_note": "函数体已读。缺的是 VerQueryValueW 成功返回的最小长度契约。未运行。"
+    },
+    {
+      "id": "nat-close",
+      "status": "仍成立",
+      "severity": "低",
+      "confidence": "确定",
+      "title": "更新锁用未声明宽度的 CloseHandle 关闭 c_void_p 返回的句柄整数",
+      "locations": [
+        "hermes_cli/update_lock.py:801-821",
+        "hermes_cli/update_lock.py:854-877"
+      ],
+      "description": "CreateFileW 的 restype 是 wintypes.HANDLE，而 HANDLE 是 c_void_p。P_get 用 PyLong_FromVoidPtr 返回完整指针位，空句柄是 None。关闭时新建另一个 WinDLL(\"kernel32\")，不继承别处已设置的 argtypes。无 argtypes 的 Python int 走 ffi_type_sint。CPython v3.14.9 先 PyLong_AsUnsignedLong，失败再 PyLong_AsLong，两者都失败才抛 OverflowError。Windows 上 unsigned long 是 32 位。c_void_p 返回的符号扩展句柄若大于 2**32-1，这里会 OverflowError。marker_mutex 的 finally 不接这个异常，独占打开的句柄留到进程退出。2**31 到 2**32-1 不会抛错，而是折进有符号 32 位。原报告把阈值写成大于 2**31-1 一律 OverflowError，这一句过宽。常见小句柄不会触发。不是内存破坏。",
+      "trigger": "Windows，CreateFileW 经 c_void_p 返回的 Python int 放不进 unsigned long，随后 _windows_close。符号扩展且低 32 位高位为 1 的句柄符合这个形状。本次未在 Windows 上取得这样的句柄。",
+      "fix": "复用已设置 CloseHandle.argtypes = [wintypes.HANDLE] 的那个 kernel32，不要每次新建未声明原型的 WinDLL。",
+      "origin": "native-safety.md#8",
+      "code_hash": {
+        "hermes_cli/update_lock.py": "2e02db3e627de248b88d912c1f9421a40a738899ebdef9d93998ce8d09e01a8d"
+      },
+      "call_chain": "marker_mutex → _mutex_acquire → _windows_open_exclusive → finally _windows_close → WinDLL(\"kernel32\").CloseHandle",
+      "duplicate_of": null,
+      "static_note": "转换证据：wintypes.py:60，cfield.c:1434-1441，callproc.c:708-719。未运行 FFI。"
+    },
+    {
+      "id": "stor-s8",
+      "status": "仍成立",
+      "severity": "中",
+      "confidence": "确定",
+      "title": "路由切换先提交索引，结束或重开会话失败只打 debug 仍返回成功",
+      "locations": [
+        "gateway/session.py:1204-1214",
+        "gateway/session.py:1292-1348",
+        "gateway/session_persistence.py:538-618",
+        "hermes_state_gateway.py:319-335",
+        "gateway/session_recovery.py:291-321",
+        "gateway/slash_commands_session.py:1092-1096",
+        "gateway/slash_commands_session.py:1276-1278"
+      ],
+      "description": "switch_session 在锁内 _replace_route_locked → _save。_persist_routing_data 通过 replace_gateway_routing_entries 走一次独立的 _execute_write，成功就已提交 gateway_routing；失败才依赖 sessions.json，成功时 sessions.json 只是镜像。锁外才 _promote_session_reset 和 _reopen_session_row。两者都接住 Exception，只打 debug。函数仍返回 new_entry。没有包住索引提交和 end/reopen 的外层事务。/resume 和 /branch 只把返回空当成失败，随后按切换成功继续。",
+      "trigger": "索引提交成功后，end_session 或 reopen_session 抛错，或这两步之前进程退出。/branch 与 /resume 都走 switch_session。",
+      "fix": "先在数据库里完成结束和重开，成功后再保存路由。数据库失败必须返回 None，不要只打 debug。\nif not reopened:\n    return None\nself._save()",
+      "origin": "storage.md#S8",
+      "code_hash": {
+        "gateway/session.py": "ea2e48b1313fcb24054dccbbdc631321c7cad5526097588b65d20ab86346a870",
+        "gateway/session_persistence.py": "92ab8f19425afe80e99e444b9a0475707049528697572cd8513106318bd3f08e",
+        "hermes_state_gateway.py": "ccf4f4a50757947b24ed6e5e6aa999746f300201250c9bb5b5e6eecab1071c39"
+      },
+      "call_chain": "/resume 与 /branch → switch_session → _replace_route_locked → _save → replace_gateway_routing_entries(_execute_write) → _promote_session_reset / _reopen_session_row",
+      "duplicate_of": null,
+      "static_note": "只读顺序。未做崩溃实验。路由主写现在也在 state.db，但仍是另一次提交，不是和 end/reopen 同一个事务。"
+    },
+    {
+      "id": "stor-s9",
+      "status": "仍成立",
+      "severity": "中",
+      "confidence": "确定",
+      "title": "rollback 异常被丢弃；3.14.9 的 executescript 会先提交仍开着的事务",
+      "locations": [
+        "hermes_state.py:1047-1057",
+        "hermes_state_schema.py:636-650",
+        "hermes_state_schema.py:683-694"
+      ],
+      "description": "回调或 commit 抛错后，rollback 的异常被 pass 掉，连接不销毁，原异常继续抛出。retry_deferred_fts_recovery 稍后在同一 self._lock 上、同一 self._conn 上调用 executescript。CPython v3.14.9 在默认 LEGACY 且 sqlite3_get_autocommit 为假时，executescript 先发 COMMIT。rollback 实现在 ROLLBACK 语句失败时返回异常，不清除仍开着的事务。因此「已报告失败、但回滚没做成」的已执行语句，可以被后来的 FTS 脚本提交。FTS 恢复只在 _fts_stale 时运行，不是每次写失败都立刻执行。本次没有制造 rollback 失败，不把磁盘上的损坏写成已发生事实。机制本身不再是没读源码。",
+      "trigger": "写事务中 rollback() 再抛错，连接仍处于非自动提交，之后同一连接跑 retry_deferred_fts_recovery。3.11 的 executescript 源码本次没下载，不把 3.11 的 COMMIT 细节写成已核对。",
+      "fix": "rollback 失败则作废连接，禁止在同一连接上重试或跑 FTS 脚本。\nexcept BaseException:\n    try:\n        self._conn.rollback()\n    except Exception as roll_exc:\n        self._conn = None\n        raise sqlite3.OperationalError(f\"rollback failed: {roll_exc}\") from roll_exc\n    raise",
+      "origin": "storage.md#S9",
+      "code_hash": {
+        "hermes_state.py": "d8f229db6de935a4892a3aaef038b396036c1e661f38fe169161864884a32fed",
+        "hermes_state_schema.py": "08abad090492db461eca6205f2791e47fa0b6238065c1c4f284420420ca45b37",
+        "artifacts/core-audit-native-reference/cursor.c": "6571430ca1981d6927a54627273d75b7ad52f6ef7f2c92a0165e85ad47c57dba",
+        "artifacts/core-audit-native-reference/connection.c": "c80e1ea67f6ce533ac461f6481a8f06def88e70f960f74e6cc000520ce259efd"
+      },
+      "call_chain": "_execute_write → BEGIN IMMEDIATE → fn/commit 失败 → rollback 被吞 → 之后 retry_deferred_fts_recovery → _recover_stale_fts_locked → cursor.executescript",
+      "duplicate_of": null,
+      "static_note": "COMMIT 条件见 cursor.c:1046-1059。未运行失败回滚。"
+    },
+    {
+      "id": "stor-a1",
+      "status": "仍成立",
+      "severity": "低",
+      "confidence": "确定",
+      "title": "生图库校验 fd 关闭后按固定路径重开；不是 state.db，也不能升格同用户写权限",
+      "locations": [
+        "apps/panel/sidecar/image_studio.py:563-606",
+        "apps/panel/sidecar/hermes_panel_sidecar.py:5552-5586",
+        "apps/panel/sidecar/hermes_panel_sidecar.py:5594-5661"
+      ],
+      "description": "库是当前 home 身份目录下的 panel_image_studio.db，表 generations，不是会话 state.db。路径来自当时的 /proc fd 身份加上固定文件名，请求不能选路径，只能影响提示词、模型和记录 id。parent_fd 不为空时，用 dir_fd 和 O_NOFOLLOW 打开固定名，要求普通文件且与不跟随的 stat inode 一致，然后关闭这个 fd。紧接着 sqlite3.connect(db_path)。BEGIN IMMEDIATE 在 connect 之后，锁的是 connect 打开的那个文件，盖不住检查与重开之间的空档。要打这个窗口，必须能在该 home 里替换这个固定文件名。与 sidecar 同一用户的进程本来就能写这个文件，不需要抢这几行。其它用户能否写该目录，本链没有证明。",
+      "trigger": "inode 比较通过并 close(fd) 之后、sqlite3.connect 之前，有人把该 home 里的 panel_image_studio.db 换成指向其它 SQLite 文件的符号链接。同用户原已可写不是提权。",
+      "fix": "connect 后立刻再核对不跟随的 inode，变了就关闭并失败，不要 BEGIN。这仍有极窄窗口。没有不可替换的打开方式时，应失败关闭，而不是把重开当成已绑定 home。\nidentity = os.fstat(opened)\nconn = sqlite3.connect(db_path, timeout=3)\nif os.stat(db_path, follow_symlinks=False).st_ino != identity.st_ino:\n    conn.close()\n    raise ImageStudioError(403, \"unsafe_file\", \"生图记录路径不可用\")",
+      "origin": "storage.md#A1",
+      "code_hash": {
+        "apps/panel/sidecar/image_studio.py": "8d658411e827ee2adee269d88760db8d3743c6ee6504c554c93d0d89389e439d",
+        "apps/panel/sidecar/hermes_panel_sidecar.py": "c8e2b0890e489e2f5c96183068f06a5d923ae67356f6fdfa2fba751288fd9bc8"
+      },
+      "call_chain": "image_history_view / image_generate_view / image_delete_view → _image_runtime → list_history/generate/delete_history → _store → sqlite3.connect",
+      "duplicate_of": null,
+      "static_note": "只读这条 connect。未替换文件，未打开任何库。"
+    }
+  ]
+}

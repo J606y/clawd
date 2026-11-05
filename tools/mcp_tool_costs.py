@@ -3,7 +3,7 @@
 A server may declare what its tools spend (``tool_costs`` in config.yaml, ``costs`` in a portable
 package) and a ``spend_limit`` per chat. The approval prompt then names the cost and the chat's
 running total, and a call that would take the chat past the limit needs an explicit yes even on a
-``trust: full`` server. Figures are the server's own declared estimates: Hermes counts the declared
+``trust: full`` server. Figures are the server's own declared estimates: clawd counts the declared
 figure (the top of a range) for every call it dispatched, never a vendor's bill.
 
 Undeclared and zero-cost tools never reach any of this, so a server without a table behaves

@@ -275,10 +275,23 @@ def _persist_branch(db, new_key: str, parent_key: str, title: str, history: list
         raise
 
 
+def _refuse_unreleased_session(rid, sid: str, idem_key, exc: BaseException) -> dict:
+    """Drop a create that could not inherit. The client must not receive a runnable sid."""
+    _sessions.pop(sid, None)
+    if idem_key is not None:
+        _idempotency_keys.pop(idem_key, None)
+    return _err(
+        rid, 5073,
+        "Project inheritance failed; session was not released and nothing will run. "
+        f"{exc}",
+    )
+
+
 def _seed_branch_row(record: dict, key: str, parent_session_id: str, history: list, source: str, profile_home):
     """Persist a seeded desktop branch child NOW (the one session.create exception to lazy rows): the
     renderer's post-create resume re-fetches it via REST/defer_history, so an unpersisted child 404s and
     the fail-latch spins forever. Best-effort — on failure the lazy first-prompt path is the fallback."""
+    from clawd_projects.inheritance import ProjectInheritanceError
     try:
         with _session_db(record) as db:
             if db is None:
@@ -290,6 +303,8 @@ def _seed_branch_row(record: dict, key: str, parent_session_id: str, history: li
             record["pending_title"] = None
             # The first submit's _persist_branch_seed is the fallback for a failed seed, not a second copy.
             record["_branch_seed_persisted"] = True
+    except ProjectInheritanceError:
+        raise
     except Exception:
         logger.warning("seeded-branch persistence failed for %s; falling back to lazy row creation", key,
                        exc_info=True)
@@ -301,11 +316,14 @@ def _seed_row(record: dict) -> None:
     lands with the row so a restart before the first prompt keeps it. Best-effort — the first-prompt path is
     the fallback, and it re-copies the WHOLE seed, so a partial copy is rolled back here (the compensation
     ``_persist_branch`` applies to branch children) rather than left to be duplicated."""
+    from clawd_projects.inheritance import ProjectInheritanceError
     key = record.get("session_key")
     try:
         if _ensure_session_db_row(record) is False:
             return
         _persist_branch_seed(record)
+    except ProjectInheritanceError:
+        raise
     except Exception:
         logger.warning("seeded-session persistence failed for %s; falling back to lazy row creation", key, exc_info=True)
     if not record.get("_branch_seed_persisted"):
@@ -453,15 +471,25 @@ def _create_session(rid, params: dict, *, copy_parent_history: bool = False) -> 
     # The same holds for a seeded session WITHOUT a parent (a client opening a chat with its first turns
     # already written): the transcript exists only in memory, so a restart before the first prompt lost it
     # and the post-create resume 404'd. Persist it up front too; only empty drafts stay lazy.
+    from clawd_projects.inheritance import ProjectInheritanceError
     if parent_session_id and history:
-        _seed_branch_row(_sessions[sid], key, parent_session_id, history, source, profile_home)
+        try:
+            _seed_branch_row(_sessions[sid], key, parent_session_id, history, source, profile_home)
+        except ProjectInheritanceError as exc:
+            return _refuse_unreleased_session(rid, sid, idem_key, exc)
     elif history:
-        _seed_row(_sessions[sid])
+        try:
+            _seed_row(_sessions[sid])
+        except ProjectInheritanceError as exc:
+            return _refuse_unreleased_session(rid, sid, idem_key, exc)
     elif explicit_cwd and remote_cwd:
         # A remote project session persists its row now: the per-profile gateway that runs the first turn mints
         # the row itself (AIAgent INSERT-OR-IGNORE) with cwd=None, and the sidebar then drops it to Home. Local
         # project drafts stay lazy — their cwd reaches the row on the first prompt (no "Untitled" litter).
-        _ensure_session_db_row(_sessions[sid])
+        try:
+            _ensure_session_db_row(_sessions[sid])
+        except ProjectInheritanceError as exc:
+            return _refuse_unreleased_session(rid, sid, idem_key, exc)
     # Return immediately so Ink can paint; the AIAgent builds right after the flush.
     _schedule_agent_build(sid)
     _schedule_session_cap_enforcement()  # trim detached idle sessions over the cap
@@ -1969,7 +1997,7 @@ def _(rid, params: dict, session: dict) -> dict:
     )
     project = _project_info_for_cwd(_display_session_cwd(session))
     lines = [
-        "Hermes TUI Status", "", *status_lines(fields, "session_id", "path"),
+        "clawd TUI Status", "", *status_lines(fields, "session_id", "path"),
         *([f"Project: {project['name']}"] if project else []),
         *status_lines(fields, "title", "model", "created", "last_activity", "tokens", "agent_running")]
     return _ok(rid, {"output": "\n".join(lines)})

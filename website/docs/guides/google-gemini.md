@@ -1,37 +1,37 @@
 ---
 sidebar_position: 16
 title: "Google Gemini"
-description: "Use Hermes Agent with Google Gemini — native AI Studio API, API-key setup, tool calling, streaming, and quota guidance"
+description: "Use clawd with Google Gemini — native AI Studio API, API-key setup, tool calling, streaming, and quota guidance"
 ---
 
 # Google Gemini
 
-Hermes Agent supports Google Gemini as a native provider using the **Google AI Studio / Gemini API** — not the OpenAI-compatible endpoint. This lets Hermes translate its internal OpenAI-shaped message and tool loop into Gemini's native `generateContent` API while preserving tool calling, streaming, multimodal inputs, and Gemini-specific response metadata.
+clawd supports Google Gemini as a native provider using the **Google AI Studio / Gemini API** — not the OpenAI-compatible endpoint. This lets clawd translate its internal OpenAI-shaped message and tool loop into Gemini's native `generateContent` API while preserving tool calling, streaming, multimodal inputs, and Gemini-specific response metadata.
 
 ## Prerequisites
 
 - **Google AI Studio API key** — create one at [aistudio.google.com/apikey](https://aistudio.google.com/apikey)
-- **Billing-enabled Google Cloud project** — recommended for agent use. Gemini's free tier is too small for long-running agent sessions because Hermes may make several model calls per user turn.
-- **Hermes installed** — no extra Python package is required for the native Gemini provider.
+- **Billing-enabled Google Cloud project** — recommended for agent use. Gemini's free tier is too small for long-running agent sessions because clawd may make several model calls per user turn.
+- **clawd installed** — no extra Python package is required for the native Gemini provider.
 
 :::tip API key path
-Set `GOOGLE_API_KEY` or `GEMINI_API_KEY`. Hermes checks both names for the `gemini` provider.
+Set `GOOGLE_API_KEY` or `GEMINI_API_KEY`. clawd checks both names for the `gemini` provider.
 :::
 
 ## Quick Start
 
 ```bash
 # Add your Gemini API key
-echo "GOOGLE_API_KEY=..." >> ~/.hermes/.env
+echo "GOOGLE_API_KEY=..." >> ~/.clawd/.env
 
 # Select Gemini as your provider
-hermes model
+clawd model
 # → Choose "More providers..." → "Google AI Studio"
-# → Hermes checks your key tier and shows Gemini models
+# → clawd checks your key tier and shows Gemini models
 # → Select a model
 
 # Start chatting
-hermes chat
+clawd chat
 ```
 
 If you prefer direct config editing, use the native Gemini API base URL:
@@ -45,7 +45,7 @@ model:
 
 ## Configuration
 
-After running `hermes model`, your `~/.hermes/config.yaml` will contain:
+After running `clawd model`, your `~/.clawd/config.yaml` will contain:
 
 ```yaml
 model:
@@ -54,7 +54,7 @@ model:
   base_url: https://generativelanguage.googleapis.com/v1beta
 ```
 
-And in `~/.hermes/.env`:
+And in `~/.clawd/.env`:
 
 ```bash
 GOOGLE_API_KEY=...
@@ -68,13 +68,13 @@ The recommended endpoint is:
 https://generativelanguage.googleapis.com/v1beta
 ```
 
-Hermes detects this endpoint and creates its native Gemini adapter. Internally, Hermes still keeps the agent loop in OpenAI-shaped messages, then translates each request to Gemini's native schema:
+clawd detects this endpoint and creates its native Gemini adapter. Internally, clawd still keeps the agent loop in OpenAI-shaped messages, then translates each request to Gemini's native schema:
 
 - `messages[]` → Gemini `contents[]`
 - system prompts → Gemini `systemInstruction`
 - tool schemas → Gemini `functionDeclarations`
 - tool results → Gemini `functionResponse` parts
-- streaming responses → OpenAI-shaped stream chunks for the Hermes loop
+- streaming responses → OpenAI-shaped stream chunks for the clawd loop
 
 Tool parameter type arrays such as `"type": ["number", "null"]` are translated
 into Gemini's scalar type plus `nullable` form. Multi-type unions keep every
@@ -82,9 +82,9 @@ alternative through `anyOf`, including nested properties and array items. This
 happens automatically; no MCP server or provider configuration change is needed.
 
 :::note Gemini 3 thought signatures
-For Gemini 3 tool use, Hermes preserves the `thoughtSignature` values attached to function-call parts and replays them on the next tool turn. That covers the validation-critical path for multi-step agent workflows.
+For Gemini 3 tool use, clawd preserves the `thoughtSignature` values attached to function-call parts and replays them on the next tool turn. That covers the validation-critical path for multi-step agent workflows.
 
-Gemini 3 may also attach thought signatures to other response parts. Hermes' native adapter is optimized for agent tool loops today, so it does not yet replay every non-tool-call signature with full part-level fidelity.
+Gemini 3 may also attach thought signatures to other response parts. clawd's native adapter is optimized for agent tool loops today, so it does not yet replay every non-tool-call signature with full part-level fidelity.
 :::
 
 ### Prefer the Native Endpoint
@@ -95,7 +95,7 @@ Google also exposes an OpenAI-compatible endpoint:
 https://generativelanguage.googleapis.com/v1beta/openai/
 ```
 
-For Hermes agent sessions, prefer the native Gemini endpoint above. Hermes includes a native Gemini adapter so it can map multi-turn tool use, tool-call results, streaming, multimodal inputs, and Gemini response metadata directly onto Gemini's `generateContent` API. The OpenAI-compatible endpoint is still useful when you specifically need OpenAI API compatibility.
+For clawd agent sessions, prefer the native Gemini endpoint above. clawd includes a native Gemini adapter so it can map multi-turn tool use, tool-call results, streaming, multimodal inputs, and Gemini response metadata directly onto Gemini's `generateContent` API. The OpenAI-compatible endpoint is still useful when you specifically need OpenAI API compatibility.
 
 If you previously set `GEMINI_BASE_URL` to the `/openai` URL, remove it or change it:
 
@@ -104,7 +104,7 @@ GEMINI_BASE_URL=https://generativelanguage.googleapis.com/v1beta
 ```
 
 Host-root base URLs on the Google host are normalized automatically: if the URL
-doesn't end with an API version segment (`v1beta`, `v1alpha`, `v1`, ...), Hermes
+doesn't end with an API version segment (`v1beta`, `v1alpha`, `v1`, ...), clawd
 appends `/v1beta` for you, so `GEMINI_BASE_URL=https://generativelanguage.googleapis.com`
 works the same as spelling out the `/v1beta` suffix. The same normalization
 applies to the Gemini TTS base URL (`tts.gemini.base_url`). Chat requests only
@@ -117,13 +117,13 @@ another host is treated as an OpenAI-compatible endpoint, so configure it with i
 
 Google now issues `AQ.…`-prefixed keys for **both** Google AI Studio and Vertex AI
 express mode (the legacy `AIza…` Studio format is being phased out), so a key's
-prefix no longer identifies its surface. Hermes never reroutes by key shape: the
+prefix no longer identifies its surface. clawd never reroutes by key shape: the
 configured base URL decides the surface. Set `GEMINI_API_KEY` and leave
 `GEMINI_BASE_URL` unset for the default AI Studio host; set `GEMINI_BASE_URL` to
 `https://aiplatform.googleapis.com` (with or without `/v1beta1`) for a Vertex AI
-express-mode key, and Hermes completes it to the `publishers/google` form. Each
+express-mode key, and clawd completes it to the `publishers/google` form. Each
 surface only accepts its own keys — a `403 PERMISSION_DENIED` usually means the
-key/host pairing is crossed, and Hermes appends guidance naming the other surface.
+key/host pairing is crossed, and clawd appends guidance naming the other surface.
 A base URL on any other host (a proxy) is never rewritten. Express keys are
 separate from the OAuth-based
 [Vertex AI provider](./google-vertex.md), which needs no API key.
@@ -132,21 +132,21 @@ Models served only in the `global` location (Gemini 4 Argon) are not reachable o
 the bare express host, which routes to `us-central1`. For those, set the base URL
 to the project-scoped form,
 `https://aiplatform.googleapis.com/v1beta1/projects/<project>/locations/global`,
-and Hermes completes it to `…/publishers/google` the same way.
+and clawd completes it to `…/publishers/google` the same way.
 
 :::warning Upgrade note for existing express-key users
-Earlier Hermes releases detected the `AQ.` prefix and rerouted such keys to
+Earlier clawd releases detected the `AQ.` prefix and rerouted such keys to
 `aiplatform.googleapis.com` automatically, so the documented setup was "set
 `GEMINI_API_KEY` to the express key and leave `GEMINI_BASE_URL` unset". That
 automatic reroute is gone: with `GEMINI_BASE_URL` unset, every request — chat,
-`hermes doctor`, TTS — now goes to the AI Studio host and a Vertex express key
+`clawd doctor`, TTS — now goes to the AI Studio host and a Vertex express key
 gets `403 PERMISSION_DENIED` there. Add `GEMINI_BASE_URL=https://aiplatform.googleapis.com`
-to `~/.hermes/.env` (or set `base_url` on the provider) once and restart.
+to `~/.clawd/.env` (or set `base_url` on the provider) once and restart.
 :::
 
 ## Available Models
 
-The `hermes model` picker shows Gemini models maintained in Hermes' provider registry. Common choices include:
+The `clawd model` picker shows Gemini models maintained in clawd's provider registry. Common choices include:
 
 | Model | ID | Notes |
 |-------|----|-------|
@@ -158,7 +158,7 @@ The `hermes model` picker shows Gemini models maintained in Hermes' provider reg
 | Gemini 2.5 Flash | `gemini-2.5-flash` | Previous generation fast model with thinking capabilities |
 | Gemini 2.5 Pro | `gemini-2.5-pro` | Previous generation complex reasoning model |
 
-Model availability changes over time. If a model disappears or is not enabled for your key, run `hermes model` again and pick one from the current list.
+Model availability changes over time. If a model disappears or is not enabled for your key, run `clawd model` again and pick one from the current list.
 
 :::info Model IDs
 Use Gemini's native model IDs such as `gemini-3.7-flash`, not OpenRouter-style IDs like `google/gemini-3.7-flash`, when `provider: gemini`.
@@ -166,10 +166,10 @@ Use Gemini's native model IDs such as `gemini-3.7-flash`, not OpenRouter-style I
 
 ### Gemini 4 Argon: Reasoning Effort and Long Decode
 
-Gemini 4 Argon always thinks; Hermes maps the reasoning effort (`/reasoning`,
+Gemini 4 Argon always thinks; clawd maps the reasoning effort (`/reasoning`,
 `agent.reasoning_effort`) onto its `thinkingLevel`:
 
-| Hermes effort | `thinkingLevel` | Total output budget |
+| clawd effort | `thinkingLevel` | Total output budget |
 |---------------|-----------------|---------------------|
 | `none`, `minimal`, `low` | `low` (thoughts hidden for `none`) | Per-request cap |
 | `medium` (Google's default) | `medium` | Per-request cap |
@@ -178,14 +178,14 @@ Gemini 4 Argon always thinks; Hermes maps the reasoning effort (`/reasoning`,
 | `max`, `ultra` | `high` | 1,048,576 tokens minus the input (long decode) |
 
 Without long decode a single request stops at 65,536 output tokens when streaming
-(32,768 non-streaming), thinking included. With `xhigh` or `max`, Hermes raises
+(32,768 non-streaming), thinking included. With `xhigh` or `max`, clawd raises
 `maxOutputTokens` and, when a request reaches the per-request cap with budget left
 (`finishReason: CONTINUATION`), resends the same request with Google's
 `continuationToken` until the model finishes. The hops are joined into one reply.
 
 Usage across hops is reported the way Google bills it: every hop re-reads the
 prompt plus the output so far, so the summed input count is far larger than the
-real context. Hermes prices the summed counts but feeds context compaction and the
+real context. clawd prices the summed counts but feeds context compaction and the
 context meter the first hop's prompt size, so a long-decode turn does not trigger
 an early compaction. Long decode runs only on the native endpoints (AI Studio and
 Vertex AI express); Google's `/openai` compatibility endpoint, OpenRouter and the
@@ -193,7 +193,7 @@ OAuth [Vertex AI provider](./google-vertex.md) stop at the per-request cap.
 
 ### Latest Aliases
 
-Google publishes moving aliases for the Pro and Flash Gemini families. `gemini-pro-latest` and `gemini-flash-latest` are useful when you want Google to advance the model automatically without changing your Hermes config. Note that your usage charges may be affected if newer models introduce different rates.
+Google publishes moving aliases for the Pro and Flash Gemini families. `gemini-pro-latest` and `gemini-flash-latest` are useful when you want Google to advance the model automatically without changing your clawd config. Note that your usage charges may be affected if newer models introduce different rates.
 
 | Alias | Currently tracks | Notes |
 |-------|------------------|-------|
@@ -211,7 +211,7 @@ If you need strict reproducibility, prefer explicit model IDs such as `gemini-3.
 
 ### Gemma via the Gemini API
 
-Google also exposes Gemma models through the Gemini API. Hermes recognizes these as Google models, but hides very low-throughput Gemma entries from the default model picker so new users do not accidentally select an evaluation-tier model for a long-running agent session.
+Google also exposes Gemma models through the Gemini API. clawd recognizes these as Google models, but hides very low-throughput Gemma entries from the default model picker so new users do not accidentally select an evaluation-tier model for a long-running agent session.
 
 Useful evaluation IDs include:
 
@@ -220,7 +220,7 @@ Useful evaluation IDs include:
 | Gemma 4 31B IT | `gemma-4-31b-it` | Larger Gemma model; useful for compatibility and quality evaluation |
 | Gemma 4 26B A4B IT | `gemma-4-26b-a4b-it` | Smaller active-parameter variant when available |
 
-These models are best treated as evaluation options on Gemini API keys. Google's Gemma API pricing is free-tier-only and the usage caps are low compared with production Gemini models, so sustained Hermes agent use should normally move to a paid Gemini model, a self-hosted deployment, or another provider with appropriate quota.
+These models are best treated as evaluation options on Gemini API keys. Google's Gemma API pricing is free-tier-only and the usage caps are low compared with production Gemini models, so sustained clawd agent use should normally move to a paid Gemini model, a self-hosted deployment, or another provider with appropriate quota.
 
 To use a Gemma model that is hidden from the picker, set it directly:
 
@@ -244,12 +244,12 @@ Use the `/model` command during a conversation:
 /model gemini-3.1-flash-lite-preview
 ```
 
-If you have not configured Gemini yet, exit the session and run `hermes model` first. `/model` switches among already-configured providers and models; it does not collect new API keys.
+If you have not configured Gemini yet, exit the session and run `clawd model` first. `/model` switches among already-configured providers and models; it does not collect new API keys.
 
 ## Diagnostics
 
 ```bash
-hermes doctor
+clawd doctor
 ```
 
 The doctor checks:
@@ -259,11 +259,11 @@ The doctor checks:
 
 ## Gateway (Messaging Platforms)
 
-Gemini works with all Hermes gateway platforms (Telegram, Discord, Slack, WhatsApp, LINE, Feishu, etc.). Configure Gemini as your provider, then start the gateway normally:
+Gemini works with all clawd gateway platforms (Telegram, Discord, Slack, WhatsApp, LINE, Feishu, etc.). Configure Gemini as your provider, then start the gateway normally:
 
 ```bash
-hermes gateway setup
-hermes gateway start
+clawd gateway setup
+clawd gateway start
 ```
 
 The gateway reads `config.yaml` and uses the same Gemini provider configuration.
@@ -272,7 +272,7 @@ The gateway reads `config.yaml` and uses the same Gemini provider configuration.
 
 ### "Gemini native client requires an API key"
 
-Hermes could not find a usable API key. Add one of these to `~/.hermes/.env`:
+clawd could not find a usable API key. Add one of these to `~/.clawd/.env`:
 
 ```bash
 GOOGLE_API_KEY=...
@@ -280,25 +280,25 @@ GOOGLE_API_KEY=...
 GEMINI_API_KEY=...
 ```
 
-Then run `hermes model` again.
+Then run `clawd model` again.
 
 ### "This Google API key is on the free tier"
 
-Hermes probes Gemini API keys during setup. Free-tier quotas can be exhausted after a handful of agent turns because tool use, retries, compression, and auxiliary tasks may require multiple model calls.
+clawd probes Gemini API keys during setup. Free-tier quotas can be exhausted after a handful of agent turns because tool use, retries, compression, and auxiliary tasks may require multiple model calls.
 
 Enable billing on the Google Cloud project attached to your key, regenerate the key if needed, then run:
 
 ```bash
-hermes model
+clawd model
 ```
 
 ### "404 model not found"
 
-The selected model is not available for your account, region, or key. Run `hermes model` again and pick another Gemini model from the current list.
+The selected model is not available for your account, region, or key. Run `clawd model` again and pick another Gemini model from the current list.
 
-### Gemma model is not shown in `hermes model`
+### Gemma model is not shown in `clawd model`
 
-Hermes may hide low-throughput Gemma models from the picker by default. If you intentionally want to evaluate one, set the model ID directly in `~/.hermes/config.yaml`.
+clawd may hide low-throughput Gemma models from the picker by default. If you intentionally want to evaluate one, set the model ID directly in `~/.clawd/config.yaml`.
 
 ### "429 quota exceeded" on Gemma
 
@@ -306,7 +306,7 @@ Gemma models exposed through the Gemini API are useful for evaluation, but their
 
 ### OpenAI-compatible endpoint is configured
 
-Check `~/.hermes/.env` for:
+Check `~/.clawd/.env` for:
 
 ```bash
 GEMINI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai/
@@ -320,7 +320,7 @@ GEMINI_BASE_URL=https://generativelanguage.googleapis.com/v1beta
 
 ### Tool calling fails with schema errors
 
-Upgrade Hermes and rerun `hermes model`. The native Gemini adapter sanitizes tool schemas for Gemini's stricter function-declaration format; older builds or custom endpoints may not.
+Upgrade clawd and rerun `clawd model`. The native Gemini adapter sanitizes tool schemas for Gemini's stricter function-declaration format; older builds or custom endpoints may not.
 
 ## Related
 

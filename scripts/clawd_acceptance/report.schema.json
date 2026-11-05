@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "clawd-final-acceptance-report.v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "kind",
+    "producer",
+    "executed",
+    "never_executed",
+    "phase",
+    "plan_only",
+    "acceptance_green",
+    "final_acceptance",
+    "covers_cutover",
+    "generated_at",
+    "identity",
+    "source_identity",
+    "artifacts",
+    "blockers",
+    "gate",
+    "isolation",
+    "toolchain",
+    "stages",
+    "checks",
+    "summary"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "kind": {"const": "clawd-final-acceptance"},
+    "producer": {"const": "scripts/clawd_acceptance"},
+    "executed": {"type": "boolean"},
+    "never_executed": {"type": "boolean"},
+    "phase": {"enum": ["prepare", "run", "report"]},
+    "plan_only": {"type": "boolean"},
+    "acceptance_green": {"type": "boolean"},
+    "final_acceptance": {"type": "boolean"},
+    "covers_cutover": {"type": "boolean"},
+    "generated_at": {"type": "string"},
+    "identity": {
+      "type": "object",
+      "required": ["requested_model", "observed", "mismatch", "can_pass", "parent_agent_checked"],
+      "properties": {
+        "requested_model": {"const": "grok-4.7"},
+        "expected": {"const": "grok-4.7"},
+        "observed": {"type": ["string", "null"]},
+        "observed_runtime_model": {"type": ["string", "null"]},
+        "mismatch": {"type": ["boolean", "null"]},
+        "can_pass": {"type": "boolean"},
+        "parent_agent_checked": {"const": false},
+        "note": {"type": "string"}
+      },
+      "description": "requested_model 是发给外部用例的模型。不要求报告自带 runtime.model，也不用它核对父代理。"
+    },
+    "gate": {"type": "object"},
+    "isolation": {"type": "object"},
+    "toolchain": {"type": "object"},
+    "stages": {"type": "array"},
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "status"],
+        "properties": {
+          "id": {"type": "string"},
+          "status": {"enum": ["pass", "fail", "blocked", "not_run", "unknown", "interrupted", "in_progress", "ready"]},
+          "required": {"type": "boolean"},
+          "counts_as_test": {"type": "boolean"},
+          "overlap_group": {"type": "string"},
+          "detail": {"type": "string"}
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "required": ["exit_code", "unique", "raw_rows", "unique_rows", "overlap_excluded"],
+      "properties": {
+        "exit_code": {"enum": [0, 1, 2]},
+        "status": {"enum": ["pass", "fail", "blocked"]},
+        "unique": {"type": "object"},
+        "raw_rows": {"type": "integer"},
+        "unique_rows": {"type": "integer"},
+        "overlap_excluded": {"type": "integer"},
+        "annotations_not_summed": {"type": "boolean"},
+        "blocked_ids": {"type": "array", "items": {"type": "string"}},
+        "failed_ids": {"type": "array", "items": {"type": "string"}},
+        "note": {"type": "string"}
+      }
+    },
+    "source_identity": {"type": "object"},
+    "artifacts": {"type": "object"},
+    "blockers": {"type": "array", "items": {"type": "string"}}
+  }
+}

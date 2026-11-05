@@ -1,0 +1,36 @@
+browser-harness 0.1.13，clawd vendor 副本
+
+上游：Browser Use
+项目：https://github.com/browser-use/browser-harness
+标签：v0.1.13
+先前来源记录中的提交：c24e5072ee66f8499bacd663f4f4bcb089bc4492
+本轮未联网复核该提交。
+
+许可：MIT
+版权行：Copyright (c) 2026 Browser Use
+
+本目录 LICENSE 是上游许可全文，不是 clawd 或 Nous Research 的版权声明。
+LICENSE sha256：5afa3d97bf1e6f998d587fa101e3fe0d0c416840b7fe77bcd6ae97690a334631
+
+来源 sdist：artifacts/browser-daemon-source/browser_harness-0.1.13.tar.gz
+sdist sha256：284dc547a042c309feafd9a9f4a74b2a8651b7963ea3ac6cb2f2d64889f6a8f3
+未从网络重下，未改 artifact 原件，未改已安装包。
+
+原件与补丁不是同一份字节。下面「未打补丁」是锁定 sdist 里的原件哈希，必须原样保留，不是本树补丁后的文件。
+「本副本」是 clawd 补丁之后、当前树上的文件哈希，不是原件，也不是上游修订。
+
+clawd 只修改本树中的两个文件：
+- src/browser_harness/daemon.py
+  未打补丁 sha256：7f05f904e62af8c07153c34a1fd3d334acf5c5aded8d0ddab974596bb50a8c97
+  本副本 sha256：781609813fa0f0d20dda3c5a634d3bc6a01cc7403d8d7b303874903b15434d45
+- src/browser_harness/helpers.py
+  未打补丁 sha256：5ea8560a01b74281833923720ffd23ca8e4f6b873c2419c821f7695a04091cf3
+  本副本 sha256：171744c2ff9c86321d1487c80eb975b433ee4aca9a02b26857fe11be40bd0a4a
+
+其余 src/browser_harness 成员与 LICENSE 保持 sdist 原件字节，不是补丁。
+_ipc.py 是原件，不是补丁。sha256 仍为 b46ec6e55ddae9919ada069053dfa12a2555d33a832de57ef5eb3a457cec80b3。
+
+补丁在既有一行 JSON IPC 上增加可选字段 task_grant，并让 daemon 自己签发、恒时校验。
+补丁不移除、不替换上游版权与 MIT 许可。本 NOTICE 不是新的版权声明。
+仓库根 LICENSE（Nous Research）不覆盖这一份第三方许可，也不得把 Browser Use 许可套到面板或 TUI。
+未 vendor cdp-use。

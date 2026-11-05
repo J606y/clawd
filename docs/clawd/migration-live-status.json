@@ -1,0 +1,27 @@
+{
+  "phase": "blocked_before_data_copy",
+  "operator": "parent_agent_only",
+  "delegated": false,
+  "candidate": {
+    "home": "/root/hermes-workspace/clawd-production",
+    "url": "http://127.0.0.1:8787",
+    "process_handle": "proc_8869f2a7880c",
+    "ready_observed": true,
+    "index_http_status_observed": 200,
+    "continuation_running_observed": true,
+    "legacy_watcher_observed": "disabled"
+  },
+  "source": {
+    "home": "/root/.hermes",
+    "state_db_bytes_observed": 1467711488,
+    "state_db_free_page_bytes_observed": 0,
+    "filesystem_free_bytes_observed": 1647923200
+  },
+  "data_copied": false,
+  "credentials_copied": false,
+  "production_route_changed": false,
+  "production_services_changed": false,
+  "source_data_preserved": true,
+  "blocker": "Insufficient disk headroom for a full independent state copy plus sessions, skills, plugins and operational reserve. No source data or rollback assets deleted.",
+  "acceptance": "Startup and HTTP readiness only; model, MCP, browser, migrated history and production cutover are not verified."
+}

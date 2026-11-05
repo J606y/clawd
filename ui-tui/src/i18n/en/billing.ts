@@ -64,14 +64,14 @@ export const billingEn = {
     keepGoing: {
       title: 'Keep going on credits?',
       body: 'Use your credits when included usage runs out.',
-      offNote: 'Off: Hermes waits for the reset.',
+      offNote: 'Off: clawd waits for the reset.',
       turnOn: 'Turn on',
       rowTurnOn: 'Keep going on credits: turn on',
       rowTurnOff: 'Keep going on credits: turn off',
       onLine: 'Keep going on credits: on (uses your credits when included usage runs out)',
-      offLine: 'Keep going on credits: off (Hermes waits for the reset)',
+      offLine: 'Keep going on credits: off (clawd waits for the reset)',
       turnedOn: '✅ Keep going on credits: on. Uses your credits when included usage runs out.',
-      turnedOff: '✅ Keep going on credits: off. Hermes waits for the reset.'
+      turnedOff: '✅ Keep going on credits: off. clawd waits for the reset.'
     },
     stepUp: {
       openingBrowser: 'Opening your browser to allow Remote Spending…',

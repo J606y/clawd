@@ -3,6 +3,7 @@
 import hmac
 import json
 import logging
+import re
 import sqlite3
 import threading
 import time
@@ -48,6 +49,56 @@ def _record(run_id, status_json, owner_pid, owner_started, updated_at) -> dict[s
 def _outcome(row, fingerprint):
     """Classify a stored ``(scope, key)`` row against the caller's fingerprint."""
     return ("reused" if hmac.compare_digest(row[0], fingerprint) else "conflict"), _record(*row[1:])
+
+
+_RUN_ID = re.compile(r"run_[0-9a-f]{32}")
+_DISCOVERED_STATUSES = frozenset({
+    "queued", "running", "waiting_for_approval", "stopping", "unknown",
+    "completed", "cancelled", "failed", "interrupted",
+})
+
+
+def _public_discovered_run(row, session_id: str, *, keyed: bool) -> dict[str, Any] | None:
+    """Stored public fields, or None when an unkeyed row belongs to another session."""
+    import math
+    from hermes_state_runtime import RuntimeStoreError
+
+    run_id, raw, created_at, updated_at, retention = row
+    try:
+        status = json.loads(raw)
+    except (TypeError, ValueError) as exc:
+        raise RuntimeStoreError("storage_unavailable") from exc
+    if not isinstance(status, dict):
+        raise RuntimeStoreError("storage_unavailable")
+    owner = status.get("session_id")
+    if not isinstance(owner, str):
+        raise RuntimeStoreError("storage_unavailable")
+    if owner != session_id:
+        if keyed:
+            raise RuntimeStoreError("session_mismatch")
+        return None
+    if type(retention) not in (int, float) or not math.isfinite(retention) or retention < 0:
+        raise RuntimeStoreError("storage_unavailable")
+    if retention and retention <= time.time():
+        if keyed:
+            raise RuntimeStoreError("storage_unavailable")
+        return None
+    if (
+        not isinstance(run_id, str) or _RUN_ID.fullmatch(run_id) is None
+        or status.get("run_id") not in (None, run_id)
+        or status.get("status") not in _DISCOVERED_STATUSES
+        or type(created_at) not in (int, float) or type(updated_at) not in (int, float)
+        or not math.isfinite(created_at) or not math.isfinite(updated_at)
+        or created_at < 0 or updated_at < created_at
+    ):
+        raise RuntimeStoreError("storage_unavailable")
+    return {
+        "run_id": run_id,
+        "session_id": session_id,
+        "status": status["status"],
+        "created_at": created_at,
+        "updated_at": updated_at,
+    }
 
 
 class RunIdempotencyStore:
@@ -229,6 +280,41 @@ class RunIdempotencyStore:
         with self._lock:
             self._conn.execute("DELETE FROM run_idempotency WHERE scope=? AND idempotency_key=?", (scope, key))
             self._conn.commit()
+
+    def discover_for_session(self, session_id: str, *, idempotency_key: str | None = None, scope: str | None = None) -> dict[str, Any] | None:
+        """Read the stored run for a session. Does not rewrite ``status_json`` or prune rows.
+
+        An unreadable, unscoped, or expired keyed row is ``storage_unavailable``, not proof of idle.
+        A dead owner does not change the stored status; callers use ``GET /v1/runs/{id}`` for authority.
+        ``scope`` binds the lookup to the authenticated tenant. Without it, a caller must already
+        be inside that tenant's store.
+        """
+        from hermes_state_runtime import RuntimeStoreError
+
+        if not isinstance(session_id, str) or not session_id:
+            raise RuntimeStoreError("invalid_params")
+        scope_sql = " AND scope=?" if scope is not None else ""
+        scope_args = (scope,) if scope is not None else ()
+        with self._lock:
+            if idempotency_key is not None:
+                rows = self._conn.execute(
+                    "SELECT run_id, status_json, created_at, updated_at, retention_until "
+                    f"FROM run_idempotency WHERE idempotency_key=?{scope_sql} LIMIT 2",
+                    (idempotency_key, *scope_args),
+                ).fetchall()
+                if len(rows) > 1:
+                    raise RuntimeStoreError("admission_conflict")
+                return None if not rows else _public_discovered_run(rows[0], session_id, keyed=True)
+            rows = self._conn.execute(
+                "SELECT run_id, status_json, created_at, updated_at, retention_until "
+                f"FROM run_idempotency WHERE 1=1{scope_sql} ORDER BY created_at DESC, updated_at DESC, run_id DESC",
+                scope_args,
+            ).fetchall()
+            for row in rows:
+                found = _public_discovered_run(row, session_id, keyed=False)
+                if found is not None:
+                    return found
+        return None
 
     def close(self) -> None:
         with self._lock:

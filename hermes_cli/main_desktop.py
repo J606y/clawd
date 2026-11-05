@@ -1695,7 +1695,11 @@ def _run_desktop_one_shot(args: argparse.Namespace, desktop_dir: Path, *, bundle
 
 
 def cmd_gui(args: argparse.Namespace):
-    """Build and launch the native Electron desktop GUI."""
+    """Official desktop launch. Removed from clawd; refuse instead of rebuilding it."""
+    root = Path(__file__).resolve().parents[1]
+    if os.environ.get("CLAWD_CLI") == "1" or not (root / "apps" / "desktop" / "package.json").is_file():
+        print("refused: clawd does not provide the official desktop app.", file=sys.stderr)
+        raise SystemExit(2)
     from hermes_cli.main import PROJECT_ROOT
     from hermes_cli.source_build import prepare_source_dependencies, source_build_env
     desktop_dir = PROJECT_ROOT / "apps" / "desktop"

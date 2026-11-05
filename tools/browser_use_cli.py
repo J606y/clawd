@@ -12,6 +12,7 @@ import functools
 import importlib
 import importlib.util
 import json
+import hashlib
 import logging
 import os
 import re
@@ -51,6 +52,87 @@ _REAL_PROFILE_FALLBACK_SENTINEL = "_HERMES_BU_REAL_PROFILE_FALLBACK"
 _LOCAL_FALLBACK_SENTINEL = "_HERMES_BU_LOCAL_FALLBACK"
 # Where new/hidden tabs may be brought to the front: a browser_use_shot.ACTIVATE_* mode. Popped before launch.
 _CLOUD_BROWSER_SENTINEL = "_HERMES_BU_CLOUD_BROWSER"
+# Popped before launch. Marks the legacy Browser Use autospawn route so ownership
+# can wait for the harness's own backend return instead of refusing the call.
+_AUTOSPAWN_SENTINEL = "_HERMES_BU_AUTOSPAWN_ROUTE"
+# ``cloud:<provider session id>`` from get_session_info. Popped before launch.
+_CLOUD_ID_SENTINEL = "_HERMES_BU_CLOUD_BROWSER_ID"
+# argv must stay ``-m browser_harness.daemon``. ``_own_harness_daemon`` matches this string.
+_DAEMON_MODULE = "browser_harness.daemon"
+_VENDOR_DIRNAME = "browser_harness_0_1_13"
+_IPC_SHA256 = "b46ec6e55ddae9919ada069053dfa12a2555d33a832de57ef5eb3a457cec80b3"
+_UNPATCHED_DAEMON_SHA256 = "7f05f904e62af8c07153c34a1fd3d334acf5c5aded8d0ddab974596bb50a8c97"
+_LICENSE_COPYRIGHT = "Copyright (c) 2026 Browser Use"
+_VENDOR_PACKAGE_FILES = (
+    "__init__.py", "_ipc.py", "admin.py", "auth.py", "macos.py", "mcp_cli.py",
+    "paths.py", "recorder.py", "run.py", "telemetry.py", "video.py", "video_render.py",
+    "SKILL.md", "video-template.html", "daemon.py", "helpers.py",
+)
+
+
+class VendorPathError(RuntimeError):
+    """Vendor tree failed checks. Do not fall back to the unpatched package."""
+
+
+def _vendor_root() -> Path:
+    return Path(__file__).resolve().parent / "vendor" / _VENDOR_DIRNAME
+
+
+def _refuse_vendor(reason: str) -> VendorPathError:
+    return VendorPathError(f"{reason}; refusing the unpatched package")
+
+
+def _vendor_file(root: Path, path: Path) -> Path:
+    if path.is_symlink():
+        raise _refuse_vendor("vendor path is a symlink")
+    resolved = path.resolve()
+    try:
+        resolved.relative_to(root.resolve())
+    except ValueError as exc:
+        raise _refuse_vendor("vendor path escapes the vendor tree") from exc
+    if not resolved.is_file():
+        raise _refuse_vendor("vendor tree is incomplete")
+    return resolved
+
+
+def verify_vendor_tree(root: Optional[Path] = None) -> Path:
+    """Return vendor ``src``, or raise. Never a site-packages path."""
+    root = Path(root) if root is not None else _vendor_root()
+    if root.is_symlink():
+        raise _refuse_vendor("vendor root is a symlink")
+    src = root / "src"
+    if src.is_symlink():
+        raise _refuse_vendor("vendor src is a symlink")
+    package = src / "browser_harness"
+    license_path = _vendor_file(root, root / "LICENSE")
+    if _LICENSE_COPYRIGHT not in license_path.read_text(encoding="utf-8", errors="replace"):
+        raise _refuse_vendor("vendor LICENSE copyright line is missing")
+    for name in _VENDOR_PACKAGE_FILES:
+        _vendor_file(root, package / name)
+    ipc_hash = hashlib.sha256((package / "_ipc.py").read_bytes()).hexdigest()
+    if ipc_hash != _IPC_SHA256:
+        raise _refuse_vendor("vendor _ipc.py hash does not match the locked copy")
+    daemon_bytes = (package / "daemon.py").read_bytes()
+    if hashlib.sha256(daemon_bytes).hexdigest() == _UNPATCHED_DAEMON_SHA256:
+        raise _refuse_vendor("vendor daemon.py is the unpatched package")
+    daemon_text = daemon_bytes.decode("utf-8", errors="replace")
+    if ("task_grants" not in daemon_text or "dialog_identity" not in daemon_text
+            or "task_grant_version" not in daemon_text):
+        raise _refuse_vendor("vendor daemon.py has no task grant capabilities")
+    if b"def task_grant_for" not in (package / "helpers.py").read_bytes():
+        raise _refuse_vendor("vendor helpers.py has no task_grant_for")
+    return src
+
+
+def _subprocess_pythonpath(vendor_src: str, site_dir: Optional[str]) -> str:
+    """Vendor src first, site dir second. Never site dir alone."""
+    if not vendor_src:
+        raise _refuse_vendor("vendor src is missing")
+    if site_dir and os.path.abspath(site_dir) == os.path.abspath(vendor_src):
+        raise _refuse_vendor("vendor src resolved to site-packages")
+    if site_dir:
+        return vendor_src + os.pathsep + site_dir
+    return vendor_src
 
 # Prepended to the model's code for named sessions on SHARED browsers (a /browser connect CDP override): the
 # harness daemon attaches to the first existing page at startup, so two fresh named daemons can land on the
@@ -90,6 +172,575 @@ def _hermes_ensure_own_tab():
 _hermes_ensure_own_tab()
 del _hermes_ensure_own_tab
 """
+
+
+def ownership_preamble(target_id: str, spool_path: str) -> str:
+    """Pin the harness to a target this process already created.
+
+    Records only ids returned by createTarget/new_tab. Does not list pages,
+    open the shadow store, or adopt the visible tab.
+    """
+    from tools.browser_task_registry import valid_id
+
+    valid_id(target_id)
+    lines = [
+        "# hermes: pin this call to the target this tool created",
+        "def _hermes_pin_owned():",
+        "    import os as _os",
+        f"    _owned = {{{target_id!r}}}",
+        f"    _spool = {spool_path!r}",
+        f"    _current = [{target_id!r}]",
+        "    def _record(tid):",
+        "        if not isinstance(tid, str) or not tid:",
+        "            raise RuntimeError('created target has no id')",
+        "        _owned.add(tid)",
+        "        _os.makedirs(_os.path.dirname(_spool), exist_ok=True)",
+        "        with open(_spool, 'a', encoding='utf-8') as _fh:",
+        "            _fh.write(tid + chr(10))",
+        "    def _ensure(tid):",
+        "        if tid not in _owned:",
+        "            raise PermissionError('target is not owned by this task')",
+        "    _orig_cdp, _orig_switch, _orig_goto = cdp, switch_tab, goto_url",
+        "    def _guarded_cdp(method, **kwargs):",
+        "        if method in ('Target.attachToTarget', 'Target.activateTarget', 'Target.closeTarget'):",
+        "            tid = kwargs.get('targetId')",
+        "            if tid:",
+        "                _ensure(tid)",
+        "        res = _orig_cdp(method, **kwargs)",
+        "        if method == 'Target.createTarget':",
+        "            tid = res.get('targetId') if isinstance(res, dict) else res",
+        "            if not tid:",
+        "                raise RuntimeError('Target.createTarget returned no target')",
+        "            _record(tid)",
+        "            _current[0] = tid",
+        "        elif method == 'Target.activateTarget' and kwargs.get('targetId'):",
+        "            _current[0] = kwargs['targetId']",
+        "        return res",
+        "    def _guarded_switch(target):",
+        "        tid = str(target)",
+        "        _ensure(tid)",
+        "        res = _orig_switch(tid)",
+        "        _current[0] = tid",
+        "        return res",
+        "    def _guarded_new(url='about:blank'):",
+        "        res = _orig_cdp('Target.createTarget', url='about:blank')",
+        "        tid = res.get('targetId') if isinstance(res, dict) else res",
+        "        if not tid:",
+        "            raise RuntimeError('new tab was not created')",
+        "        _record(tid)",
+        "        _current[0] = tid",
+        "        _orig_cdp('Target.activateTarget', targetId=tid)",
+        "        _orig_switch(tid)",
+        "        if url and url != 'about:blank':",
+        "            _orig_goto(url)",
+        "        return tid",
+        "    def _guarded_goto(url):",
+        "        if not _current[0] or _current[0] not in _owned:",
+        "            raise PermissionError('no owned target is active')",
+        "        return _orig_goto(url)",
+        "    globals()['cdp'] = _guarded_cdp",
+        "    globals()['switch_tab'] = _guarded_switch",
+        "    globals()['new_tab'] = _guarded_new",
+        "    globals()['goto_url'] = _guarded_goto",
+        "    _ensure(_current[0])",
+        "    _orig_cdp('Target.activateTarget', targetId=_current[0])",
+        "    _orig_switch(_current[0])",
+        "_hermes_pin_owned()",
+        "del _hermes_pin_owned",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def ownership_route(cdp: str, autospawn: Optional[str]) -> str:
+    """``loopback``, ``cloud``, ``autospawn``, ``blocked``, or ``missing``. Does not connect."""
+    if not cdp and autospawn:
+        return "autospawn"
+    if not cdp:
+        return "missing"
+    if cdp.startswith("wss://"):
+        return "cloud"
+    if cdp.startswith(("http://127.0.0.1:", "http://localhost:", "https://127.0.0.1:", "https://localhost:",
+                       "ws://127.0.0.1:", "ws://localhost:")):
+        return "loopback"
+    return "blocked"
+
+
+def cloud_autospawn_preamble(receipt_path: str, spool_path: str, expected_kind: str = "cloud") -> str:
+    """Create one page on the daemon that already holds the socket.
+
+    The connection receipt is the daemon's own ping (kind and pid), not another
+    process's environment and not a page scan. The signed URL, when one exists,
+    was returned by ``start_remote_daemon`` or the provider before this runs.
+    """
+    if expected_kind not in {"cloud", "cdp", "local"}:
+        raise ValueError("unexpected daemon kind")
+    lines = [
+        "# hermes: pin this call to the page it creates on the live daemon socket",
+        "def _hermes_cloud_pin():",
+        "    import os as _os",
+        "    from browser_harness.admin import daemon_browser_kind as _kind",
+        "    from browser_harness import _ipc as _bipc",
+        "    _name = _os.environ.get('BU_NAME', 'default')",
+        "    _reported = _kind(_name)",
+        f"    if _reported != {expected_kind!r}:",
+        "        raise RuntimeError('daemon connection receipt does not match this route')",
+        "    _pid = _bipc.identify(_name)",
+        "    if type(_pid) is not int or _pid <= 0:",
+        "        raise RuntimeError('daemon did not report its process id')",
+        "    try:",
+        "        _sock, _token = _bipc.connect(_name, timeout=2.0)",
+        "        try:",
+        "            _caps = _bipc.request(_sock, _token, {'meta': 'capabilities'})",
+        "        finally:",
+        "            _sock.close()",
+        "    except Exception:",
+        "        raise RuntimeError('daemon_grant_unsupported')",
+        "    if (not isinstance(_caps, dict) or _caps.get('error')",
+        "            or _caps.get('task_grants') is not True",
+        "            or _caps.get('dialog_identity') is not True",
+        "            or type(_caps.get('task_grant_version')) is not int",
+        "            or _caps.get('task_grant_version') != 1):",
+        "        raise RuntimeError('daemon_grant_unsupported')",
+        "    from browser_harness.helpers import task_grant_for as _grant_for",
+        "    _tid = cdp('Target.createTarget', url='about:blank').get('targetId')",
+        "    if not isinstance(_tid, str) or not _tid:",
+        "        raise RuntimeError('cloud createTarget returned no target')",
+        "    _grant = _grant_for(_tid)",
+        f"    _receipt, _spool = {receipt_path!r}, {spool_path!r}",
+        "    _os.makedirs(_os.path.dirname(_receipt), exist_ok=True)",
+        "    _os.makedirs(_os.path.dirname(_spool), exist_ok=True)",
+        "    if not isinstance(_grant, str) or not _grant or chr(9) in _grant or chr(10) in _grant or chr(13) in _grant:",
+        "        with open(_receipt, 'w', encoding='utf-8') as _fh:",
+        "            _fh.write(_reported + chr(10) + str(_pid) + chr(10) + _tid + chr(10))",
+        "        try:",
+        "            cdp('Target.closeTarget', targetId=_tid)",
+        "        except Exception:",
+        "            pass",
+        "        raise RuntimeError('task grant missing; closed only the new page')",
+        "    with open(_receipt, 'w', encoding='utf-8') as _fh:",
+        "        _fh.write(_reported + chr(10) + str(_pid) + chr(10) + _tid + chr(10) + _grant + chr(10))",
+        "    _owned = {_tid}",
+        "    _current = [_tid]",
+        "    def _record(tid):",
+        "        if not isinstance(tid, str) or not tid:",
+        "            raise RuntimeError('created target has no id')",
+        "        _g = _grant_for(tid)",
+        "        if not isinstance(_g, str) or not _g or chr(9) in _g or chr(10) in _g or chr(13) in _g:",
+        "            with open(_receipt, 'a', encoding='utf-8') as _fh:",
+        "                _fh.write(tid + chr(10))",
+        "            try:",
+        "                _orig_cdp('Target.closeTarget', targetId=tid)",
+        "            except Exception:",
+        "                pass",
+        "            raise RuntimeError('task grant missing; closed only the new page')",
+        "        _owned.add(tid)",
+        "        with open(_receipt, 'a', encoding='utf-8') as _fh:",
+        "            _fh.write(tid + chr(10) + _g + chr(10))",
+        "        with open(_spool, 'a', encoding='utf-8') as _fh:",
+        "            _fh.write(tid + chr(9) + _g + chr(10))",
+        "    def _ensure(tid):",
+        "        if tid not in _owned:",
+        "            raise PermissionError('target is not owned by this task')",
+        "    _orig_cdp, _orig_switch, _orig_goto = cdp, switch_tab, goto_url",
+        "    def _guarded_cdp(method, **kwargs):",
+        "        if method in ('Target.attachToTarget', 'Target.activateTarget', 'Target.closeTarget', 'Target.getTargets'):",
+        "            tid = kwargs.get('targetId')",
+        "            if method == 'Target.getTargets' or (tid and tid not in _owned):",
+        "                raise PermissionError('target is not owned by this task')",
+        "        res = _orig_cdp(method, **kwargs)",
+        "        if method == 'Target.createTarget':",
+        "            tid = res.get('targetId') if isinstance(res, dict) else res",
+        "            if not tid:",
+        "                raise RuntimeError('Target.createTarget returned no target')",
+        "            _record(tid)",
+        "            _current[0] = tid",
+        "        elif method == 'Target.activateTarget' and kwargs.get('targetId'):",
+        "            _current[0] = kwargs['targetId']",
+        "        return res",
+        "    def _guarded_switch(target):",
+        "        tid = str(target)",
+        "        _ensure(tid)",
+        "        res = _orig_switch(tid)",
+        "        _current[0] = tid",
+        "        return res",
+        "    def _guarded_new(url='about:blank'):",
+        "        res = _orig_cdp('Target.createTarget', url='about:blank')",
+        "        tid = res.get('targetId') if isinstance(res, dict) else res",
+        "        if not tid:",
+        "            raise RuntimeError('new tab was not created')",
+        "        _record(tid)",
+        "        _current[0] = tid",
+        "        _orig_cdp('Target.activateTarget', targetId=tid)",
+        "        _orig_switch(tid)",
+        "        if url and url != 'about:blank':",
+        "            _orig_goto(url)",
+        "        return tid",
+        "    def _guarded_goto(url):",
+        "        if not _current[0] or _current[0] not in _owned:",
+        "            raise PermissionError('no owned target is active')",
+        "        return _orig_goto(url)",
+        "    globals()['cdp'] = _guarded_cdp",
+        "    globals()['switch_tab'] = _guarded_switch",
+        "    globals()['new_tab'] = _guarded_new",
+        "    globals()['goto_url'] = _guarded_goto",
+        "    _orig_cdp('Target.activateTarget', targetId=_tid)",
+        "    _orig_switch(_tid)",
+        "_hermes_cloud_pin()",
+        "del _hermes_cloud_pin",
+        "",
+    ]
+    return "\n".join(lines)
+
+
+def _daemon_locator(env: dict) -> tuple[str, str]:
+    """Absolute daemon directory and socket stem for ``env``. Does not connect."""
+    from tools.browser_harness_dirs import harness_pid_file
+    pid_file = harness_pid_file(env)
+    stem = pid_file.name[:-4] if pid_file.name.endswith(".pid") else pid_file.name
+    return str(pid_file.parent), stem
+
+
+def _installed_chrome_listening() -> bool:
+    """The harness's own loopback Chrome check. Failure means not listening, matching the harness."""
+    try:
+        from browser_harness.run import _local_chrome_listening
+        return bool(_local_chrome_listening())
+    except Exception:
+        return False
+
+
+_REMOTE_CAPTURE = (
+    "import json, os\n"
+    "from browser_harness.admin import start_remote_daemon\n"
+    "browser = start_remote_daemon(os.environ.get('BU_NAME', 'default'))\n"
+    "if not isinstance(browser, dict):\n"
+    "    raise SystemExit(2)\n"
+    "print(json.dumps({'cdpUrl': browser.get('cdpUrl') or '', 'id': browser.get('id') or ''}))\n"
+)
+_REMOTE_STOP = (
+    "import os\n"
+    "from browser_harness.admin import stop_remote_daemon\n"
+    "stop_remote_daemon(os.environ.get('BU_NAME', 'default'))\n"
+)
+
+
+def _stop_captured_remote(env: dict) -> None:
+    try:
+        subprocess.run([sys.executable, "-c", _REMOTE_STOP], env=env, capture_output=True, text=True, timeout=30)
+    except Exception:
+        logger.warning("cloud autospawn cleanup did not confirm stop")
+
+
+def _capture_remote_browser(env: dict) -> dict[str, str]:
+    """Run the harness's own ``start_remote_daemon`` and keep only its return. No environ read."""
+    from tools.browser_task_cdp import CdpError, validate_cloud_browser_id, validate_cloud_ws
+    from tools.browser_task_registry import RegistryError
+
+    child = dict(env)
+    child["BH_OPEN_LIVE_URL"] = "0"
+    try:
+        proc = subprocess.run([sys.executable, "-c", _REMOTE_CAPTURE], env=child,
+                              capture_output=True, text=True, timeout=90)
+    except subprocess.TimeoutExpired as exc:
+        _stop_captured_remote(child)
+        raise RegistryError("target_create_failed", "cloud autospawn did not return a connection receipt") from exc
+    payload = None
+    for line in reversed((proc.stdout or "").splitlines()):
+        if line.strip().startswith("{"):
+            try:
+                payload = json.loads(line)
+            except json.JSONDecodeError:
+                payload = None
+            break
+    if proc.returncode != 0 or not isinstance(payload, dict):
+        _stop_captured_remote(child)
+        raise RegistryError("target_create_failed", "cloud autospawn did not return a connection receipt")
+    try:
+        endpoint = validate_cloud_ws(str(payload.get("cdpUrl") or ""))
+        raw_id = str(payload.get("id") or "")
+        browser_id = validate_cloud_browser_id("cloud:" + raw_id)
+    except (CdpError, TypeError) as exc:
+        _stop_captured_remote(child)
+        raise RegistryError("cdp_endpoint_invalid", "cloud autospawn receipt failed validation") from exc
+    return {"endpoint": endpoint, "browser_id": browser_id, "raw_id": raw_id}
+
+
+def _prepare_autospawn(env: dict, task: str, cloud_id: Optional[str]) -> tuple[str, str, str]:
+    """Choose the daemon receipt for a route that has no CDP URL yet."""
+    from tools.browser_task_cdp import CdpError, harness_ping, validate_cloud_browser_id, validate_cloud_ws
+    from tools.browser_task_registry import RegistryError, active_cloud_endpoint, task_connection
+
+    directory, stem = _daemon_locator(env)
+    report = None
+    try:
+        report = harness_ping(directory, stem)
+    except CdpError:
+        report = None
+    if report and report["browser_kind"] == "cloud":
+        stored = active_cloud_endpoint(task)
+        saved = task_connection(task) or {}
+        browser_id = cloud_id or str(saved.get("browserId") or "")
+        if not stored or not browser_id:
+            raise RegistryError("receipt_missing", "live cloud daemon has no stored connection receipt; refusing to read its environment")
+        env["BU_CDP_WS"] = stored
+        env.pop("BU_AUTOSPAWN", None)
+        return "cloud", validate_cloud_ws(stored), validate_cloud_browser_id(browser_id)
+    if report and report["browser_kind"] in {"local", "cdp"}:
+        env["BU_AUTOSPAWN"] = ""
+        return report["browser_kind"], "harness", ""
+    if _installed_chrome_listening():
+        env["BU_AUTOSPAWN"] = ""
+        return "local", "harness", ""
+    captured = _capture_remote_browser(env)
+    env["BU_CDP_WS"] = captured["endpoint"]
+    env["BU_BROWSER_ID"] = captured["raw_id"]
+    env.pop("BU_AUTOSPAWN", None)
+    return "cloud", captured["endpoint"], captured["browser_id"]
+
+
+def _capability_supported(response: object) -> bool:
+    if not isinstance(response, dict) or response.get("error"):
+        return False
+    version = response.get("task_grant_version")
+    return (
+        response.get("task_grants") is True
+        and response.get("dialog_identity") is True
+        and type(version) is int
+        and version == 1
+    )
+
+
+def _probe_grant_capabilities(directory: str, stem: str) -> str:
+    """``ok``, ``down``, or ``unsupported``. Existing daemon socket only."""
+    from tools.browser_task_cdp import CdpError, harness_exchange
+    try:
+        response = harness_exchange(directory, stem, {"meta": "capabilities"}, timeout=2.0)
+    except CdpError:
+        return "down"
+    return "ok" if _capability_supported(response) else "unsupported"
+
+
+def _reload_owned_daemon(env: dict) -> bool:
+    """Existing ``--reload`` only when this process owns the daemon."""
+    if _own_harness_daemon(env) is not True:
+        return False
+    _reload_daemons([daemon_identity(env)])
+    return True
+
+
+def _require_task_grant_daemon(env: dict, directory: str, stem: str) -> None:
+    """Refuse a task page when a live daemon cannot issue grants.
+
+    A daemon this process does not own is left running. An owned daemon uses
+    the existing ``--reload``; this call still does not create a page.
+    """
+    from tools import browser_task_cdp
+    from tools.browser_task_cdp import CdpError, harness_ping
+    from tools.browser_task_registry import RegistryError
+
+    state = _probe_grant_capabilities(directory, stem)
+    if state == "down":
+        return
+    if state != "ok":
+        _reload_owned_daemon(env)
+        raise RegistryError(
+            "daemon_grant_unsupported",
+            "daemon does not support task grants; task page was not created",
+        )
+    try:
+        pid = harness_ping(directory, stem)["pid"]
+        ensure = getattr(browser_task_cdp, "ensure_harness_task_grants", None)
+        if ensure is None:
+            raise RegistryError(
+                "daemon_grant_unsupported",
+                "task grant client is not linked; refusing to create a task page",
+            )
+        ensure(directory, stem, pid)
+    except RegistryError:
+        raise
+    except (CdpError, OSError, TypeError, AttributeError, ValueError) as exc:
+        raise RegistryError("daemon_grant_unsupported", "daemon task grants are not usable") from exc
+
+
+def _pin_owned_target(env: dict, code: str, task_id, session_id, turn_id,
+                      autospawn: Optional[str] = None, cloud_id: Optional[str] = None):
+    """Create and register one blank page on the resolved endpoint, then pin to it."""
+    from tools.browser_task_cdp import CdpError, promote_provider_discovery
+    from tools.browser_task_registry import (
+        RegistryError, acquire_exec_gate, open_and_register, receipt_path, resolve_call_identity, spool_path)
+
+    task, session, turn = resolve_call_identity(task_id, session_id)
+    cdp = env.get("BU_CDP_WS") or env.get("BU_CDP_URL") or ""
+    try:
+        promoted = promote_provider_discovery(cdp)
+    except CdpError as exc:
+        raise RegistryError(exc.code, str(exc)) from exc
+    if promoted and promoted != cdp:
+        _set_cdp_env(env, promoted)
+        cdp = promoted
+    route = ownership_route(cdp, autospawn)
+    if route == "missing":
+        raise RegistryError("endpoint_missing", "browser endpoint is missing; refusing an untracked browser")
+    if route == "blocked":
+        raise RegistryError("discovery_unresolved", "provider HTTP discovery did not yield a signed websocket; refusing a new protocol")
+    gate = acquire_exec_gate()
+    if gate is None:
+        raise RegistryError("lease_held", "manual control did not release; refusing to touch the browser")
+    try:
+        if route in {"autospawn", "cloud"}:
+            if route == "cloud":
+                from tools.browser_task_cdp import validate_cloud_browser_id, validate_cloud_ws
+                if not cloud_id:
+                    raise RegistryError("browser_id_missing", "cloud browser identity was not in the backend return")
+                kind, endpoint, browser_id = "cdp", validate_cloud_ws(cdp), validate_cloud_browser_id(cloud_id)
+            else:
+                kind, endpoint, browser_id = _prepare_autospawn(env, task, cloud_id)
+            receipt = receipt_path(task)
+            spool = spool_path(task)
+            directory, stem = _daemon_locator(env)
+            _require_task_grant_daemon(env, directory, stem)
+            state = {"task_id": task, "session_id": session, "turn_id": turn, "browser_id": browser_id,
+                     "endpoint": endpoint, "spool": spool, "receipt": receipt, "autospawn": True,
+                     "expected_kind": kind, "daemon_dir": directory, "daemon_stem": stem}
+            return cloud_autospawn_preamble(str(receipt), str(spool), kind) + code, gate, state
+        owned = open_and_register(cdp, task_id=task, session_id=session, turn_id=turn)
+    except RegistryError:
+        gate.close()
+        raise
+    except Exception as exc:
+        gate.close()
+        raise RegistryError("target_create_failed", type(exc).__name__) from exc
+    spool = spool_path(task)
+    state = {"task_id": task, "session_id": session, "turn_id": turn, "browser_id": owned["browserId"],
+             "endpoint": owned["endpoint"], "spool": spool}
+    return ownership_preamble(owned["targetId"], str(spool)) + code, gate, state
+
+
+def _finish_owned(gate, state) -> Optional[str]:
+    error = None
+    if state is not None and state.get("autospawn"):
+        error = _register_autospawn_receipt(state)
+    elif state is not None:
+        try:
+            from tools.browser_task_registry import adopt_spool
+            adopt_spool(state["spool"], task_id=state["task_id"], session_id=state["session_id"],
+                        turn_id=state["turn_id"], browser_id=state["browser_id"], endpoint=state["endpoint"])
+        except Exception as exc:
+            logger.warning("browser target spool was not registered: %s", type(exc).__name__)
+            error = f"created targets were not registered: {type(exc).__name__}"
+    if gate is not None:
+        gate.close()
+    return error
+
+
+def _register_autospawn_receipt(state) -> Optional[str]:
+    """Register the daemon ping, created targets, and their grants.
+
+    Does not open a second websocket. A missing fourth line is not registered.
+    Only the target named in this receipt is closed. Never Browser.close.
+    """
+    from tools.browser_task_cdp import CdpError, harness_exchange
+    from tools.browser_task_registry import (
+        IdentityError, RegistryError, register_created, register_spooled_text, valid_id)
+
+    path = state["receipt"]
+    spool = state.get("spool")
+    text = ""
+    spool_text = ""
+    try:
+        text = path.read_text(encoding="utf-8") if path.is_file() else ""
+    except OSError as exc:
+        return f"daemon receipt could not be read: {type(exc).__name__}"
+    finally:
+        try:
+            if path.is_file():
+                path.write_text("", encoding="utf-8")
+        except OSError:
+            pass
+    try:
+        if spool is not None and spool.is_file():
+            spool_text = spool.read_text(encoding="utf-8")
+    except OSError:
+        spool_text = ""
+    finally:
+        try:
+            if spool is not None and spool.is_file():
+                spool.write_text("", encoding="utf-8")
+        except OSError:
+            pass
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if len(lines) < 3:
+        return "daemon did not return a connection receipt; refusing to claim a page"
+    kind, pid_text, target_id = lines[0], lines[1], lines[2]
+    try:
+        pid = int(pid_text)
+        if type(pid) is not int or not 0 < pid < (1 << 31):
+            raise ValueError
+    except (TypeError, ValueError):
+        return "daemon connection receipt was not a process id and target id"
+    endpoint = state.get("endpoint") or ""
+    browser_id = state.get("browser_id") or ""
+    if endpoint == "harness" or not endpoint.startswith("wss://"):
+        endpoint = "harness"
+        browser_id = "daemon:" + str(pid)
+    locator = {"transport": "harness", "daemon_dir": state.get("daemon_dir") or "",
+               "daemon_stem": state.get("daemon_stem") or "", "daemon_pid": pid}
+
+    def close_one(raw_id: str, grant: str = "") -> None:
+        """Close only this new target. Unregistered pages are not in the grant table."""
+        if not locator["daemon_dir"] or not locator["daemon_stem"] or not raw_id:
+            return
+        try:
+            close_id = valid_id(raw_id)
+        except (IdentityError, TypeError, ValueError):
+            return
+        payload = {"method": "Target.closeTarget", "params": {"targetId": close_id}}
+        if isinstance(grant, str) and grant and "\n" not in grant and "\r" not in grant:
+            payload["task_grant"] = grant
+        try:
+            harness_exchange(locator["daemon_dir"], locator["daemon_stem"], payload)
+        except CdpError:
+            return
+
+    if kind != state.get("expected_kind"):
+        close_one(target_id)
+        return "daemon connection receipt does not match this route"
+    if len(lines) < 4 or not lines[3]:
+        close_one(target_id)
+        return "daemon did not return a task grant; refusing to register"
+    pairs = [(target_id, lines[3])]
+    rest = lines[4:]
+    incomplete = False
+    if len(rest) % 2:
+        close_one(rest[-1])
+        rest = rest[:-1]
+        incomplete = True
+    pairs.extend((rest[index], rest[index + 1]) for index in range(0, len(rest), 2))
+    for raw_id, grant in pairs:
+        if not isinstance(grant, str) or not grant or "\n" in grant or "\r" in grant:
+            close_one(raw_id)
+            incomplete = True
+            continue
+        try:
+            register_created(task_id=state["task_id"], session_id=state["session_id"],
+                             turn_id=state["turn_id"], target_id=valid_id(raw_id),
+                             browser_id=browser_id, endpoint=endpoint, task_grant=grant, **locator)
+        except TypeError:
+            close_one(raw_id, grant)
+            return "created target was not registered"
+        except (CdpError, RegistryError, OSError, RuntimeError, IdentityError, ValueError):
+            close_one(raw_id, grant)
+            return "created target was not registered"
+    if incomplete:
+        return "created target was not registered"
+    try:
+        register_spooled_text(spool_text, task_id=state["task_id"], session_id=state["session_id"],
+                              turn_id=state["turn_id"], browser_id=browser_id, endpoint=endpoint, **locator)
+    except (CdpError, RegistryError, OSError, RuntimeError, TypeError):
+        return "additional spooled targets were not registered"
+    return None
+
 
 _DEFAULT_TIMEOUT_S = 300
 _MIN_TIMEOUT_S = 5
@@ -184,16 +835,10 @@ def _base_subprocess_env() -> dict:
     from tools.browser_session import build_browser_env
     env = build_browser_env()
     env.update(_harness_credentials())
-    # The harness runs on Hermes's own interpreter, but a bundled Desktop install boots that
-    # interpreter with its site dir on PYTHONPATH (no venv to activate), and the harness's daemon
-    # re-runs sys.executable. Point PYTHONPATH at the harness's site dir, replacing whatever the
-    # agent process inherited, so both the CLI and its daemon import the same packages.
+    # Vendor src must precede site-packages so ``-m browser_harness.daemon`` loads the patched
+    # tree. Site dir stays so ``cdp_use`` still imports. A failed check raises; do not fall back.
     env.pop("PYTHONHOME", None)
-    site_dir = _harness_site_dir()
-    if site_dir:
-        env["PYTHONPATH"] = site_dir
-    else:
-        env.pop("PYTHONPATH", None)
+    env["PYTHONPATH"] = _subprocess_pythonpath(str(verify_vendor_tree()), _harness_site_dir())
     env["PATH"] = _floor_subprocess_path(env.get("PATH", ""))
     env.setdefault("ANONYMIZED_TELEMETRY", "false")
     namespace_harness_dirs(env, _served_profile_tag())  # a served profile's own harness runtime/tmp dirs
@@ -438,6 +1083,7 @@ def _resolve_backend_cdp(env: dict, task_id: Optional[str], session_name: str = 
     provider_key = str(getattr(provider, "name", "") or "").strip().lower()
     if provider_key == _BROWSER_USE_PROVIDER and not _use_gateway(_read_browser_cfg()) and _browser_use_api_key_set():
         env[_PRIVATE_BROWSER_SENTINEL] = "1"  # named BU cloud browsers are exclusive to their daemon
+        env[_AUTOSPAWN_SENTINEL] = "1"
         # Only intent: the harness attaches to a local Chrome already listening instead of autospawning, so
         # the live daemon's own report decides.
         from tools.browser_use_shot import ACTIVATE_IF_CLOUD
@@ -470,6 +1116,9 @@ def _resolve_backend_cdp(env: dict, task_id: Optional[str], session_name: str = 
     if err is None:
         from tools.browser_use_shot import ACTIVATE_ALWAYS
         env[_CLOUD_BROWSER_SENTINEL] = ACTIVATE_ALWAYS  # the provider's own session: the harness connects only there
+        cloud_id = session.get("bb_session_id")
+        if isinstance(cloud_id, str) and cloud_id:
+            env[_CLOUD_ID_SENTINEL] = "cloud:" + cloud_id
     # A provider browser keyed bu-named-<name> is exclusive to this session — the
     # own-tab preamble would just leak a blank tab into it.
     if err is None and session_name:
@@ -504,20 +1153,23 @@ def _resolve_real_profile_cdp(env: dict, force_local: bool) -> Optional[str]:
 
 
 def _attach_vault_supervisor(env: dict, task_id: Optional[str]) -> None:
-    """Attach the per-task CDP supervisor to the browser this exec drives so ``browser_vault`` fill has
-    a secret-capable WebSocket (never argv) into the SAME browser. Only CDP-routed backends expose an
-    endpoint; BU direct-cloud (BU_AUTOSPAWN) does not, and the vault tools report ``supervisor_required``."""
+    """Attach the per-task CDP supervisor to a local browser so ``browser_vault`` fill has a
+    secret-capable socket into that same browser. A signed cloud URL is skipped: the daemon
+    already holds it, and vault fill uses that registered socket instead of a second one."""
     cdp = env.get("BU_CDP_WS") or env.get("BU_CDP_URL")
-    if not cdp:
+    if not cdp or str(cdp).startswith("wss://"):
         return
     try:
         from tools.browser_session_cdp import get_dialog_policy_config, resolve_cdp_override
         from tools.browser_supervisor import SUPERVISOR_REGISTRY
+        resolved = resolve_cdp_override(str(cdp))
+        if not resolved or str(resolved).startswith("wss://"):
+            return
         policy, timeout_s = get_dialog_policy_config()
-        SUPERVISOR_REGISTRY.get_or_start(task_id=task_id or "default", cdp_url=resolve_cdp_override(cdp),
+        SUPERVISOR_REGISTRY.get_or_start(task_id=task_id or "default", cdp_url=resolved,
                                          dialog_policy=policy, dialog_timeout_s=timeout_s)
     except Exception as exc:
-        logger.debug("browser_exec: CDP supervisor attach failed (non-fatal): %s", exc)
+        logger.debug("browser_exec: CDP supervisor attach failed (non-fatal): %s", type(exc).__name__)
 
 
 def _route_backend(env: dict, session: str, task_id: Optional[str], local: bool,
@@ -658,7 +1310,10 @@ def _reload_daemons(daemons) -> None:  # each ``daemon_identity`` daemon, with i
     cmd = _find_cli() if daemons else None
     if not cmd:
         return
-    env = _base_subprocess_env()
+    try:
+        env = _base_subprocess_env()
+    except VendorPathError:
+        return
     for daemon in daemons:
         with contextlib.suppress(OSError, subprocess.SubprocessError):
             _run_cli_killing_process_group([*cmd, "--reload"], "", daemon_env(env, daemon), 15)
@@ -710,7 +1365,7 @@ def _own_harness_daemon(env: dict) -> Optional[bool]:
         proc = psutil.Process(pid)
         argv = proc.cmdline()
         if (os.getsid(pid) != pid or proc.uids().real != os.getuid()  # windows-footgun: ok — posix-only, returned above
-                or argv[argv.index("-m") + 1] != "browser_harness.daemon"):
+                or argv[argv.index("-m") + 1] != _DAEMON_MODULE):
             return None
         if not spawned_by_this_process(pid):
             return False  # another Hermes on the same BU_NAME started it: that Hermes owns it
@@ -772,7 +1427,8 @@ def _take_real_profile_note(route_key: str) -> dict:
 
 
 def browser_exec(code: str, session: str = "", timeout_s: int = _DEFAULT_TIMEOUT_S,
-                 task_id: Optional[str] = None, local: bool = False):
+                 task_id: Optional[str] = None, local: bool = False,
+                 session_id: Optional[str] = None, turn_id: Optional[str] = None):
     """Run Python code through the browser-use CLI, and return its output"""
     from agent.redact import redact_sensitive_text
     from tools.registry import tool_error, tool_result
@@ -794,7 +1450,10 @@ def browser_exec(code: str, session: str = "", timeout_s: int = _DEFAULT_TIMEOUT
         return tool_error("browser-harness is missing from Hermes's Python environment. "
                           "Run `hermes update` to re-sync it.")
 
-    env = _base_subprocess_env()
+    try:
+        env = _base_subprocess_env()
+    except VendorPathError as exc:
+        return tool_error(f"browser_exec refused: {exc}")
     if session:
         if not _SESSION_RE.match(session):
             return tool_error(f"Invalid session name {session!r}: use 1-64 letters, digits, "
@@ -811,12 +1470,49 @@ def browser_exec(code: str, session: str = "", timeout_s: int = _DEFAULT_TIMEOUT
     local_engine = env.pop(_BOT_DESKTOP_BROWSER_SENTINEL, None)
     bot_desktop_browser = bool(local_engine)
     _exec_local_engine.set(local_engine)  # only local browsers carry the sentinel
+    autospawn = env.pop(_AUTOSPAWN_SENTINEL, None)
+    cloud_id = env.pop(_CLOUD_ID_SENTINEL, None)
 
-    # SHARED browser (/browser connect CDP override): pin each named session to its own tab (see
-    # _OWN_TAB_PREAMBLE). Private per-name browsers skip this — nothing to collide with.
+    # A tool call with session/turn identity creates its own target and pins the
+    # harness to it. Named-session own-tab preamble stays only for direct callers
+    # that are not the panel/tool path.
     private_browser = env.pop(_PRIVATE_BROWSER_SENTINEL, None)  # always pop: never exported to the CLI
-    if session and not private_browser:
+    owned_gate = None
+    owned_state = None
+    if session_id is not None or turn_id is not None:
+        from tools.browser_task_registry import RegistryError
+        try:
+            code, owned_gate, owned_state = _pin_owned_target(
+                env, code, task_id, session_id, turn_id, autospawn=autospawn, cloud_id=cloud_id)
+        except RegistryError as exc:
+            return tool_error(f"browser_exec refused: {exc}")
+    elif session and not private_browser:
         code = _OWN_TAB_PREAMBLE + code
+    result = None
+    try:
+        result = _browser_exec_dispatch(
+            cmd, code, env, timeout_s, task_id, session, bot_desktop_browser, generation, route_key)
+    finally:
+        reg_error = _finish_owned(owned_gate, owned_state)
+    if reg_error and _exec_succeeded(result):
+        return tool_error(f"browser_exec refused: {reg_error}")
+    return result
+
+
+def _exec_succeeded(result) -> bool:
+    if not isinstance(result, str):
+        return False
+    try:
+        body = json.loads(result)
+    except json.JSONDecodeError:
+        return False
+    return body.get("success") is True and "error" not in body
+
+
+def _browser_exec_dispatch(cmd, code, env, timeout_s, task_id, session, bot_desktop_browser,
+                           generation, route_key):
+    from agent.redact import redact_sensitive_text
+    from tools.registry import tool_error, tool_result
     # Every backend: capture_screenshot() falls back to jpeg instead of hanging on a png a hidden tab never
     # renders; only on a cloud browser does it (and new_tab) bring the tab to the front (tools/browser_use_shot.py).
     from tools.browser_use_shot import ACTIVATE_NEVER, harness_command
@@ -977,7 +1673,7 @@ def _dynamic_schema_overrides() -> dict:
         props = dict(BROWSER_EXEC_SCHEMA["parameters"]["properties"])
         props["local"] = {
             "type": "boolean", "default": False,
-            "description": ("Drive the user's own local browser (a Hermes-managed copy of their real "
+            "description": ("Drive the user's own local browser (a clawd-managed copy of their real "
                             "default-Chromium profile, logins/cookies included) instead of the configured "
                             "cloud browser backend. Use when the user asks to act as themselves — their "
                             "accounts, their sessions. No-op when the backend is already local. Default false."),
@@ -990,7 +1686,7 @@ BROWSER_EXEC_SCHEMA = {
     "name": "browser_exec",
     # Static fallback description, used only when the managed CLI is unavailable
     "description": (_HEADER_BASE + _HELPERS_DIGEST
-                    + "\n\n(The browser-use CLI is not installed yet. Install it with `hermes tools` (Browser Automation → Browser Use).)"),
+                    + "\n\n(The browser-use CLI is not installed yet. Install it with `clawd tools` (Browser Automation → Browser Use).)"),
     "parameters": {
         "type": "object",
         "properties": {
@@ -1017,16 +1713,22 @@ _exec_local_engine: contextvars.ContextVar[Optional[str]] = contextvars.ContextV
                                                                                    default=None)
 
 
-def _handle_browser_exec(args: dict, **kw):
-    """Registry handler; each call counts against the backend that served it (shared metrics, opt-in)."""
+def _handle_browser_exec(args: dict, task_id: Optional[str] = None, session_id: Optional[str] = None, **kw):
+    """Registry handler. Refuses without the turn's existing task, session, and turn ids."""
     from hermes_cli.observability.shared_metrics_loop import record_browser_call
     from tools.browser_session_cloud import browser_backend_name
+    from tools.browser_task_registry import IdentityError, resolve_call_identity
+    from tools.registry import tool_error
+    try:
+        task, session, turn = resolve_call_identity(task_id, session_id)
+    except IdentityError as exc:
+        return tool_error(f"browser_exec refused: {exc}")
     token = _exec_local_engine.set(None)
     try:
         return record_browser_call(lambda: browser_exec(
             code=args.get("code", ""), session=args.get("session", "") or "",
-            timeout_s=args.get("timeout_s", _DEFAULT_TIMEOUT_S), task_id=kw.get("task_id"),
-            local=bool(args.get("local", False)),
+            timeout_s=args.get("timeout_s", _DEFAULT_TIMEOUT_S), task_id=task,
+            local=bool(args.get("local", False)), session_id=session, turn_id=turn,
         ), lambda: browser_backend_name(local_engine=_exec_local_engine.get()))
     finally:
         _exec_local_engine.reset(token)

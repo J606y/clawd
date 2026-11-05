@@ -6,11 +6,11 @@ sidebar_label: Delegation provider plugins
 # Delegation Provider Plugins
 
 A delegation provider decides **how each `delegate_task` task becomes a child run**: which model,
-provider, endpoint and reasoning effort the subagent uses, or which Hermes profile it runs as. It can
+provider, endpoint and reasoning effort the subagent uses, or which clawd profile it runs as. It can
 also add per-task parameters to the `delegate_task` schema, such as an enum of profile names or of
 titled model options, so the model picks a route per task.
 
-Hermes core keeps the whole subagent lifecycle: spawning, isolation, leaf/orchestrator roles, depth
+clawd core keeps the whole subagent lifecycle: spawning, isolation, leaf/orchestrator roles, depth
 limits, concurrency, background completion units, stop fan-out, result assembly, `output_schema`
 validation and progress. A provider only answers "which route does this task take".
 
@@ -27,7 +27,7 @@ absent. `/delegation` switches the backend (`agent.delegation_backends`, below).
 ## Skeleton
 
 ```python
-# ~/.hermes/plugins/delegation-tiers/__init__.py
+# ~/.clawd/plugins/delegation-tiers/__init__.py
 from agent.delegation_provider import DelegationProvider, DelegationRouteError
 
 
@@ -78,7 +78,7 @@ delegation:
 ```
 
 ```bash
-hermes plugins enable delegation-tiers
+clawd plugins enable delegation-tiers
 ```
 
 ## The interface
@@ -95,7 +95,7 @@ is the default route, and `self.settings(config)` is your backend's own block,
 | `route_task(task, config)` | yes | Return the route dict for one task. `task` carries `goal`, `context`, `index` and the values the model supplied for your parameters. Raise `DelegationRouteError` to refuse; its message is the tool error the model reads. |
 | `task_parameters(config)` | no | `{name: json_schema}` merged into `tasks.items.properties`. Core enforces `enum` before `route_task` runs and refuses core-owned names (`goal`, `context`, `index`, `output_schema`, `images`, `group`, `role`, `toolsets`, `provider`, `model`, `base_url`, `api_key`, `api_mode`, `acp_command`, `acp_args`). |
 | `description(config)` | no | Guidance appended to the `delegate_task` description. |
-| `is_available()` | no | No network calls. `False` fails delegation closed while your backend is selected: `delegate_task` returns a tool error naming it and the fix (`/delegation default`, or `hermes config set delegation.backend default`); it never switches to `default` on its own. |
+| `is_available()` | no | No network calls. `False` fails delegation closed while your backend is selected: `delegate_task` returns a tool error naming it and the fix (`/delegation default`, or `clawd config set delegation.backend default`); it never switches to `default` on its own. |
 | `settings(config)` | inherited | `delegation.backends.<name>` as a mapping (empty when unset). Do not override. |
 
 ### Routes
@@ -112,7 +112,7 @@ A route is a dict with any of:
   same gates as `/fast` (and, for `ultrafast`, the signed-in Codex account's catalog). A tier the
   route does not offer refuses the task; otherwise it applies to that child only and is re-applied
   after the child is built, so a custom provider's `extra_body` cannot restore another tier.
-- `profile`: the name of a Hermes profile. The child runs **as that profile**: its `config.yaml`,
+- `profile`: the name of a clawd profile. The child runs **as that profile**: its `config.yaml`,
   primary model and credentials (a `model.default` alias or named provider resolves exactly as at
   CLI startup), credential pool, fallback chain, reasoning (`agent.reasoning_effort` and
   `agent.reasoning_overrides`), skills, `SOUL.md` and terminal policy. Core binds that profile's
@@ -156,7 +156,7 @@ when a fallback provider took over. The `default` backend's children leave the r
 
 `display_name` and `summary` (one user-facing line; never shown to the model) label your backend in
 pickers such as `/delegation`. A plugin uses `ctx.delegation_backends` (same methods; `list_backends()` returns
-plain dicts). It is a host remote facade, so under `plugins.isolation: host` it acts on the Hermes process, not
+plain dicts). It is a host remote facade, so under `plugins.isolation: host` it acts on the clawd process, not
 the plugin host. Core code calls `agent.delegation_backends` directly:
 
 | Call | Does |
@@ -197,7 +197,7 @@ that changes during a conversation.
 ## Process isolation
 
 Every argument and return value is plain JSON, so a provider runs unchanged under
-`plugins.isolation: host`: Hermes holds a proxy that subclasses `DelegationProvider` and every call
+`plugins.isolation: host`: clawd holds a proxy that subclasses `DelegationProvider` and every call
 runs in the plugin host process.
 
 ## Testing
@@ -206,4 +206,4 @@ Load the plugin through the real discovery path against a temporary `HERMES_HOME
 `config.yaml` sets `plugins.enabled`, `delegation.backend` and `delegation.backends.<name>`, then assert on behaviour: the
 `delegate_task` definition from `tools.registry.registry.get_definitions({"delegate_task"})` carries
 your parameter, and `tools.delegate_tool.delegate_task(...)` hands each child the route you chose.
-`tests/tools/test_delegation_backends.py` in the Hermes repo is a complete example.
+`tests/tools/test_delegation_backends.py` in the clawd repo is a complete example.

@@ -1,23 +1,23 @@
 ---
-title: "Honcho — Configure and troubleshoot Honcho memory for Hermes"
+title: "Honcho — Configure and troubleshoot Honcho memory for clawd"
 sidebar_label: "Honcho"
-description: "Configure and troubleshoot Honcho memory for Hermes"
+description: "Configure and troubleshoot Honcho memory for clawd"
 ---
 
 {/* This page is auto-generated from the skill's SKILL.md by website/scripts/generate-skill-docs.py. Edit the source SKILL.md, not this page. */}
 
 # Honcho
 
-Configure and troubleshoot Honcho memory for Hermes.
+Configure and troubleshoot Honcho memory for clawd.
 
 ## Skill metadata
 
 | | |
 |---|---|
-| Source | Optional — install with `hermes skills install official/autonomous-ai-agents/honcho` |
+| Source | Optional — install with `clawd skills install official/autonomous-ai-agents/honcho` |
 | Path | `optional-skills/autonomous-ai-agents/honcho` |
 | Version | `2.0.0` |
-| Author | Hermes Agent |
+| Author | clawd |
 | License | MIT |
 | Platforms | linux, macos, windows |
 | Tags | `Honcho`, `Memory`, `Profiles`, `Observation`, `Dialectic`, `User-Modeling`, `Session-Summary` |
@@ -26,12 +26,12 @@ Configure and troubleshoot Honcho memory for Hermes.
 ## Reference: full SKILL.md
 
 :::info
-The following is the complete skill definition that Hermes loads when this skill is triggered. This is what the agent sees as instructions when the skill is active.
+The following is the complete skill definition that clawd loads when this skill is triggered. This is what the agent sees as instructions when the skill is active.
 :::
 
-# Honcho Memory for Hermes
+# Honcho Memory for clawd
 
-Honcho provides AI-native cross-session user modeling. It learns who the user is across conversations and gives every Hermes profile its own peer identity while sharing a unified view of the user.
+Honcho provides AI-native cross-session user modeling. It learns who the user is across conversations and gives every clawd profile its own peer identity while sharing a unified view of the user.
 
 ## When to Use
 
@@ -47,26 +47,28 @@ Honcho provides AI-native cross-session user modeling. It learns who the user is
 Honcho is a plugin-catalog memory provider maintained by Plastic Labs. Install it once per machine (homes upgraded from a release that bundled Honcho get it automatically):
 
 ```bash
-hermes plugins install honcho
+clawd plugins install honcho
 ```
 
 ### Cloud (app.honcho.dev)
 
 ```bash
-hermes memory setup honcho
+clawd memory setup honcho
 # select "cloud", paste API key from https://app.honcho.dev
 ```
 
 ### Self-hosted
 
 ```bash
-hermes memory setup honcho
+clawd memory setup honcho
 # select "local", enter base URL (e.g. http://localhost:8000)
 ```
 
 See: https://docs.honcho.dev/v3/guides/integrations/hermes#running-honcho-locally-with-hermes
 
 ### Verify
+
+> 未验证边界：这是上游插件示例，当前 clawd 入口兼容未验证。这些 `hermes honcho` 示例不表示 `clawd honcho` 已注册。`clawd plugins install` 与 `clawd memory setup` 不证明这些子命令存在。
 
 ```bash
 hermes honcho status    # shows resolved config, connection test, peer info
@@ -80,7 +82,7 @@ When Honcho injects context into the system prompt (in `hybrid` or `context` rec
 
 1. **Session summary** -- a short digest of the current session so far (placed first so the model has immediate conversational continuity)
 2. **User representation** -- Honcho's accumulated model of the user (preferences, facts, patterns)
-3. **AI peer card** -- the identity card for this Hermes profile's AI peer
+3. **AI peer card** -- the identity card for this clawd profile's AI peer
 
 The session summary is generated automatically by Honcho at the start of each turn (when a prior session exists). It gives the model a warm start without replaying full history.
 
@@ -97,10 +99,10 @@ You do not need to configure this -- it is automatic based on session state.
 
 ### Peers
 
-Honcho models conversations as interactions between **peers**. Hermes creates two peers per session:
+Honcho models conversations as interactions between **peers**. clawd creates two peers per session:
 
 - **User peer** (`peerName`): represents the human. Honcho builds a user representation from observed messages.
-- **AI peer** (`aiPeer`): represents this Hermes instance. Each profile gets its own AI peer so agents develop independent views.
+- **AI peer** (`aiPeer`): represents this clawd instance. Each profile gets its own AI peer so agents develop independent views.
 
 ### Observation
 
@@ -141,10 +143,10 @@ Honcho sessions scope where messages and observations land. Strategy options:
 |----------|----------|
 | `per-directory` (default) | One session per working directory |
 | `per-repo` | One session per git repository root |
-| `per-session` | New Honcho session each Hermes run |
+| `per-session` | New Honcho session each clawd run |
 | `global` | Single session across all directories |
 
-Manual override: `hermes honcho map my-project-name`
+Manual override: `hermes honcho map my-project-name`（未验证边界：这是上游插件示例，当前 clawd 入口兼容未验证。不表示 `clawd honcho` 已注册。）
 
 ### Recall Modes
 
@@ -217,7 +219,7 @@ Higher levels produce richer synthesis but cost more tokens on Honcho's backend.
 
 ## Multi-Profile Setup
 
-Each Hermes profile gets its own Honcho AI peer while sharing the same workspace (user context). This means:
+Each clawd profile gets its own Honcho AI peer while sharing the same workspace (user context). This means:
 
 - All profiles see the same user representation
 - Each profile builds its own AI identity and observations
@@ -226,7 +228,7 @@ Each Hermes profile gets its own Honcho AI peer while sharing the same workspace
 ### Create a profile with Honcho peer
 
 ```bash
-hermes profile create coder --clone
+clawd profile create coder --clone
 # creates host block hermes.coder, AI peer "coder", inherits config from default
 ```
 
@@ -237,6 +239,8 @@ What `--clone` does for Honcho:
 4. Eagerly creates the peer in Honcho so it exists before first message
 
 ### Backfill existing profiles
+
+> 未验证边界：这是上游插件示例，当前 clawd 入口兼容未验证。这些 `hermes honcho` 示例不表示 `clawd honcho` 已注册。
 
 ```bash
 hermes honcho sync    # creates host blocks for all profiles that don't have one yet
@@ -309,7 +313,7 @@ honcho_conclude delete_id="abc123"    # PII removal
 
 ## Agent Usage Patterns
 
-Guidelines for Hermes when Honcho memory is active.
+Guidelines for clawd when Honcho memory is active.
 
 ### On conversation start
 
@@ -409,14 +413,16 @@ This fix addresses edge cases where raw user conclusions containing markup or sp
 
 ## Troubleshooting
 
+> 未验证边界：这是上游插件示例，当前 clawd 入口兼容未验证。这些 `hermes honcho` 示例不表示 `clawd honcho` 已注册。配置路径与 Honcho dashboard 不在此边界内。
+
 ### "Honcho not configured"
-Run `hermes honcho setup`. Ensure `memory.provider: honcho` is in `~/.hermes/config.yaml`.
+Run `hermes honcho setup`. Ensure `memory.provider: honcho` is in `~/.clawd/config.yaml`.
 
 ### Memory not persisting across sessions
 Check `hermes honcho status` -- verify `saveMessages: true` and `writeFrequency` isn't `session` (which only writes on exit).
 
 ### Profile not getting its own peer
-Use `--clone` when creating: `hermes profile create <name> --clone`. For existing profiles: `hermes honcho sync`.
+Use `--clone` when creating: `clawd profile create <name> --clone`. For existing profiles: `hermes honcho sync`.
 
 ### Observation changes in dashboard not reflected
 Observation config is synced from the server on each session init. Start a new session after changing settings in the Honcho UI.
@@ -432,6 +438,8 @@ Session summary requires at least one prior turn in the current Honcho session. 
 
 ## CLI Commands
 
+> 未验证边界：这是上游插件示例，当前 clawd 入口兼容未验证。这些 `hermes honcho` 示例不表示 `clawd honcho` 已注册。`clawd plugins install` 与 `clawd memory setup` 不证明这些子命令存在。同表 `clawd memory setup`、`clawd memory status`、`clawd memory off` 不在此边界内。
+
 | Command | Description |
 |---------|-------------|
 | `hermes honcho setup` | Interactive setup wizard (cloud/local, identity, observation, recall, sessions) |
@@ -445,8 +453,8 @@ Session summary requires at least one prior turn in the current Honcho session. 
 | `hermes honcho sessions` | List known directory-to-session-name mappings |
 | `hermes honcho map <name>` | Map current working directory to a Honcho session name |
 | `hermes honcho identity` | Seed AI peer identity or show both peer representations |
-| `hermes honcho sync` | Create host blocks for all Hermes profiles that don't have one yet |
-| `hermes honcho migrate` | Step-by-step migration guide from OpenClaw native memory to Hermes + Honcho |
-| `hermes memory setup` | Generic memory provider picker (selecting "honcho" runs the same wizard) |
-| `hermes memory status` | Show active memory provider and config |
-| `hermes memory off` | Disable external memory provider |
+| `hermes honcho sync` | Create host blocks for all clawd profiles that don't have one yet |
+| `hermes honcho migrate` | Step-by-step migration guide from OpenClaw native memory to clawd + Honcho |
+| `clawd memory setup` | Generic memory provider picker (selecting "honcho" runs the same wizard) |
+| `clawd memory status` | Show active memory provider and config |
+| `clawd memory off` | Disable external memory provider |

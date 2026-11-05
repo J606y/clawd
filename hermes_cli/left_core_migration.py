@@ -669,16 +669,31 @@ def moved_command_hint(prog: str, value: str, action: str = "") -> str:
     ``hermes <command>`` / ``hermes <old_cli>`` while the plugin is not loaded, the line saying where it
     went and how to get it for the active home, else ``""``."""
     from hermes_constants import get_hermes_home
+    import os
+    import re
     home = Path(get_hermes_home())
-    moved = next((f for f in LEFT_CORE if f.old_command and f.old_command == f"{prog} {value}"), None)
+    brand_hermes = os.environ.get("HERMES_BRAND") == "1"
+    lookup = prog
+    if not brand_hermes:
+        if prog == "clawd":
+            lookup = "hermes"
+        elif prog.startswith("clawd "):
+            lookup = "hermes" + prog[len("clawd"):]
+
+    def show(text: str) -> str:
+        if brand_hermes or not text:
+            return text
+        return re.sub(r"(?<![\w./@-])hermes(?=\s)", "clawd", text)
+
+    moved = next((f for f in LEFT_CORE if f.old_command and f.old_command == f"{lookup} {value}"), None)
     if moved is not None:
         present = plugin_present(moved.plugin, home)
         get = "" if present else f" Install it with: `{_install_command(moved.plugin, home)}`."
-        return (f"{moved.label} moved out of core into the '{moved.plugin}' plugin: `{moved.old_command}` is now "
-                f"`hermes {moved.command}`.{get}")
-    if prog == "hermes auth":
+        return show(f"{moved.label} moved out of core into the '{moved.plugin}' plugin: `{moved.old_command}` is now "
+                    f"`hermes {moved.command}`.{get}")
+    if lookup == "hermes auth":
         feature = next((f for f in LEFT_CORE if f.cli and f.cli == value), None)
-    elif prog == "hermes":
+    elif lookup == "hermes":
         feature = next((f for f in LEFT_CORE if value and value in (f.cli, f.command, *f.old_cli)), None)
     else:
         feature = None
@@ -688,13 +703,13 @@ def moved_command_hint(prog: str, value: str, action: str = "") -> str:
     if not plugin_present(feature.plugin, home):
         get = f" Install it with: `{install}`."
     else:
-        get = f" Enable it with: `{install.replace(' install ', ' enable ')}`." if prog == "hermes" else ""
-    if prog == "hermes auth":
+        get = f" Enable it with: `{install.replace(' install ', ' enable ')}`." if lookup == "hermes" else ""
+    if lookup == "hermes auth":
         old = " ".join(p for p in ("hermes auth", action, value) if p)
-        return (f"{feature.label} moved out of core into the '{feature.plugin}' plugin: `{old}` is now "
-                f"`hermes {value} {action or 'login'}`.{get}")
+        return show(f"{feature.label} moved out of core into the '{feature.plugin}' plugin: `{old}` is now "
+                    f"`hermes {value} {action or 'login'}`.{get}")
     label = f"`hermes {value}`" if value in feature.old_cli else feature.label
-    return f"{label} moved out of core into the '{feature.plugin}' plugin, which is not loaded.{get}"
+    return show(f"{label} moved out of core into the '{feature.plugin}' plugin, which is not loaded.{get}")
 
 
 def moved_plugin_hint(name: str) -> str:

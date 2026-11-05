@@ -10,7 +10,7 @@ import time
 THEME_TIMEOUT_S = 15
 THEME_PICK_TIMEOUT_S = 300
 
-_UNANSWERED = {"success": False, "error": "No Hermes Desktop window answered the theme request."}
+_UNANSWERED = {"success": False, "error": "No clawd window answered the theme request."}
 
 
 def theme_request(sid: str, payload: dict) -> dict:

@@ -1,6 +1,7 @@
 """Browser Use caller -> browser-harness on Hermes's own interpreter -> actual child."""
 import importlib.metadata
 import json
+import os
 import subprocess
 import sys
 
@@ -59,7 +60,13 @@ def test_browser_exec_child_environment(tmp_path, monkeypatch):
     assert child["stdin"] == "print('payload')"
     for key in ("PYTHONHOME", "OPENAI_API_KEY", "BROWSERBASE_API_KEY", "_HERMES_BU_PRIVATE_BROWSER"):
         assert key not in child["env"]
-    assert child["env"].get("PYTHONPATH") == bu._harness_site_dir()
+    parts = child["env"]["PYTHONPATH"].split(os.pathsep)
+    vendor = str(bu.verify_vendor_tree())
+    site = bu._harness_site_dir()
+    assert parts[0] == vendor
+    assert site and site in parts[1:]
+    assert vendor != site
+    assert "/wrong-abi" not in parts
     assert child["env"]["BU_NAME"] == "research"
     assert child["env"]["BU_CDP_WS"] == "ws://127.0.0.1:47000/private"
     assert child["env"]["ANONYMIZED_TELEMETRY"] == "false"

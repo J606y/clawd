@@ -139,6 +139,9 @@ def _build_prepared(prepared, builder_args: list[str], variant: str | None) -> N
 
 
 def main() -> None:
+    if (ROOT / "clawd_cli").is_dir() and not (ROOT / "apps" / "desktop" / "package.json").is_file():
+        print("refused: clawd does not build the official desktop bundle.", file=sys.stderr)
+        raise SystemExit(2)
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--tag", required=False,
                         help="Release tag (vX.Y.Z / canary), exclusive with --commit/--channel-request")
@@ -187,4 +190,8 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    print(
+        "refused: clawd does not build the official desktop app. This entry is unsupported.",
+        file=sys.stderr,
+    )
+    raise SystemExit(2)

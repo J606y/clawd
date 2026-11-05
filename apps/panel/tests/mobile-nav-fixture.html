@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>mobile nav</title>
+</head>
+<body>
+  <div id="root"></div>
+  <script>
+    window.fetch = async (input) => {
+      const raw = typeof input === "string" ? input : (input instanceof URL ? input.href : input.url);
+      const url = new URL(raw, location.href);
+      const json = (body, status = 200) => new Response(JSON.stringify(body), {
+        status,
+        headers: { "Content-Type": "application/json" },
+      });
+      if (url.pathname.endsWith("/health") || url.pathname.endsWith("/health/")) return json({ version: "0.22.5", status: "ok" });
+      if (url.pathname.includes("/sessions/active")) return json({ data: [] });
+      if (url.pathname.includes("/sessions/folders")) return json({ folders: [], assignments: {} });
+      if (url.pathname.includes("/api/projects")) return json({ projects: [] });
+      if (url.pathname.includes("/api/sessions")) return json({ data: [], has_more: false });
+      if (url.pathname.includes("/subagents")) return json({ data: [], running: 0, now: Date.now() / 1000 });
+      if (url.pathname.includes("/context")) return json({ used: 0, window: 1000, source: "fixture" });
+      if (url.pathname.includes("/model")) return json({ model: "fixture", provider: "fixture", providers: [] });
+      if (url.pathname.includes("/background")) return json({ processes: [] });
+      if (url.pathname.includes("/sessions/run")) return json({ run: null, busy: false, execution: null });
+      if (url.pathname.includes("/events")) return new Response(": connected\n\n", { headers: { "Content-Type": "text/event-stream" } });
+      if (url.pathname.includes("/activity")) return json({ data: [] });
+      if (url.pathname.endsWith("/status") || url.pathname.endsWith("/settings") || url.pathname.endsWith("/config")) return json({ error: "fixture" }, 500);
+      return json({ data: [] });
+    };
+  </script>
+  <script type="module">
+    import { createElement } from "react";
+    import { createRoot } from "react-dom/client";
+    import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+    import { createHashRouter, RouterProvider } from "react-router";
+    import { Shell } from "/src/react/shell/shell.tsx";
+    import { useUiStore } from "/src/react/stores/ui.ts";
+    import "/src/react/styles/index.css";
+
+    const inert = createElement("div");
+    const router = createHashRouter([
+      {
+        path: "/",
+        element: createElement(Shell),
+        children: [
+          { index: true, element: inert },
+          { path: "image", element: inert },
+          { path: "files", element: inert },
+          { path: "activity", element: inert },
+          { path: "status", element: inert },
+          { path: "settings", element: inert },
+          { path: "settings/:tab", element: inert },
+        ],
+      },
+    ]);
+
+    window.setDrawer = (open) => useUiStore.getState().setDrawerOpen(open);
+    window.drawerOpen = () => Boolean(document.querySelector(".shell")?.hasAttribute("data-drawer"));
+    window.fixtureErrors = [];
+    window.addEventListener("error", (event) => { window.fixtureErrors.push(String(event.error || event.message)); });
+    window.route = () => location.hash.replace(/^#/, "") || "/";
+    window.reactPath = () => router.state.location.pathname + JSON.stringify(router.state.location);
+    window.root = () => document.querySelector(".shell");
+    window.frames = () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    createRoot(document.getElementById("root")).render(
+      createElement(QueryClientProvider, { client: new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } }) },
+        createElement(RouterProvider, { router }),
+      ),
+    );
+    window.ready = true;
+  </script>
+</body>
+</html>

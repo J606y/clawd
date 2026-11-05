@@ -41,7 +41,7 @@ TAIL = [TURNS]  # the protected tail: the last turn survives compression verbati
 # to two thirds of landed attempts (it is decided on the gateway's RPC pool), so the pinned bug
 # almost always shows within these; a lucky run just passes, which the known-failure pin allows.
 STARTUP_TRIES = 8
-STARTING = "summoning hermes…"  # status bar before the gateway is up
+STARTING = "summoning clawd…"  # status bar before the gateway is up
 
 CELLS = [
     "compress_happened", "compress_reported_once", "summary_persisted_once", "first_exits_clean",
@@ -130,7 +130,7 @@ def _first_tui(root, llm, cells, summaries: list[int]) -> str:
 
 
 def _startup_resume(root, llm, home_env: dict[str, str], sid: str, cells) -> None:
-    """/resume typed while the status bar still reads 'summoning hermes…' must stick."""
+    """/resume typed while the status bar still reads 'summoning clawd…' must stick."""
     cells.phase = "slash_resume_at_startup"
     tui_dir = private_tui_dir(root / "startup")
     landed = 0

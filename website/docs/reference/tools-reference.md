@@ -1,22 +1,22 @@
 ---
 sidebar_position: 3
 title: "Built-in Tools Reference"
-description: "Authoritative reference for Hermes built-in tools, grouped by toolset"
+description: "Authoritative reference for clawd built-in tools, grouped by toolset"
 ---
 
 # Built-in Tools Reference
 
-This page documents Hermes' built-in tools, grouped by toolset. Availability varies by platform, credentials, and enabled toolsets.
+This page documents clawd's built-in tools, grouped by toolset. Availability varies by platform, credentials, and enabled toolsets.
 
 **Quick counts (current registry):** ~85 tools — 4 browser tools (`browser_exec`, `browser_cdp`, `browser_dialog`, `browser_vault`), 4 file tools, 2 terminal tools (`terminal`, `process_manage`), 11 desktop-GUI tools (`read_terminal`, `close_terminal`, `desktop_preview`, `drive_preview`, `annotate_preview`, `read_window_below`, `focus_pane`, `react_to_message`, `gui_tour`, `show_tip`, `set_theme` — desktop-app sessions only), 2 web tools, 5 Feishu tools, 5 Yuanbao tools, 14 kanban tools (registered when the kanban dispatcher spawns the agent), 1 project tool (`desktop_project`; desktop/GUI sessions), 2 Discord tools, 3 video tools (`video_generate`, `xai_video_edit`, `xai_video_extend`), and a handful of standalone tools (`memory`, `clarify`, `delegate_task`, `execute_code`, `cronjob_manage`, `session_search`, `skill_view`/`skill_manage`/`skills_list`, `text_to_speech`, `image_generate`, `vision_analyze`, `video_analyze`, `todo_list`, `computer_use`, `x_search`).
 
 :::tip MCP Tools
-In addition to built-in tools, Hermes can load tools dynamically from MCP servers. MCP tools appear with the prefix `mcp__<server>__` (e.g., `mcp__github__create_issue` for the `github` MCP server). See [MCP Integration](../user-guide/features/mcp.md) for configuration.
+In addition to built-in tools, clawd can load tools dynamically from MCP servers. MCP tools appear with the prefix `mcp__<server>__` (e.g., `mcp__github__create_issue` for the `github` MCP server). See [MCP Integration](../user-guide/features/mcp.md) for configuration.
 :::
 
 ## `browser` toolset
 
-`browser_exec` and `browser_vault` drive the browser session — the Chromium Hermes launches, a cloud browser, or the browser attached with `/browser connect`. `browser_cdp` and `browser_dialog` are offered only while a CDP endpoint is configured (`/browser connect`, `BROWSER_CDP_URL` or `browser.cdp_url`) and act on that browser; they are absent for launched and cloud sessions. See [Browser Automation](../user-guide/features/browser.md).
+`browser_exec` and `browser_vault` drive the browser session — the Chromium clawd launches, a cloud browser, or the browser attached with `/browser connect`. `browser_cdp` and `browser_dialog` are offered only while a CDP endpoint is configured (`/browser connect`, `BROWSER_CDP_URL` or `browser.cdp_url`) and act on that browser; they are absent for launched and cloud sessions. See [Browser Automation](../user-guide/features/browser.md).
 
 | Tool | Description | Requires environment |
 |------|-------------|----------------------|
@@ -41,7 +41,7 @@ Per-surface behavior:
 - **TUI and CLI** show a compact status list (`✓` answered / `▸` active / `·` pending) with only the active question's choices expanded. Enter locks the active answer and jumps to the next unanswered question; Tab moves between questions to answer in any order; an empty submit skips that question; Esc cancels the batch.
 - **Messaging platforms** (Telegram, Discord, …) ask the questions one at a time, one card per question. Reply `skip` to skip one question. If the user stops responding, the remaining questions are not sent.
 
-If the prompt times out part-way, answers the user already locked are kept: the tool result carries them with `"outcome": "timed_out"` and marks the rest `"status": "unanswered"`, so the agent can distinguish a deliberate skip from an absent user. On messaging platforms the result also carries a `"notice"` saying why the wait ended (`[user did not respond within Nm]`, or `[clarify prompt could not be delivered]` when the platform rejected the card — Hermes first retries the question as a plain numbered-list message, and only reports this when that fails too; `[clarify prompt could not be delivered: no chat surface]` when the run has no chat to prompt in), so an undelivered prompt is never reported as user inactivity.
+If the prompt times out part-way, answers the user already locked are kept: the tool result carries them with `"outcome": "timed_out"` and marks the rest `"status": "unanswered"`, so the agent can distinguish a deliberate skip from an absent user. On messaging platforms the result also carries a `"notice"` saying why the wait ended (`[user did not respond within Nm]`, or `[clarify prompt could not be delivered]` when the platform rejected the card — clawd first retries the question as a plain numbered-list message, and only reports this when that fails too; `[clarify prompt could not be delivered: no chat surface]` when the run has no chat to prompt in), so an undelivered prompt is never reported as user inactivity.
 
 ## `connections` toolset
 
@@ -62,7 +62,7 @@ token). Other sessions do not see it.
 
 | Tool | Description | Requires environment |
 |------|-------------|----------------------|
-| `execute_code` | Run a Python script that can call Hermes tools programmatically. Use this when you need 3+ tool calls with processing logic between them, need to filter/reduce large tool outputs before they enter your context, need conditional branching (… | — |
+| `execute_code` | Run a Python script that can call clawd tools programmatically. Use this when you need 3+ tool calls with processing logic between them, need to filter/reduce large tool outputs before they enter your context, need conditional branching (… | — |
 
 ## `cronjob` toolset
 
@@ -110,15 +110,15 @@ For local files, a full unredacted read (including all pages of the same file ve
 
 | Tool | Description | Requires environment |
 |------|-------------|----------------------|
-| `computer_use` | Background desktop control via cua-driver — screenshots (SOM / vision / AX), click / drag / scroll / type / key / wait, list_apps, focus_app. Does NOT steal the user's cursor or keyboard focus. Works with any tool-capable model. macOS, Windows, and Linux. | `cua-driver` on `$PATH` (install via `hermes tools`). |
+| `computer_use` | Background desktop control via cua-driver — screenshots (SOM / vision / AX), click / drag / scroll / type / key / wait, list_apps, focus_app. Does NOT steal the user's cursor or keyboard focus. Works with any tool-capable model. macOS, Windows, and Linux. | `cua-driver` on `$PATH` (install via `clawd tools`). |
 
 
 :::note
-**Honcho tools** (`honcho_profile`, `honcho_search`, `honcho_context`, `honcho_reasoning`, `honcho_conclude`) are no longer built-in. They are available via the Honcho memory provider plugin from the plugin catalog (`hermes plugins install honcho`). See [Memory Providers](../user-guide/features/memory-providers.md) for installation and usage.
+**Honcho tools** (`honcho_profile`, `honcho_search`, `honcho_context`, `honcho_reasoning`, `honcho_conclude`) are no longer built-in. They are available via the Honcho memory provider plugin from the plugin catalog (`clawd plugins install honcho`). See [Memory Providers](../user-guide/features/memory-providers.md) for installation and usage.
 
-**Home Assistant tools** (`ha_list_entities`, `ha_get_state`, `ha_list_services`, `ha_call_service`, toolset `homeassistant`) are no longer built-in. They come from the `homeassistant` catalog plugin (`hermes plugins install homeassistant`). See [Home Assistant](../user-guide/messaging/homeassistant.md).
+**Home Assistant tools** (`ha_list_entities`, `ha_get_state`, `ha_list_services`, `ha_call_service`, toolset `homeassistant`) are no longer built-in. They come from the `homeassistant` catalog plugin (`clawd plugins install homeassistant`). See [Home Assistant](../user-guide/messaging/homeassistant.md).
 
-**Spotify tools** (`spotify_playback`, `spotify_devices`, `spotify_queue`, `spotify_search`, `spotify_playlists`, `spotify_albums`, `spotify_library`, toolset `spotify`) are no longer built-in. They come from the `spotify` catalog plugin (`hermes plugins install spotify`, then `hermes spotify login`). See [Spotify](../user-guide/features/spotify.md).
+**Spotify tools** (`spotify_playback`, `spotify_devices`, `spotify_queue`, `spotify_search`, `spotify_playlists`, `spotify_albums`, `spotify_library`, toolset `spotify`) are no longer built-in. They come from the `spotify` catalog plugin (`clawd plugins install spotify`, then `clawd spotify login`). See [Spotify](../user-guide/features/spotify.md).
 :::
 
 ## `image_gen` toolset
@@ -145,7 +145,7 @@ Registered when the agent is either (a) spawned by the kanban dispatcher (`HERME
 | `kanban_link` | Link tasks with a parent → child dependency edge. | `HERMES_KANBAN_TASK` or `kanban` toolset |
 | `kanban_unblock` | Move a blocked task to `ready` when all parents are done, or `todo` while any parent remains open. Orchestrator-only; hidden from dispatcher-spawned task workers. | profile with `kanban` toolset |
 | `kanban_attach` | Attach a file to a task by passing its bytes inline (base64). Stored as a real attachment under the task's attachments dir, capped at 25 MB. | `HERMES_KANBAN_TASK` or `kanban` toolset |
-| `kanban_attach_url` | Attach a file to a task by URL — Hermes downloads it server-side and stores it as a real attachment (capped at 25 MB). Only http/https URLs. | `HERMES_KANBAN_TASK` or `kanban` toolset |
+| `kanban_attach_url` | Attach a file to a task by URL — clawd downloads it server-side and stores it as a real attachment (capped at 25 MB). Only http/https URLs. | `HERMES_KANBAN_TASK` or `kanban` toolset |
 | `kanban_attachments` | List the files attached to a task: id, filename, content_type, size, uploader, and the absolute on-disk path. | `HERMES_KANBAN_TASK` or `kanban` toolset |
 
 ## `project` toolset
@@ -164,11 +164,11 @@ Tools for driving desktop [Projects](../user-guide/cli.md) — named, multi-fold
 
 ## `catalog` toolset
 
-Enabled for sessions whose source is the desktop app, whichever backend it's connected to. CLI, TUI, `hermes -z`, cron, kanban and messaging sessions never get it, even when a config list names it. `all` does not include it. Remove it with `agent.disabled_toolsets: [catalog]`.
+Enabled for sessions whose source is the desktop app, whichever backend it's connected to. CLI, TUI, `clawd -z`, cron, kanban and messaging sessions never get it, even when a config list names it. `all` does not include it. Remove it with `agent.disabled_toolsets: [catalog]`.
 
 | Tool | Description | Requires environment |
 |------|-------------|----------------------|
-| `manage_catalog` | Desktop sessions only, deferred behind `tool_search` by default. `search` lists catalog plugins and hub skills matching `query` (optionally one `kind`) with `id`, `kind`, `display`, `tier`, `platforms` and `installed` (present in this chat's profile); it changes nothing. `install` takes `items: [{kind, id}]` and shows one approval card with a row per item (Install, Advanced, Skip); an id the catalog does not know, or a plugin this OS cannot run, is drawn failed with the reason. An approved row installs into this chat's profile (or the profile chosen under Advanced) at the catalog's reviewed commit, with the same kill list, security scan and live activation as the Plugins tab, so the plugin's MCP tools and skills are usable in that profile's open chats at once. The result lists each row as `connected` (with `tools` and `skill`), `skipped`, `failed` (with `detail`) or `not_connected`; a failed row ends the wait like an installed or skipped one, and an install turns on a catalog plugin that is on disk but not enabled. The model cannot pass a source, commit, profile or setting. Anywhere else the call returns the `hermes plugins install` / `hermes skills install` command to run instead. | — |
+| `manage_catalog` | Desktop sessions only, deferred behind `tool_search` by default. `search` lists catalog plugins and hub skills matching `query` (optionally one `kind`) with `id`, `kind`, `display`, `tier`, `platforms` and `installed` (present in this chat's profile); it changes nothing. `install` takes `items: [{kind, id}]` and shows one approval card with a row per item (Install, Advanced, Skip); an id the catalog does not know, or a plugin this OS cannot run, is drawn failed with the reason. An approved row installs into this chat's profile (or the profile chosen under Advanced) at the catalog's reviewed commit, with the same kill list, security scan and live activation as the Plugins tab, so the plugin's MCP tools and skills are usable in that profile's open chats at once. The result lists each row as `connected` (with `tools` and `skill`), `skipped`, `failed` (with `detail`) or `not_connected`; a failed row ends the wait like an installed or skipped one, and an install turns on a catalog plugin that is on disk but not enabled. The model cannot pass a source, commit, profile or setting. Anywhere else the call returns the `clawd plugins install` / `clawd skills install` command to run instead. | — |
 
 ## `session_search` toolset
 
@@ -180,7 +180,7 @@ Enabled for sessions whose source is the desktop app, whichever backend it's con
 
 | Tool | Description | Requires environment |
 |------|-------------|----------------------|
-| `skill_manage` | Manage skills (create, update, delete). Skills are your procedural memory — reusable approaches for recurring task types. New skills go to ~/.hermes/skills/; existing skills can be modified wherever they live. Actions: create (full SKILL.m… | — |
+| `skill_manage` | Manage skills (create, update, delete). Skills are your procedural memory — reusable approaches for recurring task types. New skills go to ~/.clawd/skills/; existing skills can be modified wherever they live. Actions: create (full SKILL.m… | — |
 | `skill_view` | Skills allow for loading information about specific tasks and workflows, as well as scripts and templates. Load a skill's full content or access its linked files (references, templates, scripts). First call returns SKILL.md content plus a… | — |
 | `skills_list` | List available skills (name + description). Use skill_view(name) to load full content. | — |
 
@@ -194,7 +194,7 @@ Enabled for sessions whose source is the desktop app, whichever backend it's con
 ## `desktop_ui` toolset
 
 Enabled for sessions whose source is the Hermes desktop app, on any backend it
-is connected to (local, SSH, URL, or Hermes Cloud). Absent from CLI, TUI,
+is connected to (local, SSH, URL, or clawd Cloud). Absent from CLI, TUI,
 messaging, and cron sessions.
 
 | Tool | Description | Requires environment |
@@ -207,7 +207,7 @@ messaging, and cron sessions.
 | `read_window_below` | Identify the OS window directly underneath the Hermes desktop window — app name, title, bounds (metadata only, never pixels). On macOS, other apps' titles appear only when Screen Recording is already granted; the tool never prompts for it. | — |
 | `focus_pane` | Reveal and focus a pane in the Hermes desktop app (chat, files, terminal, review, sessions). | — |
 | `react_to_message` | React to a message with a single emoji, iMessage-tapback style. Opt-in via Settings → Appearance (`display.message_reactions`). | — |
-| `gui_tour` | Give a live guided tour: dim the screen, highlight an element, and attach a narrated popover (driver.js). Works on the Hermes app's own UI and on any page open in the preview pane. `start` with no steps runs the app's built-in tour (`preset` `quick` or `full`, default `full`). For a custom tour, `targets` discovers what's on screen, `show` narrates step-by-step, and `start` with `steps` hands the user Next/Prev controls. | — |
+| `gui_tour` | Give a live guided tour: dim the screen, highlight an element, and attach a narrated popover (driver.js). Works on the clawd app's own UI and on any page open in the preview pane. `start` with no steps runs the app's built-in tour (`preset` `quick` or `full`, default `full`). For a custom tour, `targets` discovers what's on screen, `show` narrates step-by-step, and `start` with `steps` hands the user Next/Prev controls. | — |
 | `show_tip` | Point at one element with a small accent bubble and an arrow — the quiet sibling of `gui_tour`, with no dimming, no spotlight, and no Next/Prev. Same `data-tour` handles and the same `tour(action='targets')` discovery call. | — |
 | `set_theme` | Set the Hermes desktop app's accent colour (a swatch id, `theme`, or `#rrggbb`), light/dark/system mode, and layout preset (Simple: `sidebar-left`, `sidebar-right`; Advanced: `default`, `basic`, `focus`, `terminal-deck`, `quad`; or a saved layout's id). The result reports what was applied; an unknown value comes back with the available ids. `picker` (`accent` or `layout`) shows a picker card in the chat and waits up to 5 minutes for the pick. | — |
 
@@ -273,14 +273,14 @@ targets for either. One tip is on screen at a time; a new one replaces the last.
 The app can also show its own, walking a built-in catalog of app features in
 order, paced like a game's loading-screen tips rather than a notification: a few
 minutes into a launch at the earliest, then at most one every six hours, and
-only at a genuinely idle moment. A tip from Hermes shares that cooldown, so it
+only at a genuinely idle moment. A tip from clawd shares that cooldown, so it
 also buys the user six hours of quiet from the rotation. The rotation is a single
 lap: each catalog tip shows once, whether it timed out or was closed with the ✕,
 and once every tip has had its turn the app goes quiet. The settings row starts
 the lap over.
 
 Both tips and tours are on by default and switched off in Settings → Appearance
-(`display.in_app_tips`, `display.in_app_tours`). Off covers Hermes as well as
+(`display.in_app_tips`, `display.in_app_tours`). Off covers clawd as well as
 the app: the switch reaches the connected gateway's config and the tool leaves
 the model's schema, so the agent is never told about a surface it isn't allowed
 to use. Like every schema change, that lands on the next session — a running
@@ -309,13 +309,13 @@ Opt-in toolset (not loaded in the default `hermes-cli` set). Add via `--toolsets
 
 ## `video_gen` toolset
 
-Opt-in toolset (not loaded in the default `hermes-cli` set). Add via `--toolsets video_gen` or enable it in `hermes tools` → Video Generation, which also walks you through picking a backend.
+Opt-in toolset (not loaded in the default `hermes-cli` set). Add via `--toolsets video_gen` or enable it in `clawd tools` → Video Generation, which also walks you through picking a backend.
 
 Backends ship as plugins under `plugins/video_gen/<name>/`:
 
 - **xAI Grok-Imagine** — text-to-video and image-to-video (SuperGrok OAuth or `XAI_API_KEY`).
 - **FAL.ai** — Veo 3.1, Pixverse v6, Kling 3.0 / O3 (requires `FAL_KEY`).
-- **OpenRouter** — every generative model on OpenRouter's video API (Veo 3.1, Sora 2 Pro, Kling 3, Seedance 2, Wan 3, Hailuo 3, Grok Imagine, FLUX 3 Video, …); text-to-video, image-to-video and reference-to-video; catalog and per-model limits fetched live (requires `OPENROUTER_API_KEY` or a credential added with `hermes auth add openrouter`, billed to your OpenRouter credit).
+- **OpenRouter** — every generative model on OpenRouter's video API (Veo 3.1, Sora 2 Pro, Kling 3, Seedance 2, Wan 3, Hailuo 3, Grok Imagine, FLUX 3 Video, …); text-to-video, image-to-video and reference-to-video; catalog and per-model limits fetched live (requires `OPENROUTER_API_KEY` or a credential added with `clawd auth add openrouter`, billed to your OpenRouter credit).
 - **DeepInfra** — live `video-gen` catalog over the OpenAI-compatible videos endpoint (requires `DEEPINFRA_API_KEY`).
 
 The single `video_generate` tool covers both modalities — pass `image_url` to animate a still, omit it to generate from text alone. The active backend auto-routes to the right endpoint. As with `image_generate`, the model is user-configured (`video_gen.model`) and not selectable by the agent — none of the video tools take a `model` argument. The tool's description is rebuilt at session start to reflect the active backend's actual capabilities (modalities, aspect ratios, resolutions, duration range, max reference images, audio support). See [Video Generation Provider Plugins](../developer-guide/video-gen-provider-plugin.md) for backend authoring.
@@ -337,7 +337,7 @@ The single `video_generate` tool covers both modalities — pass `image_url` to 
 
 | Tool | Description | Requires environment |
 |------|-------------|----------------------|
-| `x_search` | Search X (Twitter) posts, profiles, and threads using xAI's built-in `x_search` Responses tool. Read-only public X discovery for current discussion, reactions, or claims on public X (not general web pages). Does not post, reply, like, DM, upload media, delete, or inspect the authenticated X account — those need a separate authenticated X API surface (e.g. the `xurl` skill). Off by default — opt in via `hermes tools` → 🐦 X (Twitter) Search. Schema is only registered when xAI credentials are configured (check_fn-gated). | XAI_API_KEY **or** xAI Grok OAuth (SuperGrok / Premium+) login |
+| `x_search` | Search X (Twitter) posts, profiles, and threads using xAI's built-in `x_search` Responses tool. Read-only public X discovery for current discussion, reactions, or claims on public X (not general web pages). Does not post, reply, like, DM, upload media, delete, or inspect the authenticated X account — those need a separate authenticated X API surface (e.g. the `xurl` skill). Off by default — opt in via `clawd tools` → 🐦 X (Twitter) Search. Schema is only registered when xAI credentials are configured (check_fn-gated). | XAI_API_KEY **or** xAI Grok OAuth (SuperGrok / Premium+) login |
 
 ## `tts` toolset
 

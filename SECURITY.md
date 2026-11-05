@@ -1,5 +1,7 @@
 # Hermes Agent Security Policy
 
+> **本检出产品名是 clawd，不是 clawed。** 下文仍是上游 Hermes Agent 的信任模型与报告渠道。漏洞仍按本文所列上游渠道报告：[NousResearch/hermes-agent Security Advisories](https://github.com/NousResearch/hermes-agent/security/advisories/new) 或 **security@nousresearch.com**。本文件不新造 clawd 安全邮箱、赏金或仓库。`LICENSE` 的 MIT 与 Copyright (c) 2025 Nous Research 不改。文中 `hermes --version` 是上游报告字段；本检出的产品命令是 `clawd`，本次没有运行版本探针。
+
 This document describes Hermes Agent's trust model, names the one
 security boundary the project treats as load-bearing, and defines the
 scope for vulnerability reports.

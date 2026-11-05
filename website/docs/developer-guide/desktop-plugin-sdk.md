@@ -6,6 +6,12 @@ description: "Extend the native Hermes Desktop app — panes, pages, sidebar nav
 
 # Desktop Plugin SDK
 
+<!-- clawd-docs-note -->
+:::warning Not a clawd product
+clawd does not ship official Desktop, the official web dashboard, or the commands `desktop`, `gui`, `webapp`, and `dashboard`. This page documents upstream Hermes Agent. The web UI in this checkout is `clawd panel`.
+:::
+
+
 The native [Hermes Desktop](../user-guide/desktop.md) app is contribution-driven: every
 surface in the window — panes, routes, sidebar nav, status-bar items, palette
 entries, keybinds, themes — registers into one central registry. Core registers

@@ -65,7 +65,7 @@ def _(rid, params: dict) -> dict:
     from agent.vault_backends.base import external_backend_classes, is_installed
 
     enabled = {b.name: b for b in enabled_backends()}
-    rows = [{"name": "local", "display_name": "Hermes vault", "enabled": True, "needs_unlock": False,
+    rows = [{"name": "local", "display_name": "clawd vault", "enabled": True, "needs_unlock": False,
              "unlocked": True, "installed": True}]
     for cls in external_backend_classes():
         live = enabled.get(cls.name)

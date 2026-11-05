@@ -252,10 +252,8 @@ def native_cache_path(cache: Path, env: Mapping[str, str]) -> Path:
 
 
 if __name__ == "__main__":
-    import runpy
-    import truststore
-
-    # Like pm/launch.py: initialize platform trust before PM creates HTTPS clients.
-    truststore.inject_into_ssl()
-    sys.argv = sys.argv[1:]
-    runpy.run_path(sys.argv[0], run_name="__main__")
+    print(
+        "refused: clawd does not build the official desktop app. This entry is unsupported.",
+        file=sys.stderr,
+    )
+    raise SystemExit(2)

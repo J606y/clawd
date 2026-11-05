@@ -27,20 +27,35 @@ from tools.delegate_tool_results import (
 logger = logging.getLogger("tools.delegate_tool")  # log-record parity with the origin module
 
 def _reserve_child_transcript(child: Any) -> None:
-    """Make a queued child readable without completing its first-turn persistence."""
+    """Make a queued child readable without completing its first-turn persistence.
+
+    Does not bind a project and does not call ``force=True``. A worker child was
+    snapshotted by the owner. An in-process insert copies through
+    ``create_session`` only when this handle's ``state.db`` path is known.
+    ``ProjectInheritanceError`` is re-raised after close; it is not a published child.
+    """
     from agent.runtime_session_store import RuntimeSessionStore
 
     db = child._session_db
-    if db is None or child._persist_disabled or isinstance(db, RuntimeSessionStore):
+    if child._persist_disabled or isinstance(db, RuntimeSessionStore):
         # Managed workers already have an owner-reserved row. Persistence-disabled
         # children retain their existing no-transcript behavior.
+        return
+    parent_sid = getattr(child, "_parent_session_id", None)
+    if db is None or getattr(db, "db_path", None) is None:
+        if parent_sid:
+            from clawd_projects.inheritance import ProjectInheritanceError
+            raise ProjectInheritanceError(
+                "child transcript has no trusted state.db; refusing to publish"
+            )
         return
     try:
         # Leave model_config and the prompt unset. The constructor upsert keeps
         # existing values, so a partial config here would freeze first-turn state.
+        # An existing row is not re-inherited. A new row snapshots inside that write.
         db.create_session(
             session_id=child.session_id, source="subagent",
-            parent_session_id=child._parent_session_id,
+            parent_session_id=parent_sid,
         )
         child._session_db_reserved = True
     except BaseException:
@@ -662,6 +677,12 @@ def _build_result_entry(
         "duration_seconds": duration,
         "model": _str_or_none(getattr(child, "model", None)),
         "exit_reason": exit_reason,
+        "child_session_id": _str_or_none(getattr(child, "session_id", None)),
+        "subagent_id": (
+            _str_or_none(getattr(child, "_subagent_id", None))
+            if getattr(child, "_subagent_id", None) != getattr(child, "session_id", None)
+            else None
+        ),
         # A budget-exhausted child still returns a summary (status stays
         # "completed"), so the parent needs this explicit flag.
         "truncated": exit_reason == "max_iterations",

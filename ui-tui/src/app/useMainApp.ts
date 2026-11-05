@@ -43,6 +43,7 @@ import { asRpcResult, rpcErrorMessage } from '../lib/rpc.js'
 import { terminalParityHints } from '../lib/terminalParity.js'
 import { formatAbandonedClarify, sameToolTrailGroup, toolTrailLabel } from '../lib/text.js'
 import { estimatedMsgHeight, messageHeightKey } from '../lib/virtualHeights.js'
+import { PRODUCT_NAME } from '../productDisplay.js'
 import { onUserWidgets } from '../sdk/userWidgets.js'
 import type { Msg, PanelSection } from '../types.js'
 
@@ -779,7 +780,7 @@ export function useMainApp(gw: GatewayClient) {
           tab: composeTabTitle(marker, ui.sessionTitle, '', ''),
           window: composeTabTitle(marker, ui.sessionTitle, model, tabCwd ? shortCwd(tabCwd, 24) : '')
         }
-      : 'Hermes'
+      : PRODUCT_NAME
   )
 
   useEffect(() => {

@@ -1,0 +1,4712 @@
+{
+  "meta": {
+    "reviewer": "current-evidence-merged-2026-11-05",
+    "method": "static-hash-merge-readonly",
+    "observed_at": "2026-11-05T22:59:22+08:00",
+    "not_run": true,
+    "not_run_list": [
+      "tests",
+      "build",
+      "import",
+      "py_compile",
+      "product CLI",
+      "network",
+      "browser",
+      "attack verification",
+      "commit",
+      "push",
+      "deploy"
+    ],
+    "not_a_fix": true,
+    "not_runtime_pass": true,
+    "not_exploited": true,
+    "kernel_safe": false,
+    "third_party_judged_safe": false,
+    "security_pass": false,
+    "verified_repair_count": 0,
+    "do_not_sum": true,
+    "do_not_treat_carried_fixed_as_verified_repair": true,
+    "old_snapshot_is_not_current_runtime_conclusion": true,
+    "line_numbers_are_sha_bound_locators_not_independent_evidence": true,
+    "input_sha256": {
+      "final-findings-2026-11-05.json": "e7d5240ed8c76a086de69bd8dae2d35b0e0c5e80a9ff1d1b6ecd3c1caaf87f61",
+      "final-coverage-2026-11-05.json": "65779922fe547a4db10f94644610c3818873dc421fe105669672e4c062f36a82",
+      "final-summary-2026-11-05.md": "271097634845aa9f4f195988a6fa916629e273bbbaeebfc9b0109358cc3aad8c",
+      "continuation-current-recheck-2026-11-05.json": "be0a0182061d73df78d10393b5ef081bf815dabd80a38ff29b97eeccaba85c2e",
+      "continuation-current-recheck-2026-11-05.md": "52def9e716a0b913b81dfcc9244b93c0c4d9eedb83a99c7ca4e62c90e8725858"
+    },
+    "workspace": "/root/hermes-workspace/clawd",
+    "note": "只归并既有 63 个 ID。续跑 9 个是子集。指纹匹配沿用旧静态标签和未运行标记。变化文件只在最小分支足够时更新定位，不宣布修复或安全。越界路径未访问。"
+  },
+  "counts": {
+    "unique_ids": 63,
+    "final_findings_items": 63,
+    "final_findings_mapping_rows": 63,
+    "origin_id_pairs": 64,
+    "continuation_items": 9,
+    "continuation_unique_ids": 9,
+    "overlap_not_added": 9,
+    "duplicate_sources": 9,
+    "added_ids": 0,
+    "omitted_ids": 0,
+    "id_fingerprint": {
+      "changed-branch-sufficient": 7,
+      "match": 47,
+      "continuation-current-match": 9
+    },
+    "file_fingerprint": {
+      "match": 78,
+      "no-baseline": 1,
+      "blocked": 1,
+      "changed": 4,
+      "partial-match": 3
+    },
+    "carried_static_status": {
+      "fixed": 1,
+      "active": 46,
+      "false_positive": 13,
+      "unverified": 3
+    },
+    "verified_repair": 0,
+    "runtime_verified": 0,
+    "security_pass": 0,
+    "unknown": 0,
+    "unresolved_conflicts": 0,
+    "unresolved_id_count": 0,
+    "status_conflict_count": 0,
+    "mapping_status_mismatch_count": 0,
+    "hash_disagreement_rows": 11,
+    "hash_disagreement_unresolved": 0
+  },
+  "identity": {
+    "pair_explain": "63 unique origins and 63 findings. appr-tui binds two origins to one finding, so origin-id pairs are 64. provider.md#高-补括号 is the one origin that maps to two findings; that duplicate listing is why pairs exceed unique origins by 1.",
+    "split_and_merge": {
+      "merged": {
+        "appr-tui": [
+          "approval.md#高-任意choice",
+          "approval.md#中-TUI身份"
+        ]
+      },
+      "split": {
+        "provider.md#高-补括号": [
+          "prov-short-string",
+          "prov-prefix"
+        ]
+      }
+    },
+    "do_not_sum_inputs": [
+      "reviewed-findings.json active=27",
+      "remaining-transport items=10",
+      "remaining-background active=2",
+      "remaining-native-storage items=14"
+    ],
+    "coverage_counts_not_used_as_new_total": {
+      "active": 46,
+      "fixed": 1,
+      "false_positive": 13,
+      "unverified": 3,
+      "active_severity": {
+        "high": 10,
+        "medium": 25,
+        "low": 11
+      }
+    }
+  },
+  "validation": {
+    "unique_id_count": 63,
+    "item_count": 63,
+    "equals_final_findings_ids": true,
+    "added_ids": [],
+    "omitted_ids": [],
+    "continuation_subset": true,
+    "fingerprint_sum": 63,
+    "status_sum": 63,
+    "duplicate_ids_in_output": []
+  },
+  "conflicts": [],
+  "hash_disagreements_resolved": [
+    {
+      "id": "bg-receipt",
+      "path": "gateway/clawd_continuation.py",
+      "findings_sha256": "300f059641a218a78bf8be30fe7a1e4e162f44053b3105efe0bfc78341bbe476",
+      "continuation_sha256": "6c2be349953a7b1044549e322b5443d6e34847084bec600c46728eeae2c56d4f",
+      "current_sha256": "6c2be349953a7b1044549e322b5443d6e34847084bec600c46728eeae2c56d4f",
+      "resolution": "current-matches-continuation",
+      "unresolved": false
+    },
+    {
+      "id": "bg-receipt",
+      "path": "gateway/clawd_continuation_admit.py",
+      "findings_sha256": "57e699c2ce583fa8f1d024442a5da01be3d1524ce906d16e4357132ee0a35282",
+      "continuation_sha256": "a8e6b2f1c8595708186c6aba4ee034efefec107f8cd0b2bcc8a7b1e9cc017f3a",
+      "current_sha256": "a8e6b2f1c8595708186c6aba4ee034efefec107f8cd0b2bcc8a7b1e9cc017f3a",
+      "resolution": "current-matches-continuation",
+      "unresolved": false
+    },
+    {
+      "id": "bg-lease",
+      "path": "gateway/clawd_continuation.py",
+      "findings_sha256": "300f059641a218a78bf8be30fe7a1e4e162f44053b3105efe0bfc78341bbe476",
+      "continuation_sha256": "6c2be349953a7b1044549e322b5443d6e34847084bec600c46728eeae2c56d4f",
+      "current_sha256": "6c2be349953a7b1044549e322b5443d6e34847084bec600c46728eeae2c56d4f",
+      "resolution": "current-matches-continuation",
+      "unresolved": false
+    },
+    {
+      "id": "bg-human",
+      "path": "gateway/clawd_continuation.py",
+      "findings_sha256": "300f059641a218a78bf8be30fe7a1e4e162f44053b3105efe0bfc78341bbe476",
+      "continuation_sha256": "6c2be349953a7b1044549e322b5443d6e34847084bec600c46728eeae2c56d4f",
+      "current_sha256": "6c2be349953a7b1044549e322b5443d6e34847084bec600c46728eeae2c56d4f",
+      "resolution": "current-matches-continuation",
+      "unresolved": false
+    },
+    {
+      "id": "bg-human",
+      "path": "gateway/clawd_continuation_admit.py",
+      "findings_sha256": "57e699c2ce583fa8f1d024442a5da01be3d1524ce906d16e4357132ee0a35282",
+      "continuation_sha256": "a8e6b2f1c8595708186c6aba4ee034efefec107f8cd0b2bcc8a7b1e9cc017f3a",
+      "current_sha256": "a8e6b2f1c8595708186c6aba4ee034efefec107f8cd0b2bcc8a7b1e9cc017f3a",
+      "resolution": "current-matches-continuation",
+      "unresolved": false
+    },
+    {
+      "id": "bg-busy",
+      "path": "gateway/clawd_continuation.py",
+      "findings_sha256": "300f059641a218a78bf8be30fe7a1e4e162f44053b3105efe0bfc78341bbe476",
+      "continuation_sha256": "6c2be349953a7b1044549e322b5443d6e34847084bec600c46728eeae2c56d4f",
+      "current_sha256": "6c2be349953a7b1044549e322b5443d6e34847084bec600c46728eeae2c56d4f",
+      "resolution": "current-matches-continuation",
+      "unresolved": false
+    },
+    {
+      "id": "bg-window",
+      "path": "gateway/clawd_continuation.py",
+      "findings_sha256": "300f059641a218a78bf8be30fe7a1e4e162f44053b3105efe0bfc78341bbe476",
+      "continuation_sha256": "6c2be349953a7b1044549e322b5443d6e34847084bec600c46728eeae2c56d4f",
+      "current_sha256": "6c2be349953a7b1044549e322b5443d6e34847084bec600c46728eeae2c56d4f",
+      "resolution": "current-matches-continuation",
+      "unresolved": false
+    },
+    {
+      "id": "bg-swallow",
+      "path": "gateway/clawd_continuation.py",
+      "findings_sha256": "300f059641a218a78bf8be30fe7a1e4e162f44053b3105efe0bfc78341bbe476",
+      "continuation_sha256": "6c2be349953a7b1044549e322b5443d6e34847084bec600c46728eeae2c56d4f",
+      "current_sha256": "6c2be349953a7b1044549e322b5443d6e34847084bec600c46728eeae2c56d4f",
+      "resolution": "current-matches-continuation",
+      "unresolved": false
+    },
+    {
+      "id": "bg-pid",
+      "path": "gateway/clawd_continuation_admit.py",
+      "findings_sha256": "57e699c2ce583fa8f1d024442a5da01be3d1524ce906d16e4357132ee0a35282",
+      "continuation_sha256": "a8e6b2f1c8595708186c6aba4ee034efefec107f8cd0b2bcc8a7b1e9cc017f3a",
+      "current_sha256": "a8e6b2f1c8595708186c6aba4ee034efefec107f8cd0b2bcc8a7b1e9cc017f3a",
+      "resolution": "current-matches-continuation",
+      "unresolved": false
+    },
+    {
+      "id": "bg-stop",
+      "path": "gateway/clawd_continuation_admit.py",
+      "findings_sha256": "57e699c2ce583fa8f1d024442a5da01be3d1524ce906d16e4357132ee0a35282",
+      "continuation_sha256": "a8e6b2f1c8595708186c6aba4ee034efefec107f8cd0b2bcc8a7b1e9cc017f3a",
+      "current_sha256": "a8e6b2f1c8595708186c6aba4ee034efefec107f8cd0b2bcc8a7b1e9cc017f3a",
+      "resolution": "current-matches-continuation",
+      "unresolved": false
+    },
+    {
+      "id": "bg-plan",
+      "path": "gateway/clawd_continuation_decision.py",
+      "findings_sha256": "9bd9fd9d65e78a7f9d9ebd240b63d10b5262c4e1c82557c0110bad53285751e1",
+      "continuation_sha256": "fa244674385cc0b216ca29227d32025fb51848a9a7d43a5c34a4f77cd9b97dbd",
+      "current_sha256": "fa244674385cc0b216ca29227d32025fb51848a9a7d43a5c34a4f77cd9b97dbd",
+      "resolution": "current-matches-continuation",
+      "unresolved": false
+    }
+  ],
+  "parent_followup": [
+    "不得把任何 ID 写成运行验证、安全通过或已修。verified_repair=0。exec-effort 的 carried 标签 fixed 只是旧静态分类沿用。",
+    "续跑 9 个 ID 不另计。当前字节与续跑哈希一致的 active 仍只审查、不授权修复: bg-busy, bg-human, bg-lease, bg-pid, bg-receipt, bg-stop, bg-swallow, bg-window。",
+    "bg-plan 保持 false_positive，不升格。",
+    "快照哈希变化但最小分支只够沿用原标签、不是新漏洞也不是修复: exec-effort, exec-stop-window, appr-auto, inp-auth-bool, inp-empty-key, bg-approval-key, bg-sidecar。",
+    "stale/recheck-required: 无。",
+    "支持路径 blocked 未读: nat-close。",
+    "支持文件无旧哈希、未用于改结论: prov-name。",
+    "唯一 ID 仍为 63。禁止与 continuation 9、mapping 64 对、或旧 active/items 相加。"
+  ],
+  "files": [
+    {
+      "path": ".venv/lib/python3.14/site-packages/aiohttp/web_response.py",
+      "fingerprint": "match",
+      "sha256": "78aa643c57d0c94b7f41b5e8b4d2e68f63aaae80d02fb2dd01278384eaf92e74",
+      "reason": null,
+      "matched_sources": [
+        "evidence"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": ".venv/lib/python3.14/site-packages/anthropic/_base_client.py",
+      "fingerprint": "match",
+      "sha256": "978a8c5f342a05f14e9cfecd5a49f291f57f11b9320a9431dd568f230fa22711",
+      "reason": null,
+      "matched_sources": [
+        "evidence"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": ".venv/lib/python3.14/site-packages/anthropic/_client.py",
+      "fingerprint": "match",
+      "sha256": "2a650913f060195b5a53905002246a900d632c0411fe3343ed6f74e7412a0b01",
+      "reason": null,
+      "matched_sources": [
+        "evidence"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": ".venv/lib/python3.14/site-packages/httpx/_client.py",
+      "fingerprint": "match",
+      "sha256": "c43f941baefe58c91e96d00039e1868fe719d91453026d7db1647194563bff8d",
+      "reason": null,
+      "matched_sources": [
+        "evidence"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": ".venv/lib/python3.14/site-packages/openai/_base_client.py",
+      "fingerprint": "match",
+      "sha256": "5539c83d01c27e1bbf1ad34e59cc872202feb6c8bf81b56fadbeeb2b81a3e869",
+      "reason": null,
+      "matched_sources": [
+        "evidence"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": ".venv/lib/python3.14/site-packages/openai/types/chat/chat_completion_chunk.py",
+      "fingerprint": "no-baseline",
+      "sha256": "39b86b03d4ee5df11ceac3bf31f3be57a39a4c30071af58a4e928b80c22aeb48",
+      "reason": null,
+      "matched_sources": [],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "/usr/lib/python3.13/ctypes/wintypes.py",
+      "fingerprint": "blocked",
+      "sha256": null,
+      "reason": "path-out-of-bounds",
+      "matched_sources": [],
+      "differ_sources": [],
+      "accessed": false
+    },
+    {
+      "path": "agent/agent_runtime_helpers.py",
+      "fingerprint": "match",
+      "sha256": "36914aaf5c7ac3ed92c9f6d0d7da253a97e4268f4a054319e5f96e41d3b4b341",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "agent/anthropic_adapter.py",
+      "fingerprint": "match",
+      "sha256": "d40c5260063e222cc85424c70d77883d80d67b60bcc5fe9b136b3c2bbf1bc164",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "agent/api_error_summary.py",
+      "fingerprint": "match",
+      "sha256": "52b242bc394d0081d351c7e57a7b91b11c13eef14f4fcb937ab5052da56b3ce4",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "agent/chat_completion_helpers.py",
+      "fingerprint": "match",
+      "sha256": "521197b064685590a239277be83070c04dbb6ff683625dfd7b884cc587fbd98b",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "agent/chat_completion_helpers_tool_calls.py",
+      "fingerprint": "match",
+      "sha256": "eadf07162dbf3a1506a894a7e9ac26ec9d8295ab126977a0504007644a3d7903",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "agent/chat_completion_nonstream.py",
+      "fingerprint": "match",
+      "sha256": "34d4afad0a0c7228a0518eed4a2521ba1a340f509c83784c74abceb56f1becb7",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "agent/chat_completion_stream_monitor.py",
+      "fingerprint": "match",
+      "sha256": "1c74313db79042c0831a94b2a008074d0cd5f2b30ec51dd252fe905582c74112",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "agent/codex_responses_adapter.py",
+      "fingerprint": "match",
+      "sha256": "32f9899f4451b7965ceebb3919e503fedf61173a47078c8b8335872e42d1610f",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "agent/conversation_compression.py",
+      "fingerprint": "match",
+      "sha256": "796494d28180659f2843599420840832e1f528ecad2110b498a59f53e34e6bcb",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "agent/conversation_loop.py",
+      "fingerprint": "match",
+      "sha256": "bc1a44a42e254c9500cee099aa0d81590534aecb0ae6986f0f5bce6f24849d49",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "agent/message_sanitization.py",
+      "fingerprint": "match",
+      "sha256": "154e3bf8f59214df4aa8c34cfe210222737c06aa1fb897fe6484834631be2d82",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "agent/process_bootstrap.py",
+      "fingerprint": "match",
+      "sha256": "baa6239634aede3eff2a1628d07070df7beeb0bf1d93fe5cbad8ee3014192499",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "agent/retry_utils.py",
+      "fingerprint": "match",
+      "sha256": "4c643880c012dd536dca08041f1bae93b6a58477186b5cf0b4e27ec3c640014c",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "agent/stream_max_lifetime.py",
+      "fingerprint": "match",
+      "sha256": "40a009765a4c87ca2a485a4bb4ec9c96eff50f51ff19276b1d40ba7e76c7295c",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "agent/tool_executor.py",
+      "fingerprint": "match",
+      "sha256": "c85e239d1d56ad415902db2371e9e28c2216f6fd72e29860cff7f97b2e05a0c2",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "agent/transports/codex_event_projector.py",
+      "fingerprint": "match",
+      "sha256": "bd3b548d795067fc7b46082ba4301c747e65ed664dfb3f37c6eb9c7a9a872588",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "agent/turn_overflow.py",
+      "fingerprint": "match",
+      "sha256": "14d483d7043f1fc39b01f5fd15521392ef734cbbff05e9ce68a7597100f18235",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "agent/turn_preflight.py",
+      "fingerprint": "match",
+      "sha256": "5909b32461c37fa50afd4b537f84e120f14bad22bbb9c5f0f197d9ec6bdfb0b4",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "agent/turn_tool_validation.py",
+      "fingerprint": "match",
+      "sha256": "cd5e412e4311bc12238f7774b084d5440c91e40710eafdeaac7c1bfa2ddb0ac4",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "apps/panel/sidecar/hermes_panel_sidecar.py",
+      "fingerprint": "changed",
+      "sha256": "11840a85bd8ce3a5be3a9abd4797b74cea1050895b19e80a63e95bd1fde8ff82",
+      "reason": null,
+      "matched_sources": [],
+      "differ_sources": [
+        "findings",
+        "coverage"
+      ],
+      "accessed": true
+    },
+    {
+      "path": "apps/panel/sidecar/image_studio.py",
+      "fingerprint": "match",
+      "sha256": "8d658411e827ee2adee269d88760db8d3743c6ee6504c554c93d0d89389e439d",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "artifacts/core-audit-native-reference/_ctypes.c",
+      "fingerprint": "match",
+      "sha256": "78482188c25a175a1fe5fbf97bbfa828d28abaf667b29c5935576df80c2c419d",
+      "reason": null,
+      "matched_sources": [
+        "evidence"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "artifacts/core-audit-native-reference/callproc.c",
+      "fingerprint": "match",
+      "sha256": "6800f829135dc34940011243dbcd733eaeca8aa29074f3aa94a980469185ce69",
+      "reason": null,
+      "matched_sources": [
+        "evidence"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "artifacts/core-audit-native-reference/cfield.c",
+      "fingerprint": "match",
+      "sha256": "99fff496490463379e645fdccc2bfa398874eae3983b3ec93a90364a55c99f92",
+      "reason": null,
+      "matched_sources": [
+        "evidence"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "artifacts/core-audit-native-reference/cursor.c",
+      "fingerprint": "match",
+      "sha256": "6571430ca1981d6927a54627273d75b7ad52f6ef7f2c92a0165e85ad47c57dba",
+      "reason": null,
+      "matched_sources": [
+        "evidence"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "clawd_server/auth.py",
+      "fingerprint": "match",
+      "sha256": "db2dc7f169dbe4e4da6e9c1b9f1b8858c9ca2ecee3577e515e1b2c2d4b9e96ca",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "clawd_server/bind.py",
+      "fingerprint": "match",
+      "sha256": "a0cfe9432fbd526d11850105d040d0d0cf1e85f9ceabada2aa57ff04f20d101b",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "clawd_server/effort_service.py",
+      "fingerprint": "changed",
+      "sha256": "4e2699372896c2ce45a76d7e5ed842ad0e016ec49d14f25786d146f753fac619",
+      "reason": null,
+      "matched_sources": [],
+      "differ_sources": [
+        "findings",
+        "coverage"
+      ],
+      "accessed": true
+    },
+    {
+      "path": "clawd_server/server.py",
+      "fingerprint": "match",
+      "sha256": "ea3534ab92e054fe38c79f6533b8797c86dea07facdfb09d3badc5a060dd03ab",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "cli.py",
+      "fingerprint": "match",
+      "sha256": "de7f37805b839d632b5e96e3fe3fefef9978e62599f53476222def34243e2832",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "gateway/clawd_continuation.py",
+      "fingerprint": "partial-match",
+      "sha256": "6c2be349953a7b1044549e322b5443d6e34847084bec600c46728eeae2c56d4f",
+      "reason": null,
+      "matched_sources": [
+        "continuation"
+      ],
+      "differ_sources": [
+        "findings",
+        "coverage"
+      ],
+      "accessed": true
+    },
+    {
+      "path": "gateway/clawd_continuation_admit.py",
+      "fingerprint": "partial-match",
+      "sha256": "a8e6b2f1c8595708186c6aba4ee034efefec107f8cd0b2bcc8a7b1e9cc017f3a",
+      "reason": null,
+      "matched_sources": [
+        "continuation"
+      ],
+      "differ_sources": [
+        "findings",
+        "coverage"
+      ],
+      "accessed": true
+    },
+    {
+      "path": "gateway/clawd_continuation_decision.py",
+      "fingerprint": "partial-match",
+      "sha256": "fa244674385cc0b216ca29227d32025fb51848a9a7d43a5c34a4f77cd9b97dbd",
+      "reason": null,
+      "matched_sources": [
+        "continuation"
+      ],
+      "differ_sources": [
+        "findings",
+        "coverage"
+      ],
+      "accessed": true
+    },
+    {
+      "path": "gateway/clawd_continuation_gates.py",
+      "fingerprint": "match",
+      "sha256": "6d2fa59a5c89ecf198799fb41e51fd7c3c6e671a0e23d2008ea0324ea1511ae9",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage",
+        "continuation"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "gateway/clawd_continuation_journal.py",
+      "fingerprint": "match",
+      "sha256": "fe3d64ff1af9d3f241e37522828e0d2a8e6107271055eb38a71c654ca50205d9",
+      "reason": null,
+      "matched_sources": [
+        "continuation"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "gateway/platforms/api_server.py",
+      "fingerprint": "changed",
+      "sha256": "e653b26b4bcb8e816cc673c62304727b511bbb24b980cfff8024d35beeab7a5c",
+      "reason": null,
+      "matched_sources": [],
+      "differ_sources": [
+        "findings",
+        "coverage"
+      ],
+      "accessed": true
+    },
+    {
+      "path": "gateway/platforms/api_server_runs.py",
+      "fingerprint": "match",
+      "sha256": "554cb28b411b323fab038d4f24dedc7e4876b7266f2044bc5f3730e528fa122b",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage",
+        "continuation"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "gateway/platforms/webhook.py",
+      "fingerprint": "match",
+      "sha256": "31e8fcc00d4649ad760aaeba8fe0bfda47e97dc4587622d74b8e1674285907f8",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "gateway/relay/adapter.py",
+      "fingerprint": "match",
+      "sha256": "0b97cedf6cf6908c13a2d3ecfbedcc06694d4877dcb2f31abc946dad4d1dd817",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "gateway/run_adapters.py",
+      "fingerprint": "match",
+      "sha256": "df6c3ad0b2ffe944636192aa8d0c0719601a7aa3f5dd8830b957e6fbcbb06325",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "gateway/session.py",
+      "fingerprint": "match",
+      "sha256": "ea2e48b1313fcb24054dccbbdc631321c7cad5526097588b65d20ab86346a870",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "gateway/session_api_turn.py",
+      "fingerprint": "changed",
+      "sha256": "297b746965d2946829e729cb05c9671fe9692271da4ae06f8a37816ed2c21df4",
+      "reason": null,
+      "matched_sources": [],
+      "differ_sources": [
+        "findings",
+        "coverage"
+      ],
+      "accessed": true
+    },
+    {
+      "path": "gateway/session_persistence.py",
+      "fingerprint": "match",
+      "sha256": "92ab8f19425afe80e99e444b9a0475707049528697572cd8513106318bd3f08e",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "gateway/session_recovery.py",
+      "fingerprint": "match",
+      "sha256": "6fa7af72184b49bb4623bcfc487897bbe586ecd36fd09c9906261b83b87ef385",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "gateway/session_transcript.py",
+      "fingerprint": "match",
+      "sha256": "b1e427996751310287ac56c99f2265122f26c001acee2cd2b5198519c402f9e2",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "gateway/slash_access.py",
+      "fingerprint": "match",
+      "sha256": "9b3edefcf37560d90ce65f16d8aee7d09bb02ca2c8182a6305b28d76172a699d",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "gateway/slash_commands.py",
+      "fingerprint": "match",
+      "sha256": "2cfa1105bc963d24a67c268c7e86f9b78ffa8dcdb7e0007a86d16fa319267351",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "gateway/slash_commands_session.py",
+      "fingerprint": "match",
+      "sha256": "2d207bda33466ad9c80e2b62df5f4697dababeeb068ecd18f3da52836d5e04dd",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "gateway/wake.py",
+      "fingerprint": "match",
+      "sha256": "7fe985e4606b769355c942ba137e5d52037cd96d61c1a6072a2e837f782b1a32",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage",
+        "continuation"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "hermes_bootstrap.py",
+      "fingerprint": "match",
+      "sha256": "f242036b2d35b92283b9a7e97c7059e537607fc4b02026f657a6d00cb4683f69",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "hermes_cli/cli_chat_turn_mixin.py",
+      "fingerprint": "match",
+      "sha256": "aad4a245b8187ec2da7e0d5bb9a33bc9d68fb2e3a873015c3c1fa02118fdbab8",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "hermes_cli/config_defaults.py",
+      "fingerprint": "match",
+      "sha256": "2c7f02045f582d03565dbb59972f09fc21fcac71a26adb5117d5754759ccb634",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "hermes_cli/local_runtime/hardware.py",
+      "fingerprint": "match",
+      "sha256": "83ba7592a640ba6b2d1502ec7febe1006232dea26c361a1ee0ca703d3b66f923",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "hermes_cli/process_identity.py",
+      "fingerprint": "match",
+      "sha256": "0e30d07f84e2bae9dee41fd6260e2e83b791a46b0a0042a665a6b72f25f143be",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "hermes_cli/providers.py",
+      "fingerprint": "match",
+      "sha256": "e16d4b818c1af482024bb891003bc134f2ab0b347908abbdb2386e02391d1c8e",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "hermes_cli/update_lock.py",
+      "fingerprint": "match",
+      "sha256": "2e02db3e627de248b88d912c1f9421a40a738899ebdef9d93998ce8d09e01a8d",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "hermes_platform/host/darwin_pci.py",
+      "fingerprint": "match",
+      "sha256": "2ecbf4c68873f16f6de855794503c3ba781e3f26ea8da910a8ce5cd513f96fcb",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "hermes_platform/host/facts.py",
+      "fingerprint": "match",
+      "sha256": "52eef216017ca8e18d7365ec10a9494b2d261280cfc70d9e0b94a2cc7b363d7a",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "hermes_platform/resolver/app.py",
+      "fingerprint": "match",
+      "sha256": "ee5ff2a8d9d67534df22e722d7a7235e4c98810aeeedaf2d3948ea5d53db0063",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "hermes_state.py",
+      "fingerprint": "match",
+      "sha256": "d8f229db6de935a4892a3aaef038b396036c1e661f38fe169161864884a32fed",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "hermes_state_compression.py",
+      "fingerprint": "match",
+      "sha256": "8b6e2df32259d1d1c89a6f7215c8ba23ff7a91f69ecb83bcc9f3ff9a52863670",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage",
+        "continuation"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "hermes_state_messages.py",
+      "fingerprint": "match",
+      "sha256": "b81c7d272f768a548daa91642bf8283dfad2f592528fbe95c029038a13e7f574",
+      "reason": null,
+      "matched_sources": [
+        "continuation"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "plugins/platforms/feishu/adapter.py",
+      "fingerprint": "match",
+      "sha256": "3525af4876e9b9725d5752721357d2c669d858338c83b8c50d44c0c422e844fb",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "plugins/platforms/matrix/adapter.py",
+      "fingerprint": "match",
+      "sha256": "2a48bc2713c7b6007450e26bd4e4343928e697c3ee60cf979741b4eeb9ee1693",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "plugins/platforms/qqbot/adapter.py",
+      "fingerprint": "match",
+      "sha256": "725904c6affa34d490717b75e69f24e1f605ae38603fdfa1f2707c09901af2e3",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "plugins/platforms/slack/adapter.py",
+      "fingerprint": "match",
+      "sha256": "0f658a0db64f81f4cfacde86c2ae618a4c4c9135fe35c10c69b163e4f9ed7299",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "plugins/platforms/teams/adapter.py",
+      "fingerprint": "match",
+      "sha256": "0907587f25b8cee4ca72f8f82d7f589af9a2967a8e166bc3181e6511b8985bc1",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "plugins/platforms/telegram/adapter.py",
+      "fingerprint": "match",
+      "sha256": "5e247fbbd3a2c4a66adda439717d5283c237af4ccad589004d64244316a49c2f",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "plugins/platforms/whatsapp_cloud/adapter.py",
+      "fingerprint": "match",
+      "sha256": "2ab0ac2937efc54d6add3def830b1143100439f27e91691fa484b0f232aaa38b",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "pm/install.py",
+      "fingerprint": "match",
+      "sha256": "2f48a18bb2b8c452432ddd675599bb859e7a1dcdcbadd5326b252376d1b4b1a0",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "tools/approval.py",
+      "fingerprint": "match",
+      "sha256": "f981161d1f8a2679f74f5ac0e84c576f985c6b5cd5b50e361252abd5b1d616ad",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "tools/approval_gateway_wait.py",
+      "fingerprint": "match",
+      "sha256": "cb637ab95a335feec3141ecb05f27df4783c341ad53e2dcf7d794057e0f7e45c",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "tools/async_delegation.py",
+      "fingerprint": "match",
+      "sha256": "a76a78ee29576b6b40d42044666b350f63d33e8b42a792b17bcb0cbd73069082",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "tools/environments/base_output.py",
+      "fingerprint": "match",
+      "sha256": "e951f16776fa76589e03ea035d8ec40543993eb85e80ea609963190781a8d0b5",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "tools/file_tools.py",
+      "fingerprint": "match",
+      "sha256": "925ebccc2a70b5a1b55541242cb19ed6614a18e82df1d6bc29474dc22c4f0dee",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "tools/mcp_oauth.py",
+      "fingerprint": "match",
+      "sha256": "b25655d6a2ca717b3697f2fe98b5f817da5605c203ebdce8823da55398a8b99f",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "tools/mcp_tool_agent.py",
+      "fingerprint": "match",
+      "sha256": "cddaeb9e8e035c2982a7299c35ad288ab3187eb4848562a16c57b64559a87447",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "tools/terminal_tool.py",
+      "fingerprint": "match",
+      "sha256": "23954745416973b02cb92e248a6003a4cc02c91ac4b79077c191205c5fefcf7e",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "tui_gateway/methods_prompt.py",
+      "fingerprint": "match",
+      "sha256": "b8baa13c15e8ddee29b40e0e2403fe0f63016bfa49dd9fd09c9f1de9e8d0e54c",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    },
+    {
+      "path": "tui_gateway/server.py",
+      "fingerprint": "match",
+      "sha256": "a37a2bbc308a1d679c2397a87c0f03e479ea229105e1904897879f045c73892c",
+      "reason": null,
+      "matched_sources": [
+        "findings",
+        "coverage"
+      ],
+      "differ_sources": [],
+      "accessed": true
+    }
+  ],
+  "items": [
+    {
+      "id": "exec-effort",
+      "origins": [
+        "execution.md#1"
+      ],
+      "title": "租约回合不再调用缺准入证明的两参数 commit_deferred_effort",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json"
+      ],
+      "carried_static_status": "fixed",
+      "findings_status": "fixed",
+      "continuation_status": null,
+      "severity": "high",
+      "confidence": "确定",
+      "fingerprint": "changed-branch-sufficient",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "gateway/session_api_turn.py:622-623",
+        "gateway/session_api_turn.py:630-638",
+        "gateway/session_api_turn.py:669-671",
+        "clawd_server/effort_service.py:520-558"
+      ],
+      "files": [
+        {
+          "path": "clawd_server/effort_service.py",
+          "role": "product-source",
+          "fingerprint": "changed",
+          "current_sha256": "4e2699372896c2ce45a76d7e5ed842ad0e016ec49d14f25786d146f753fac619",
+          "findings_sha256": "8cd685880f82709654679de6e99dac558e7735b9c7dc85fa16c92fcc2aec2d98",
+          "continuation_sha256": null,
+          "unstable": false
+        },
+        {
+          "path": "gateway/session_api_turn.py",
+          "role": "product-source",
+          "fingerprint": "changed",
+          "current_sha256": "297b746965d2946829e729cb05c9671fe9692271da4ae06f8a37816ed2c21df4",
+          "findings_sha256": "f03d140bf5e14f341e3bd0de6b3b5e368161ba1d69aa780e250cea001896b190",
+          "continuation_sha256": null,
+          "unstable": false
+        }
+      ],
+      "supporting": [],
+      "note": "已读引用分支：commit_deferred_effort 仍传 authority 与 admission_held=True；缺证明抛错且不写。无 authority 时 commit_trusted_pending_effort 返回 None。未全库重扫。carried 标签 fixed 不是已验证修复。"
+    },
+    {
+      "id": "exec-cli-history",
+      "origins": [
+        "execution.md#2"
+      ],
+      "title": "CLI 异常用空 messages 覆盖内存历史",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json"
+      ],
+      "carried_static_status": "active",
+      "findings_status": "active",
+      "continuation_status": null,
+      "severity": "medium",
+      "confidence": "确定",
+      "fingerprint": "match",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "hermes_cli/cli_chat_turn_mixin.py:361-370",
+        "hermes_cli/cli_chat_turn_mixin.py:500-501"
+      ],
+      "files": [
+        {
+          "path": "hermes_cli/cli_chat_turn_mixin.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "aad4a245b8187ec2da7e0d5bb9a33bc9d68fb2e3a873015c3c1fa02118fdbab8",
+          "findings_sha256": "aad4a245b8187ec2da7e0d5bb9a33bc9d68fb2e3a873015c3c1fa02118fdbab8",
+          "continuation_sha256": null,
+          "unstable": false
+        }
+      ],
+      "supporting": [],
+      "note": "引用产品源码 sha256 与 final-findings/coverage 一致。沿用该静态标签和未运行标记。不是当前运行验证、安全通过或已修。"
+    },
+    {
+      "id": "exec-stop-window",
+      "origins": [
+        "execution.md#3"
+      ],
+      "title": "无 authority 时，创建 agent 期间的停止打不中执行线程",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json"
+      ],
+      "carried_static_status": "active",
+      "findings_status": "active",
+      "continuation_status": null,
+      "severity": "medium",
+      "confidence": "确定",
+      "fingerprint": "changed-branch-sufficient",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "gateway/platforms/api_server.py:3289-3294"
+      ],
+      "files": [
+        {
+          "path": "gateway/platforms/api_server.py",
+          "role": "product-source",
+          "fingerprint": "changed",
+          "current_sha256": "e653b26b4bcb8e816cc673c62304727b511bbb24b980cfff8024d35beeab7a5c",
+          "findings_sha256": "b95284ed570ea9f3ed4f0218af12eff91891373a32a93f60f89658b43ba839de",
+          "continuation_sha256": null,
+          "unstable": false
+        },
+        {
+          "path": "gateway/platforms/api_server_runs.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "554cb28b411b323fab038d4f24dedc7e4876b7266f2044bc5f3730e528fa122b",
+          "findings_sha256": "554cb28b411b323fab038d4f24dedc7e4876b7266f2044bc5f3730e528fa122b",
+          "continuation_sha256": "554cb28b411b323fab038d4f24dedc7e4876b7266f2044bc5f3730e528fa122b",
+          "unstable": false
+        }
+      ],
+      "supporting": [],
+      "note": "api_server_runs.py 与快照哈希一致，其旧行号仍只绑定该 sha。api_server.py 当前断线路径在 agent 为空时只 task.cancel()。静态标签沿用。不是新漏洞，未运行。"
+    },
+    {
+      "id": "appr-fifo",
+      "origins": [
+        "approval.md#高-FIFO"
+      ],
+      "title": "不带 request_id 的同意按 FIFO 放行另一条待决命令",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json"
+      ],
+      "carried_static_status": "active",
+      "findings_status": "active",
+      "continuation_status": null,
+      "severity": "high",
+      "confidence": "确定",
+      "fingerprint": "match",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "tools/approval.py:157-166",
+        "tools/approval.py:915-919",
+        "plugins/platforms/telegram/adapter.py:4768",
+        "plugins/platforms/feishu/adapter.py:2385",
+        "plugins/platforms/qqbot/adapter.py:704",
+        "plugins/platforms/teams/adapter.py:657",
+        "plugins/platforms/matrix/adapter.py:2549",
+        "plugins/platforms/whatsapp_cloud/adapter.py:930",
+        "plugins/platforms/slack/adapter.py:5628",
+        "gateway/relay/adapter.py:2056",
+        "gateway/slash_commands.py:1218",
+        "gateway/platforms/api_server_runs.py:1431-1454",
+        "gateway/slash_access.py:38-42"
+      ],
+      "files": [
+        {
+          "path": "gateway/platforms/api_server_runs.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "554cb28b411b323fab038d4f24dedc7e4876b7266f2044bc5f3730e528fa122b",
+          "findings_sha256": "554cb28b411b323fab038d4f24dedc7e4876b7266f2044bc5f3730e528fa122b",
+          "continuation_sha256": "554cb28b411b323fab038d4f24dedc7e4876b7266f2044bc5f3730e528fa122b",
+          "unstable": false
+        },
+        {
+          "path": "gateway/relay/adapter.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "0b97cedf6cf6908c13a2d3ecfbedcc06694d4877dcb2f31abc946dad4d1dd817",
+          "findings_sha256": "0b97cedf6cf6908c13a2d3ecfbedcc06694d4877dcb2f31abc946dad4d1dd817",
+          "continuation_sha256": null,
+          "unstable": false
+        },
+        {
+          "path": "gateway/slash_access.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "9b3edefcf37560d90ce65f16d8aee7d09bb02ca2c8182a6305b28d76172a699d",
+          "findings_sha256": "9b3edefcf37560d90ce65f16d8aee7d09bb02ca2c8182a6305b28d76172a699d",
+          "continuation_sha256": null,
+          "unstable": false
+        },
+        {
+          "path": "gateway/slash_commands.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "2cfa1105bc963d24a67c268c7e86f9b78ffa8dcdb7e0007a86d16fa319267351",
+          "findings_sha256": "2cfa1105bc963d24a67c268c7e86f9b78ffa8dcdb7e0007a86d16fa319267351",
+          "continuation_sha256": null,
+          "unstable": false
+        },
+        {
+          "path": "plugins/platforms/feishu/adapter.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "3525af4876e9b9725d5752721357d2c669d858338c83b8c50d44c0c422e844fb",
+          "findings_sha256": "3525af4876e9b9725d5752721357d2c669d858338c83b8c50d44c0c422e844fb",
+          "continuation_sha256": null,
+          "unstable": false
+        },
+        {
+          "path": "plugins/platforms/matrix/adapter.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "2a48bc2713c7b6007450e26bd4e4343928e697c3ee60cf979741b4eeb9ee1693",
+          "findings_sha256": "2a48bc2713c7b6007450e26bd4e4343928e697c3ee60cf979741b4eeb9ee1693",
+          "continuation_sha256": null,
+          "unstable": false
+        },
+        {
+          "path": "plugins/platforms/qqbot/adapter.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "725904c6affa34d490717b75e69f24e1f605ae38603fdfa1f2707c09901af2e3",
+          "findings_sha256": "725904c6affa34d490717b75e69f24e1f605ae38603fdfa1f2707c09901af2e3",
+          "continuation_sha256": null,
+          "unstable": false
+        },
+        {
+          "path": "plugins/platforms/slack/adapter.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "0f658a0db64f81f4cfacde86c2ae618a4c4c9135fe35c10c69b163e4f9ed7299",
+          "findings_sha256": "0f658a0db64f81f4cfacde86c2ae618a4c4c9135fe35c10c69b163e4f9ed7299",
+          "continuation_sha256": null,
+          "unstable": false
+        },
+        {
+          "path": "plugins/platforms/teams/adapter.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "0907587f25b8cee4ca72f8f82d7f589af9a2967a8e166bc3181e6511b8985bc1",
+          "findings_sha256": "0907587f25b8cee4ca72f8f82d7f589af9a2967a8e166bc3181e6511b8985bc1",
+          "continuation_sha256": null,
+          "unstable": false
+        },
+        {
+          "path": "plugins/platforms/telegram/adapter.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "5e247fbbd3a2c4a66adda439717d5283c237af4ccad589004d64244316a49c2f",
+          "findings_sha256": "5e247fbbd3a2c4a66adda439717d5283c237af4ccad589004d64244316a49c2f",
+          "continuation_sha256": null,
+          "unstable": false
+        },
+        {
+          "path": "plugins/platforms/whatsapp_cloud/adapter.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "2ab0ac2937efc54d6add3def830b1143100439f27e91691fa484b0f232aaa38b",
+          "findings_sha256": "2ab0ac2937efc54d6add3def830b1143100439f27e91691fa484b0f232aaa38b",
+          "continuation_sha256": null,
+          "unstable": false
+        },
+        {
+          "path": "tools/approval.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "f981161d1f8a2679f74f5ac0e84c576f985c6b5cd5b50e361252abd5b1d616ad",
+          "findings_sha256": "f981161d1f8a2679f74f5ac0e84c576f985c6b5cd5b50e361252abd5b1d616ad",
+          "continuation_sha256": null,
+          "unstable": false
+        }
+      ],
+      "supporting": [],
+      "note": "引用产品源码 sha256 与 final-findings/coverage 一致。沿用该静态标签和未运行标记。不是当前运行验证、安全通过或已修。"
+    },
+    {
+      "id": "appr-tui",
+      "origins": [
+        "approval.md#高-任意choice",
+        "approval.md#中-TUI身份"
+      ],
+      "title": "TUI 审批接受任意非 deny，且可 all；处理器自身不核对 execution_generation",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json"
+      ],
+      "carried_static_status": "active",
+      "findings_status": "active",
+      "continuation_status": null,
+      "severity": "medium",
+      "confidence": "可能",
+      "fingerprint": "match",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "tui_gateway/methods_prompt.py:1340-1354",
+        "tui_gateway/server.py:718-731",
+        "tools/approval.py:855-861",
+        "tools/approval.py:915-919"
+      ],
+      "files": [
+        {
+          "path": "tools/approval.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "f981161d1f8a2679f74f5ac0e84c576f985c6b5cd5b50e361252abd5b1d616ad",
+          "findings_sha256": "f981161d1f8a2679f74f5ac0e84c576f985c6b5cd5b50e361252abd5b1d616ad",
+          "continuation_sha256": null,
+          "unstable": false
+        },
+        {
+          "path": "tui_gateway/methods_prompt.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "b8baa13c15e8ddee29b40e0e2403fe0f63016bfa49dd9fd09c9f1de9e8d0e54c",
+          "findings_sha256": "b8baa13c15e8ddee29b40e0e2403fe0f63016bfa49dd9fd09c9f1de9e8d0e54c",
+          "continuation_sha256": null,
+          "unstable": false
+        },
+        {
+          "path": "tui_gateway/server.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "a37a2bbc308a1d679c2397a87c0f03e479ea229105e1904897879f045c73892c",
+          "findings_sha256": "a37a2bbc308a1d679c2397a87c0f03e479ea229105e1904897879f045c73892c",
+          "continuation_sha256": null,
+          "unstable": false
+        }
+      ],
+      "supporting": [],
+      "note": "引用产品源码 sha256 与 final-findings/coverage 一致。沿用该静态标签和未运行标记。不是当前运行验证、安全通过或已修。"
+    },
+    {
+      "id": "appr-parallel",
+      "origins": [
+        "approval.md#中-并行"
+      ],
+      "title": "写审批返回前，启动顺序已经推进",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json"
+      ],
+      "carried_static_status": "active",
+      "findings_status": "active",
+      "continuation_status": null,
+      "severity": "medium",
+      "confidence": "确定",
+      "fingerprint": "match",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "agent/tool_executor.py:741-748",
+        "tools/file_tools.py:872-877"
+      ],
+      "files": [
+        {
+          "path": "agent/tool_executor.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "c85e239d1d56ad415902db2371e9e28c2216f6fd72e29860cff7f97b2e05a0c2",
+          "findings_sha256": "c85e239d1d56ad415902db2371e9e28c2216f6fd72e29860cff7f97b2e05a0c2",
+          "continuation_sha256": null,
+          "unstable": false
+        },
+        {
+          "path": "tools/file_tools.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "925ebccc2a70b5a1b55541242cb19ed6614a18e82df1d6bc29474dc22c4f0dee",
+          "findings_sha256": "925ebccc2a70b5a1b55541242cb19ed6614a18e82df1d6bc29474dc22c4f0dee",
+          "continuation_sha256": null,
+          "unstable": false
+        }
+      ],
+      "supporting": [],
+      "note": "引用产品源码 sha256 与 final-findings/coverage 一致。沿用该静态标签和未运行标记。不是当前运行验证、安全通过或已修。"
+    },
+    {
+      "id": "appr-auto",
+      "origins": [
+        "approval.md#中-默认同意"
+      ],
+      "title": "未标记默认同意分支存在，但已读产品入口到不了",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json"
+      ],
+      "carried_static_status": "false_positive",
+      "findings_status": "false_positive",
+      "continuation_status": null,
+      "severity": "medium",
+      "confidence": "确定",
+      "fingerprint": "changed-branch-sufficient",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "gateway/platforms/api_server.py:3640-3641"
+      ],
+      "files": [
+        {
+          "path": "cli.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "de7f37805b839d632b5e96e3fe3fefef9978e62599f53476222def34243e2832",
+          "findings_sha256": "de7f37805b839d632b5e96e3fe3fefef9978e62599f53476222def34243e2832",
+          "continuation_sha256": null,
+          "unstable": false
+        },
+        {
+          "path": "gateway/platforms/api_server.py",
+          "role": "product-source",
+          "fingerprint": "changed",
+          "current_sha256": "e653b26b4bcb8e816cc673c62304727b511bbb24b980cfff8024d35beeab7a5c",
+          "findings_sha256": "b95284ed570ea9f3ed4f0218af12eff91891373a32a93f60f89658b43ba839de",
+          "continuation_sha256": null,
+          "unstable": false
+        },
+        {
+          "path": "tools/approval.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "f981161d1f8a2679f74f5ac0e84c576f985c6b5cd5b50e361252abd5b1d616ad",
+          "findings_sha256": "f981161d1f8a2679f74f5ac0e84c576f985c6b5cd5b50e361252abd5b1d616ad",
+          "continuation_sha256": null,
+          "unstable": false
+        },
+        {
+          "path": "tools/terminal_tool.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "23954745416973b02cb92e248a6003a4cc02c91ac4b79077c191205c5fefcf7e",
+          "findings_sha256": "23954745416973b02cb92e248a6003a4cc02c91ac4b79077c191205c5fefcf7e",
+          "continuation_sha256": null,
+          "unstable": false
+        },
+        {
+          "path": "tui_gateway/server.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "a37a2bbc308a1d679c2397a87c0f03e479ea229105e1904897879f045c73892c",
+          "findings_sha256": "a37a2bbc308a1d679c2397a87c0f03e479ea229105e1904897879f045c73892c",
+          "continuation_sha256": null,
+          "unstable": false
+        }
+      ],
+      "supporting": [],
+      "note": "其余入口文件哈希匹配，未重读。api_server.py 仍 set_session_vars(platform=\"api_server\")。同文件未提交差异只增加 cwd。静态 false_positive 沿用。不是安全通过。"
+    },
+    {
+      "id": "appr-timeout",
+      "origins": [
+        "approval.md#低-超时窗口"
+      ],
+      "title": "截止后、出队前的选择是锁内已提交的同意，不是过期票据",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json"
+      ],
+      "carried_static_status": "false_positive",
+      "findings_status": "false_positive",
+      "continuation_status": null,
+      "severity": "low",
+      "confidence": "确定",
+      "fingerprint": "match",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "tools/approval.py:169-176",
+        "tools/approval_gateway_wait.py:48-76"
+      ],
+      "files": [
+        {
+          "path": "tools/approval.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "f981161d1f8a2679f74f5ac0e84c576f985c6b5cd5b50e361252abd5b1d616ad",
+          "findings_sha256": "f981161d1f8a2679f74f5ac0e84c576f985c6b5cd5b50e361252abd5b1d616ad",
+          "continuation_sha256": null,
+          "unstable": false
+        },
+        {
+          "path": "tools/approval_gateway_wait.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "cb637ab95a335feec3141ecb05f27df4783c341ad53e2dcf7d794057e0f7e45c",
+          "findings_sha256": "cb637ab95a335feec3141ecb05f27df4783c341ad53e2dcf7d794057e0f7e45c",
+          "continuation_sha256": null,
+          "unstable": false
+        }
+      ],
+      "supporting": [],
+      "note": "引用产品源码 sha256 与 final-findings/coverage 一致。沿用该静态标签和未运行标记。不是当前运行验证、安全通过或已修。"
+    },
+    {
+      "id": "appr-grace",
+      "origins": [
+        "approval.md#低-3秒"
+      ],
+      "title": "3 秒宽限提交的是已完成的真实结果，不是取消哨兵",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json"
+      ],
+      "carried_static_status": "false_positive",
+      "findings_status": "false_positive",
+      "continuation_status": null,
+      "severity": "low",
+      "confidence": "确定",
+      "fingerprint": "match",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "agent/tool_executor.py:952-958",
+        "agent/tool_executor.py:1540-1553"
+      ],
+      "files": [
+        {
+          "path": "agent/tool_executor.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "c85e239d1d56ad415902db2371e9e28c2216f6fd72e29860cff7f97b2e05a0c2",
+          "findings_sha256": "c85e239d1d56ad415902db2371e9e28c2216f6fd72e29860cff7f97b2e05a0c2",
+          "continuation_sha256": null,
+          "unstable": false
+        }
+      ],
+      "supporting": [],
+      "note": "引用产品源码 sha256 与 final-findings/coverage 一致。沿用该静态标签和未运行标记。不是当前运行验证、安全通过或已修。"
+    },
+    {
+      "id": "ctx-commit-fail",
+      "origins": [
+        "context.md#3.1"
+      ],
+      "title": "压缩提交失败仍换提示并继续打模型，flush 基线被当成轮换清空",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json"
+      ],
+      "carried_static_status": "active",
+      "findings_status": "active",
+      "continuation_status": null,
+      "severity": "high",
+      "confidence": "确定",
+      "fingerprint": "match",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "agent/conversation_compression.py:3082-3137",
+        "agent/conversation_compression.py:3104-3105",
+        "agent/conversation_compression.py:3590-3591",
+        "agent/conversation_compression.py:3674",
+        "agent/conversation_compression.py:3708-3739",
+        "agent/conversation_compression.py:3434",
+        "agent/conversation_compression.py:3912-3913",
+        "agent/conversation_compression.py:4198-4239",
+        "agent/conversation_compression.py:2133-2146",
+        "agent/turn_preflight.py:147-191",
+        "agent/turn_overflow.py:154-178",
+        "tools/mcp_tool_agent.py:190-194"
+      ],
+      "files": [
+        {
+          "path": "agent/conversation_compression.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "796494d28180659f2843599420840832e1f528ecad2110b498a59f53e34e6bcb",
+          "findings_sha256": "796494d28180659f2843599420840832e1f528ecad2110b498a59f53e34e6bcb",
+          "continuation_sha256": null,
+          "unstable": false
+        },
+        {
+          "path": "agent/turn_overflow.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "14d483d7043f1fc39b01f5fd15521392ef734cbbff05e9ce68a7597100f18235",
+          "findings_sha256": "14d483d7043f1fc39b01f5fd15521392ef734cbbff05e9ce68a7597100f18235",
+          "continuation_sha256": null,
+          "unstable": false
+        },
+        {
+          "path": "agent/turn_preflight.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "5909b32461c37fa50afd4b537f84e120f14bad22bbb9c5f0f197d9ec6bdfb0b4",
+          "findings_sha256": "5909b32461c37fa50afd4b537f84e120f14bad22bbb9c5f0f197d9ec6bdfb0b4",
+          "continuation_sha256": null,
+          "unstable": false
+        },
+        {
+          "path": "tools/mcp_tool_agent.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "cddaeb9e8e035c2982a7299c35ad288ab3187eb4848562a16c57b64559a87447",
+          "findings_sha256": "cddaeb9e8e035c2982a7299c35ad288ab3187eb4848562a16c57b64559a87447",
+          "continuation_sha256": null,
+          "unstable": false
+        }
+      ],
+      "supporting": [],
+      "note": "引用产品源码 sha256 与 final-findings/coverage 一致。沿用该静态标签和未运行标记。不是当前运行验证、安全通过或已修。"
+    },
+    {
+      "id": "ctx-positional",
+      "origins": [
+        "context.md#3.2"
+      ],
+      "title": "预检不区分 provider，按位置丢掉仍在的 tool 结果并补 stub",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json"
+      ],
+      "carried_static_status": "active",
+      "findings_status": "active",
+      "continuation_status": null,
+      "severity": "medium",
+      "confidence": "确定",
+      "fingerprint": "match",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "agent/agent_runtime_helpers.py:2911-2982",
+        "agent/agent_runtime_helpers.py:2964-2971",
+        "agent/agent_runtime_helpers.py:3106-3115"
+      ],
+      "files": [
+        {
+          "path": "agent/agent_runtime_helpers.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "36914aaf5c7ac3ed92c9f6d0d7da253a97e4268f4a054319e5f96e41d3b4b341",
+          "findings_sha256": "36914aaf5c7ac3ed92c9f6d0d7da253a97e4268f4a054319e5f96e41d3b4b341",
+          "continuation_sha256": null,
+          "unstable": false
+        }
+      ],
+      "supporting": [],
+      "note": "引用产品源码 sha256 与 final-findings/coverage 一致。沿用该静态标签和未运行标记。不是当前运行验证、安全通过或已修。"
+    },
+    {
+      "id": "ctx-skill-id",
+      "origins": [
+        "context.md#3.3"
+      ],
+      "title": "当前 Codex 写入把 id 设成与结果相同的配对串",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json"
+      ],
+      "carried_static_status": "false_positive",
+      "findings_status": "false_positive",
+      "continuation_status": null,
+      "severity": "low",
+      "confidence": "确定",
+      "fingerprint": "match",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "agent/codex_responses_adapter.py:1160-1171",
+        "agent/transports/codex_event_projector.py:96-101"
+      ],
+      "files": [
+        {
+          "path": "agent/codex_responses_adapter.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "32f9899f4451b7965ceebb3919e503fedf61173a47078c8b8335872e42d1610f",
+          "findings_sha256": "32f9899f4451b7965ceebb3919e503fedf61173a47078c8b8335872e42d1610f",
+          "continuation_sha256": null,
+          "unstable": false
+        },
+        {
+          "path": "agent/transports/codex_event_projector.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "bd3b548d795067fc7b46082ba4301c747e65ed664dfb3f37c6eb9c7a9a872588",
+          "findings_sha256": "bd3b548d795067fc7b46082ba4301c747e65ed664dfb3f37c6eb9c7a9a872588",
+          "continuation_sha256": null,
+          "unstable": false
+        }
+      ],
+      "supporting": [],
+      "note": "引用产品源码 sha256 与 final-findings/coverage 一致。沿用该静态标签和未运行标记。不是当前运行验证、安全通过或已修。"
+    },
+    {
+      "id": "inp-media",
+      "origins": [
+        "input-security.md#1"
+      ],
+      "title": "媒体外发默认不严格",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json"
+      ],
+      "carried_static_status": "active",
+      "findings_status": "active",
+      "continuation_status": null,
+      "severity": "medium",
+      "confidence": "确定",
+      "fingerprint": "match",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "hermes_cli/config_defaults.py:2207-2212"
+      ],
+      "files": [
+        {
+          "path": "hermes_cli/config_defaults.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "2c7f02045f582d03565dbb59972f09fc21fcac71a26adb5117d5754759ccb634",
+          "findings_sha256": "2c7f02045f582d03565dbb59972f09fc21fcac71a26adb5117d5754759ccb634",
+          "continuation_sha256": null,
+          "unstable": false
+        }
+      ],
+      "supporting": [],
+      "note": "引用产品源码 sha256 与 final-findings/coverage 一致。沿用该静态标签和未运行标记。不是当前运行验证、安全通过或已修。"
+    },
+    {
+      "id": "inp-origin",
+      "origins": [
+        "input-security.md#2"
+      ],
+      "title": "面板省略端口匹配任意 Host 端口",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json"
+      ],
+      "carried_static_status": "active",
+      "findings_status": "active",
+      "continuation_status": null,
+      "severity": "medium",
+      "confidence": "可能",
+      "fingerprint": "match",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "clawd_server/auth.py:239-242",
+        "clawd_server/auth.py:275-280",
+        "clawd_server/server.py:277-281"
+      ],
+      "files": [
+        {
+          "path": "clawd_server/auth.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "db2dc7f169dbe4e4da6e9c1b9f1b8858c9ca2ecee3577e515e1b2c2d4b9e96ca",
+          "findings_sha256": "db2dc7f169dbe4e4da6e9c1b9f1b8858c9ca2ecee3577e515e1b2c2d4b9e96ca",
+          "continuation_sha256": null,
+          "unstable": false
+        },
+        {
+          "path": "clawd_server/server.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "ea3534ab92e054fe38c79f6533b8797c86dea07facdfb09d3badc5a060dd03ab",
+          "findings_sha256": "ea3534ab92e054fe38c79f6533b8797c86dea07facdfb09d3badc5a060dd03ab",
+          "continuation_sha256": null,
+          "unstable": false
+        }
+      ],
+      "supporting": [],
+      "note": "引用产品源码 sha256 与 final-findings/coverage 一致。沿用该静态标签和未运行标记。不是当前运行验证、安全通过或已修。"
+    },
+    {
+      "id": "inp-auth-bool",
+      "origins": [
+        "input-security.md#3"
+      ],
+      "title": "当前 aiohttp 的 Response 不为假，不能靠真值绕鉴权",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json"
+      ],
+      "carried_static_status": "false_positive",
+      "findings_status": "false_positive",
+      "continuation_status": null,
+      "severity": "high",
+      "confidence": "确定",
+      "fingerprint": "changed-branch-sufficient",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "gateway/platforms/api_server.py:800-802",
+        "gateway/platforms/api_server.py:1415-1428"
+      ],
+      "files": [
+        {
+          "path": "gateway/platforms/api_server.py",
+          "role": "product-source",
+          "fingerprint": "changed",
+          "current_sha256": "e653b26b4bcb8e816cc673c62304727b511bbb24b980cfff8024d35beeab7a5c",
+          "findings_sha256": "b95284ed570ea9f3ed4f0218af12eff91891373a32a93f60f89658b43ba839de",
+          "continuation_sha256": null,
+          "unstable": false
+        }
+      ],
+      "supporting": [
+        {
+          "path": ".venv/lib/python3.14/site-packages/aiohttp/web_response.py",
+          "fingerprint": "match",
+          "reason": null,
+          "current_sha256": "78aa643c57d0c94b7f41b5e8b4d2e68f63aaae80d02fb2dd01278384eaf92e74",
+          "used_to_update_conclusion": false
+        }
+      ],
+      "note": "_require_auth 仍在 auth_err 为真时返回该响应。aiohttp 证据哈希与 coverage 一致。不是安全通过，未运行。"
+    },
+    {
+      "id": "inp-empty-key",
+      "origins": [
+        "input-security.md#4"
+      ],
+      "title": "默认 profile 空密钥时请求检查放行；已读生产监听都先过启动门禁",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json"
+      ],
+      "carried_static_status": "active",
+      "findings_status": "active",
+      "continuation_status": null,
+      "severity": "low",
+      "confidence": "确定",
+      "fingerprint": "changed-branch-sufficient",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "gateway/platforms/api_server.py:1421-1423",
+        "gateway/platforms/api_server.py:4006-4025",
+        "gateway/platforms/api_server.py:4031"
+      ],
+      "files": [
+        {
+          "path": "clawd_server/server.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "ea3534ab92e054fe38c79f6533b8797c86dea07facdfb09d3badc5a060dd03ab",
+          "findings_sha256": "ea3534ab92e054fe38c79f6533b8797c86dea07facdfb09d3badc5a060dd03ab",
+          "continuation_sha256": null,
+          "unstable": false
+        },
+        {
+          "path": "gateway/platforms/api_server.py",
+          "role": "product-source",
+          "fingerprint": "changed",
+          "current_sha256": "e653b26b4bcb8e816cc673c62304727b511bbb24b980cfff8024d35beeab7a5c",
+          "findings_sha256": "b95284ed570ea9f3ed4f0218af12eff91891373a32a93f60f89658b43ba839de",
+          "continuation_sha256": null,
+          "unstable": false
+        },
+        {
+          "path": "gateway/run_adapters.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "df6c3ad0b2ffe944636192aa8d0c0719601a7aa3f5dd8830b957e6fbcbb06325",
+          "findings_sha256": "df6c3ad0b2ffe944636192aa8d0c0719601a7aa3f5dd8830b957e6fbcbb06325",
+          "continuation_sha256": null,
+          "unstable": false
+        }
+      ],
+      "supporting": [],
+      "note": "默认 profile 空密钥时 _check_auth 仍返回 None。connect() 仍在创建 Application 和加路由之前因启动门禁返回。门禁之后的路由登记不绕过该返回，不升格为新 ID。不是已确认远程绕鉴权，也不是修复。"
+    },
+    {
+      "id": "inp-webhook-v1",
+      "origins": [
+        "input-security.md#5"
+      ],
+      "title": "遗留 V1 仍接受无时间戳的 body HMAC",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json"
+      ],
+      "carried_static_status": "active",
+      "findings_status": "active",
+      "continuation_status": null,
+      "severity": "low",
+      "confidence": "确定",
+      "fingerprint": "match",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "gateway/platforms/webhook.py:77-80",
+        "gateway/platforms/webhook.py:548-557",
+        "gateway/platforms/webhook.py:887-910"
+      ],
+      "files": [
+        {
+          "path": "gateway/platforms/webhook.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "31e8fcc00d4649ad760aaeba8fe0bfda47e97dc4587622d74b8e1674285907f8",
+          "findings_sha256": "31e8fcc00d4649ad760aaeba8fe0bfda47e97dc4587622d74b8e1674285907f8",
+          "continuation_sha256": null,
+          "unstable": false
+        }
+      ],
+      "supporting": [],
+      "note": "引用产品源码 sha256 与 final-findings/coverage 一致。沿用该静态标签和未运行标记。不是当前运行验证、安全通过或已修。"
+    },
+    {
+      "id": "inp-password",
+      "origins": [
+        "input-security.md#6"
+      ],
+      "title": "面板口令是固定前缀的 SHA-256；同用户读文件不升格",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json"
+      ],
+      "carried_static_status": "active",
+      "findings_status": "active",
+      "continuation_status": null,
+      "severity": "low",
+      "confidence": "确定",
+      "fingerprint": "match",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "clawd_server/auth.py:15-25",
+        "clawd_server/auth.py:51-72",
+        "clawd_server/server.py:264-274"
+      ],
+      "files": [
+        {
+          "path": "clawd_server/auth.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "db2dc7f169dbe4e4da6e9c1b9f1b8858c9ca2ecee3577e515e1b2c2d4b9e96ca",
+          "findings_sha256": "db2dc7f169dbe4e4da6e9c1b9f1b8858c9ca2ecee3577e515e1b2c2d4b9e96ca",
+          "continuation_sha256": null,
+          "unstable": false
+        },
+        {
+          "path": "clawd_server/server.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "ea3534ab92e054fe38c79f6533b8797c86dea07facdfb09d3badc5a060dd03ab",
+          "findings_sha256": "ea3534ab92e054fe38c79f6533b8797c86dea07facdfb09d3badc5a060dd03ab",
+          "continuation_sha256": null,
+          "unstable": false
+        }
+      ],
+      "supporting": [],
+      "note": "引用产品源码 sha256 与 final-findings/coverage 一致。沿用该静态标签和未运行标记。不是当前运行验证、安全通过或已修。"
+    },
+    {
+      "id": "inp-lazy",
+      "origins": [
+        "input-security.md#7"
+      ],
+      "title": "懒安装默认开启，但 sink 是锁文件钉死的 extra",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json"
+      ],
+      "carried_static_status": "active",
+      "findings_status": "active",
+      "continuation_status": null,
+      "severity": "low",
+      "confidence": "确定",
+      "fingerprint": "match",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "hermes_cli/config_defaults.py:1779-1782",
+        "pm/install.py:168-197",
+        "pm/install.py:434-486"
+      ],
+      "files": [
+        {
+          "path": "hermes_cli/config_defaults.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "2c7f02045f582d03565dbb59972f09fc21fcac71a26adb5117d5754759ccb634",
+          "findings_sha256": "2c7f02045f582d03565dbb59972f09fc21fcac71a26adb5117d5754759ccb634",
+          "continuation_sha256": null,
+          "unstable": false
+        },
+        {
+          "path": "pm/install.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "2f48a18bb2b8c452432ddd675599bb859e7a1dcdcbadd5326b252376d1b4b1a0",
+          "findings_sha256": "2f48a18bb2b8c452432ddd675599bb859e7a1dcdcbadd5326b252376d1b4b1a0",
+          "continuation_sha256": null,
+          "unstable": false
+        }
+      ],
+      "supporting": [],
+      "note": "引用产品源码 sha256 与 final-findings/coverage 一致。沿用该静态标签和未运行标记。不是当前运行验证、安全通过或已修。"
+    },
+    {
+      "id": "prov-short-string",
+      "origins": [
+        "provider.md#高-补括号"
+      ],
+      "title": "未闭合字符串不会被补成缩短命令并执行",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json"
+      ],
+      "carried_static_status": "false_positive",
+      "findings_status": "false_positive",
+      "continuation_status": null,
+      "severity": "high",
+      "confidence": "确定",
+      "fingerprint": "match",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "agent/message_sanitization.py:199-200",
+        "agent/message_sanitization.py:225-226",
+        "agent/chat_completion_helpers.py:3269-3273",
+        "agent/turn_tool_validation.py:183-203"
+      ],
+      "files": [
+        {
+          "path": "agent/chat_completion_helpers.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "521197b064685590a239277be83070c04dbb6ff683625dfd7b884cc587fbd98b",
+          "findings_sha256": "521197b064685590a239277be83070c04dbb6ff683625dfd7b884cc587fbd98b",
+          "continuation_sha256": null,
+          "unstable": false
+        },
+        {
+          "path": "agent/message_sanitization.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "154e3bf8f59214df4aa8c34cfe210222737c06aa1fb897fe6484834631be2d82",
+          "findings_sha256": "154e3bf8f59214df4aa8c34cfe210222737c06aa1fb897fe6484834631be2d82",
+          "continuation_sha256": null,
+          "unstable": false
+        },
+        {
+          "path": "agent/turn_tool_validation.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "cd5e412e4311bc12238f7774b084d5440c91e40710eafdeaac7c1bfa2ddb0ac4",
+          "findings_sha256": "cd5e412e4311bc12238f7774b084d5440c91e40710eafdeaac7c1bfa2ddb0ac4",
+          "continuation_sha256": null,
+          "unstable": false
+        }
+      ],
+      "supporting": [],
+      "note": "引用产品源码 sha256 与 final-findings/coverage 一致。沿用该静态标签和未运行标记。不是当前运行验证、安全通过或已修。"
+    },
+    {
+      "id": "prov-prefix",
+      "origins": [
+        "provider.md#高-补括号"
+      ],
+      "title": "已闭合的 tool 参数前缀被补括号后执行",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json"
+      ],
+      "carried_static_status": "active",
+      "findings_status": "active",
+      "continuation_status": null,
+      "severity": "medium",
+      "confidence": "确定",
+      "fingerprint": "match",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "agent/chat_completion_helpers.py:3262-3273",
+        "agent/message_sanitization.py:193-227",
+        "agent/turn_tool_validation.py:167-203"
+      ],
+      "files": [
+        {
+          "path": "agent/chat_completion_helpers.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "521197b064685590a239277be83070c04dbb6ff683625dfd7b884cc587fbd98b",
+          "findings_sha256": "521197b064685590a239277be83070c04dbb6ff683625dfd7b884cc587fbd98b",
+          "continuation_sha256": null,
+          "unstable": false
+        },
+        {
+          "path": "agent/message_sanitization.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "154e3bf8f59214df4aa8c34cfe210222737c06aa1fb897fe6484834631be2d82",
+          "findings_sha256": "154e3bf8f59214df4aa8c34cfe210222737c06aa1fb897fe6484834631be2d82",
+          "continuation_sha256": null,
+          "unstable": false
+        },
+        {
+          "path": "agent/turn_tool_validation.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "cd5e412e4311bc12238f7774b084d5440c91e40710eafdeaac7c1bfa2ddb0ac4",
+          "findings_sha256": "cd5e412e4311bc12238f7774b084d5440c91e40710eafdeaac7c1bfa2ddb0ac4",
+          "continuation_sha256": null,
+          "unstable": false
+        }
+      ],
+      "supporting": [],
+      "note": "引用产品源码 sha256 与 final-findings/coverage 一致。沿用该静态标签和未运行标记。不是当前运行验证、安全通过或已修。"
+    },
+    {
+      "id": "prov-empty",
+      "origins": [
+        "provider.md#高-空参数"
+      ],
+      "title": "有结束原因且参数为空时被改成 {} 并执行",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json"
+      ],
+      "carried_static_status": "active",
+      "findings_status": "active",
+      "continuation_status": null,
+      "severity": "medium",
+      "confidence": "确定",
+      "fingerprint": "match",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "agent/chat_completion_helpers.py:3282-3285",
+        "agent/turn_tool_validation.py:167-168"
+      ],
+      "files": [
+        {
+          "path": "agent/chat_completion_helpers.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "521197b064685590a239277be83070c04dbb6ff683625dfd7b884cc587fbd98b",
+          "findings_sha256": "521197b064685590a239277be83070c04dbb6ff683625dfd7b884cc587fbd98b",
+          "continuation_sha256": null,
+          "unstable": false
+        },
+        {
+          "path": "agent/turn_tool_validation.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "cd5e412e4311bc12238f7774b084d5440c91e40710eafdeaac7c1bfa2ddb0ac4",
+          "findings_sha256": "cd5e412e4311bc12238f7774b084d5440c91e40710eafdeaac7c1bfa2ddb0ac4",
+          "continuation_sha256": null,
+          "unstable": false
+        }
+      ],
+      "supporting": [],
+      "note": "引用产品源码 sha256 与 final-findings/coverage 一致。沿用该静态标签和未运行标记。不是当前运行验证、安全通过或已修。"
+    },
+    {
+      "id": "prov-redirect",
+      "origins": [
+        "provider.md#高-重定向"
+      ],
+      "title": "Anthropic 兼容客户端跟随重定向并带走 X-Api-Key",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json"
+      ],
+      "carried_static_status": "active",
+      "findings_status": "active",
+      "continuation_status": null,
+      "severity": "high",
+      "confidence": "确定",
+      "fingerprint": "match",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "agent/anthropic_adapter.py:385-397",
+        "agent/anthropic_adapter.py:446-456",
+        "agent/anthropic_adapter.py:507-520",
+        ".venv/lib/python3.14/site-packages/anthropic/_base_client.py:905-909",
+        ".venv/lib/python3.14/site-packages/anthropic/_client.py:362-366",
+        ".venv/lib/python3.14/site-packages/httpx/_client.py:546-556"
+      ],
+      "files": [
+        {
+          "path": "agent/anthropic_adapter.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "d40c5260063e222cc85424c70d77883d80d67b60bcc5fe9b136b3c2bbf1bc164",
+          "findings_sha256": "d40c5260063e222cc85424c70d77883d80d67b60bcc5fe9b136b3c2bbf1bc164",
+          "continuation_sha256": null,
+          "unstable": false
+        }
+      ],
+      "supporting": [
+        {
+          "path": ".venv/lib/python3.14/site-packages/anthropic/_base_client.py",
+          "fingerprint": "match",
+          "reason": null,
+          "current_sha256": "978a8c5f342a05f14e9cfecd5a49f291f57f11b9320a9431dd568f230fa22711",
+          "used_to_update_conclusion": false
+        },
+        {
+          "path": ".venv/lib/python3.14/site-packages/anthropic/_client.py",
+          "fingerprint": "match",
+          "reason": null,
+          "current_sha256": "2a650913f060195b5a53905002246a900d632c0411fe3343ed6f74e7412a0b01",
+          "used_to_update_conclusion": false
+        },
+        {
+          "path": ".venv/lib/python3.14/site-packages/httpx/_client.py",
+          "fingerprint": "match",
+          "reason": null,
+          "current_sha256": "c43f941baefe58c91e96d00039e1868fe719d91453026d7db1647194563bff8d",
+          "used_to_update_conclusion": false
+        }
+      ],
+      "note": "引用产品源码 sha256 与 final-findings/coverage 一致。沿用该静态标签和未运行标记。不是当前运行验证、安全通过或已修。"
+    },
+    {
+      "id": "prov-unknown",
+      "origins": [
+        "provider.md#高-未知provider"
+      ],
+      "title": "未知 provider 被改写成 chat_completions",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json"
+      ],
+      "carried_static_status": "active",
+      "findings_status": "active",
+      "continuation_status": null,
+      "severity": "low",
+      "confidence": "确定",
+      "fingerprint": "match",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "hermes_cli/providers.py:462-482"
+      ],
+      "files": [
+        {
+          "path": "hermes_cli/providers.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "e16d4b818c1af482024bb891003bc134f2ab0b347908abbdb2386e02391d1c8e",
+          "findings_sha256": "e16d4b818c1af482024bb891003bc134f2ab0b347908abbdb2386e02391d1c8e",
+          "continuation_sha256": null,
+          "unstable": false
+        }
+      ],
+      "supporting": [],
+      "note": "引用产品源码 sha256 与 final-findings/coverage 一致。沿用该静态标签和未运行标记。不是当前运行验证、安全通过或已修。"
+    },
+    {
+      "id": "prov-drip",
+      "origins": [
+        "provider.md#高-滴流"
+      ],
+      "title": "读超时和静默看门狗都会被慢速块重置，总时限默认关闭",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json"
+      ],
+      "carried_static_status": "active",
+      "findings_status": "active",
+      "continuation_status": null,
+      "severity": "medium",
+      "confidence": "确定",
+      "fingerprint": "match",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "agent/stream_max_lifetime.py:1-37",
+        "agent/chat_completion_stream_monitor.py:208-214"
+      ],
+      "files": [
+        {
+          "path": "agent/chat_completion_stream_monitor.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "1c74313db79042c0831a94b2a008074d0cd5f2b30ec51dd252fe905582c74112",
+          "findings_sha256": "1c74313db79042c0831a94b2a008074d0cd5f2b30ec51dd252fe905582c74112",
+          "continuation_sha256": null,
+          "unstable": false
+        },
+        {
+          "path": "agent/stream_max_lifetime.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "40a009765a4c87ca2a485a4bb4ec9c96eff50f51ff19276b1d40ba7e76c7295c",
+          "findings_sha256": "40a009765a4c87ca2a485a4bb4ec9c96eff50f51ff19276b1d40ba7e76c7295c",
+          "continuation_sha256": null,
+          "unstable": false
+        }
+      ],
+      "supporting": [],
+      "note": "引用产品源码 sha256 与 final-findings/coverage 一致。沿用该静态标签和未运行标记。不是当前运行验证、安全通过或已修。"
+    },
+    {
+      "id": "prov-redact",
+      "origins": [
+        "provider.md#高-脱敏"
+      ],
+      "title": "SDK error.body 字典路径不脱敏",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json"
+      ],
+      "carried_static_status": "active",
+      "findings_status": "active",
+      "continuation_status": null,
+      "severity": "medium",
+      "confidence": "确定",
+      "fingerprint": "match",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "agent/api_error_summary.py:217-221",
+        "agent/api_error_summary.py:248",
+        "agent/api_error_summary.py:257-259"
+      ],
+      "files": [
+        {
+          "path": "agent/api_error_summary.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "52b242bc394d0081d351c7e57a7b91b11c13eef14f4fcb937ab5052da56b3ce4",
+          "findings_sha256": "52b242bc394d0081d351c7e57a7b91b11c13eef14f4fcb937ab5052da56b3ce4",
+          "continuation_sha256": null,
+          "unstable": false
+        }
+      ],
+      "supporting": [],
+      "note": "引用产品源码 sha256 与 final-findings/coverage 一致。沿用该静态标签和未运行标记。不是当前运行验证、安全通过或已修。"
+    },
+    {
+      "id": "prov-pool",
+      "origins": [
+        "provider.md#中-连接池"
+      ],
+      "title": "连接池超过 32 后新建的传输被视图包住，close 不关内部池",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json"
+      ],
+      "carried_static_status": "active",
+      "findings_status": "active",
+      "continuation_status": null,
+      "severity": "medium",
+      "confidence": "确定",
+      "fingerprint": "match",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "agent/process_bootstrap.py:223-226",
+        "agent/process_bootstrap.py:247-267",
+        "agent/process_bootstrap.py:320-324"
+      ],
+      "files": [
+        {
+          "path": "agent/process_bootstrap.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "baa6239634aede3eff2a1628d07070df7beeb0bf1d93fe5cbad8ee3014192499",
+          "findings_sha256": "baa6239634aede3eff2a1628d07070df7beeb0bf1d93fe5cbad8ee3014192499",
+          "continuation_sha256": null,
+          "unstable": false
+        }
+      ],
+      "supporting": [],
+      "note": "引用产品源码 sha256 与 final-findings/coverage 一致。沿用该静态标签和未运行标记。不是当前运行验证、安全通过或已修。"
+    },
+    {
+      "id": "prov-cancel",
+      "origins": [
+        "provider.md#中-取消落空"
+      ],
+      "title": "非流工作线程的套接字清扫是一次性的",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json"
+      ],
+      "carried_static_status": "active",
+      "findings_status": "active",
+      "continuation_status": null,
+      "severity": "medium",
+      "confidence": "确定",
+      "fingerprint": "match",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "agent/chat_completion_helpers.py:2967-2984",
+        "agent/chat_completion_nonstream.py:104-110",
+        "agent/process_bootstrap.py:292"
+      ],
+      "files": [
+        {
+          "path": "agent/chat_completion_helpers.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "521197b064685590a239277be83070c04dbb6ff683625dfd7b884cc587fbd98b",
+          "findings_sha256": "521197b064685590a239277be83070c04dbb6ff683625dfd7b884cc587fbd98b",
+          "continuation_sha256": null,
+          "unstable": false
+        },
+        {
+          "path": "agent/chat_completion_nonstream.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "34d4afad0a0c7228a0518eed4a2521ba1a340f509c83784c74abceb56f1becb7",
+          "findings_sha256": "34d4afad0a0c7228a0518eed4a2521ba1a340f509c83784c74abceb56f1becb7",
+          "continuation_sha256": null,
+          "unstable": false
+        },
+        {
+          "path": "agent/process_bootstrap.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "baa6239634aede3eff2a1628d07070df7beeb0bf1d93fe5cbad8ee3014192499",
+          "findings_sha256": "baa6239634aede3eff2a1628d07070df7beeb0bf1d93fe5cbad8ee3014192499",
+          "continuation_sha256": null,
+          "unstable": false
+        }
+      ],
+      "supporting": [],
+      "note": "引用产品源码 sha256 与 final-findings/coverage 一致。沿用该静态标签和未运行标记。不是当前运行验证、安全通过或已修。"
+    },
+    {
+      "id": "prov-url",
+      "origins": [
+        "provider.md#中-危险URL"
+      ],
+      "title": "构造失败会落到跟随重定向的 SDK 默认客户端；本机 URL 不算 SSRF",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json"
+      ],
+      "carried_static_status": "active",
+      "findings_status": "active",
+      "continuation_status": null,
+      "severity": "low",
+      "confidence": "确定",
+      "fingerprint": "match",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "agent/process_bootstrap.py:328-331",
+        ".venv/lib/python3.14/site-packages/openai/_base_client.py:869-874",
+        ".venv/lib/python3.14/site-packages/httpx/_client.py:552-556"
+      ],
+      "files": [
+        {
+          "path": "agent/process_bootstrap.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "baa6239634aede3eff2a1628d07070df7beeb0bf1d93fe5cbad8ee3014192499",
+          "findings_sha256": "baa6239634aede3eff2a1628d07070df7beeb0bf1d93fe5cbad8ee3014192499",
+          "continuation_sha256": null,
+          "unstable": false
+        }
+      ],
+      "supporting": [
+        {
+          "path": ".venv/lib/python3.14/site-packages/openai/_base_client.py",
+          "fingerprint": "match",
+          "reason": null,
+          "current_sha256": "5539c83d01c27e1bbf1ad34e59cc872202feb6c8bf81b56fadbeeb2b81a3e869",
+          "used_to_update_conclusion": false
+        },
+        {
+          "path": ".venv/lib/python3.14/site-packages/httpx/_client.py",
+          "fingerprint": "match",
+          "reason": null,
+          "current_sha256": "c43f941baefe58c91e96d00039e1868fe719d91453026d7db1647194563bff8d",
+          "used_to_update_conclusion": false
+        }
+      ],
+      "note": "引用产品源码 sha256 与 final-findings/coverage 一致。沿用该静态标签和未运行标记。不是当前运行验证、安全通过或已修。"
+    },
+    {
+      "id": "prov-retry",
+      "origins": [
+        "provider.md#中-重试叠乘"
+      ],
+      "title": "外层尝试包住流内 POST；Retry-After 帽在 600 秒后仍重试",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json"
+      ],
+      "carried_static_status": "active",
+      "findings_status": "active",
+      "continuation_status": null,
+      "severity": "medium",
+      "confidence": "确定",
+      "fingerprint": "match",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "agent/conversation_loop.py:1576",
+        "agent/chat_completion_helpers.py:3720-3743",
+        "agent/retry_utils.py:170-182"
+      ],
+      "files": [
+        {
+          "path": "agent/chat_completion_helpers.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "521197b064685590a239277be83070c04dbb6ff683625dfd7b884cc587fbd98b",
+          "findings_sha256": "521197b064685590a239277be83070c04dbb6ff683625dfd7b884cc587fbd98b",
+          "continuation_sha256": null,
+          "unstable": false
+        },
+        {
+          "path": "agent/conversation_loop.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "bc1a44a42e254c9500cee099aa0d81590534aecb0ae6986f0f5bce6f24849d49",
+          "findings_sha256": "bc1a44a42e254c9500cee099aa0d81590534aecb0ae6986f0f5bce6f24849d49",
+          "continuation_sha256": null,
+          "unstable": false
+        },
+        {
+          "path": "agent/retry_utils.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "4c643880c012dd536dca08041f1bae93b6a58477186b5cf0b4e27ec3c640014c",
+          "findings_sha256": "4c643880c012dd536dca08041f1bae93b6a58477186b5cf0b4e27ec3c640014c",
+          "continuation_sha256": null,
+          "unstable": false
+        }
+      ],
+      "supporting": [],
+      "note": "引用产品源码 sha256 与 final-findings/coverage 一致。沿用该静态标签和未运行标记。不是当前运行验证、安全通过或已修。"
+    },
+    {
+      "id": "prov-name",
+      "origins": [
+        "provider.md#中-tool名"
+      ],
+      "title": "分片合并分支在，官方 SDK 类型到不了缺 index 或非字符串参数",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json"
+      ],
+      "carried_static_status": "unverified",
+      "findings_status": "unverified",
+      "continuation_status": null,
+      "severity": "medium",
+      "confidence": "需验证",
+      "fingerprint": "match",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "agent/chat_completion_helpers_tool_calls.py:25-100",
+        ".venv/lib/python3.14/site-packages/openai/types/chat/chat_completion_chunk.py:49-63"
+      ],
+      "files": [
+        {
+          "path": "agent/chat_completion_helpers_tool_calls.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "eadf07162dbf3a1506a894a7e9ac26ec9d8295ab126977a0504007644a3d7903",
+          "findings_sha256": "eadf07162dbf3a1506a894a7e9ac26ec9d8295ab126977a0504007644a3d7903",
+          "continuation_sha256": null,
+          "unstable": false
+        }
+      ],
+      "supporting": [
+        {
+          "path": ".venv/lib/python3.14/site-packages/openai/types/chat/chat_completion_chunk.py",
+          "fingerprint": "no-baseline",
+          "reason": null,
+          "current_sha256": "39b86b03d4ee5df11ceac3bf31f3be57a39a4c30071af58a4e928b80c22aeb48",
+          "used_to_update_conclusion": false
+        }
+      ],
+      "note": "引用产品源码 sha256 与 final-findings/coverage 一致。沿用该静态标签和未运行标记。不是当前运行验证、安全通过或已修。 支持文件无旧哈希，本次观察值不用于改结论：.venv/lib/python3.14/site-packages/openai/types/chat/chat_completion_chunk.py。"
+    },
+    {
+      "id": "prov-finish-error",
+      "origins": [
+        "provider.md#中-finish_reason"
+      ],
+      "title": "流内错误文本只在 error / error_finish 时提升，stop 会当成成功回答",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json"
+      ],
+      "carried_static_status": "active",
+      "findings_status": "active",
+      "continuation_status": null,
+      "severity": "medium",
+      "confidence": "确定",
+      "fingerprint": "match",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "agent/chat_completion_helpers.py:61",
+        "agent/chat_completion_helpers.py:338-345",
+        "agent/chat_completion_helpers.py:3334-3338"
+      ],
+      "files": [
+        {
+          "path": "agent/chat_completion_helpers.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "521197b064685590a239277be83070c04dbb6ff683625dfd7b884cc587fbd98b",
+          "findings_sha256": "521197b064685590a239277be83070c04dbb6ff683625dfd7b884cc587fbd98b",
+          "continuation_sha256": null,
+          "unstable": false
+        }
+      ],
+      "supporting": [],
+      "note": "引用产品源码 sha256 与 final-findings/coverage 一致。沿用该静态标签和未运行标记。不是当前运行验证、安全通过或已修。"
+    },
+    {
+      "id": "prov-jitter",
+      "origins": [
+        "provider.md#低-抖动"
+      ],
+      "title": "流内退避抖动比为 0",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json"
+      ],
+      "carried_static_status": "active",
+      "findings_status": "active",
+      "continuation_status": null,
+      "severity": "low",
+      "confidence": "确定",
+      "fingerprint": "match",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "agent/chat_completion_helpers.py:3507-3509",
+        "agent/retry_utils.py:121-134"
+      ],
+      "files": [
+        {
+          "path": "agent/chat_completion_helpers.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "521197b064685590a239277be83070c04dbb6ff683625dfd7b884cc587fbd98b",
+          "findings_sha256": "521197b064685590a239277be83070c04dbb6ff683625dfd7b884cc587fbd98b",
+          "continuation_sha256": null,
+          "unstable": false
+        },
+        {
+          "path": "agent/retry_utils.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "4c643880c012dd536dca08041f1bae93b6a58477186b5cf0b4e27ec3c640014c",
+          "findings_sha256": "4c643880c012dd536dca08041f1bae93b6a58477186b5cf0b4e27ec3c640014c",
+          "continuation_sha256": null,
+          "unstable": false
+        }
+      ],
+      "supporting": [],
+      "note": "引用产品源码 sha256 与 final-findings/coverage 一致。沿用该静态标签和未运行标记。不是当前运行验证、安全通过或已修。"
+    },
+    {
+      "id": "bg-receipt",
+      "origins": [
+        "background.md#高-回执"
+      ],
+      "title": "续跑回执写在 create_task 返回时，早于回合结束",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json",
+        "continuation-current-recheck-2026-11-05.json"
+      ],
+      "carried_static_status": "active",
+      "findings_status": "active",
+      "continuation_status": "active",
+      "severity": "high",
+      "confidence": "确定",
+      "fingerprint": "continuation-current-match",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "gateway/clawd_continuation_admit.py:156-172 _go 异常以外一律 _set_run_status completed，不读 result['completed']",
+        "gateway/clawd_continuation_admit.py:174-180 create_task(_go) 后返回，不等待回合",
+        "gateway/clawd_continuation_admit.py:315-316 与 342-343 可复用则直接返回旧 run_id，不 _launch",
+        "gateway/clawd_continuation_admit.py:356-357 _launch 后立刻 return run_id",
+        "gateway/clawd_continuation.py:465-482 FROZEN_LAUNCH 只包住 admit；返回后立刻 add_receipts reason=admitted"
+      ],
+      "files": [
+        {
+          "path": "gateway/clawd_continuation.py",
+          "role": "product-source",
+          "fingerprint": "partial-match",
+          "current_sha256": "6c2be349953a7b1044549e322b5443d6e34847084bec600c46728eeae2c56d4f",
+          "findings_sha256": "300f059641a218a78bf8be30fe7a1e4e162f44053b3105efe0bfc78341bbe476",
+          "continuation_sha256": "6c2be349953a7b1044549e322b5443d6e34847084bec600c46728eeae2c56d4f",
+          "unstable": false
+        },
+        {
+          "path": "gateway/clawd_continuation_admit.py",
+          "role": "product-source",
+          "fingerprint": "partial-match",
+          "current_sha256": "a8e6b2f1c8595708186c6aba4ee034efefec107f8cd0b2bcc8a7b1e9cc017f3a",
+          "findings_sha256": "57e699c2ce583fa8f1d024442a5da01be3d1524ce906d16e4357132ee0a35282",
+          "continuation_sha256": "a8e6b2f1c8595708186c6aba4ee034efefec107f8cd0b2bcc8a7b1e9cc017f3a",
+          "unstable": false
+        }
+      ],
+      "supporting": [],
+      "note": "当前 sha 等于续跑重核记录，不等于 63 快照。沿用续跑静态状态，不用旧行号。静态变化不是修复或安全通过。未运行。 只审查，不授权修复。"
+    },
+    {
+      "id": "bg-lease",
+      "origins": [
+        "background.md#高-死租约"
+      ],
+      "title": "续跑 claim 失败直接返回，不排下一次评估",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json",
+        "continuation-current-recheck-2026-11-05.json"
+      ],
+      "carried_static_status": "active",
+      "findings_status": "active",
+      "continuation_status": "active",
+      "severity": "high",
+      "confidence": "确定",
+      "fingerprint": "continuation-current-match",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "gateway/clawd_continuation_journal.py:454-472 claim 对无行、他人活租约、admitted/exhausted 返回 False，自身不排程",
+        "gateway/clawd_continuation.py:442-443 主路径 claim 失败直接 return，不 _schedule",
+        "gateway/clawd_continuation.py:353-354 冻结前预算路径同样抢不到就 return，不 _schedule"
+      ],
+      "files": [
+        {
+          "path": "gateway/clawd_continuation.py",
+          "role": "product-source",
+          "fingerprint": "partial-match",
+          "current_sha256": "6c2be349953a7b1044549e322b5443d6e34847084bec600c46728eeae2c56d4f",
+          "findings_sha256": "300f059641a218a78bf8be30fe7a1e4e162f44053b3105efe0bfc78341bbe476",
+          "continuation_sha256": "6c2be349953a7b1044549e322b5443d6e34847084bec600c46728eeae2c56d4f",
+          "unstable": false
+        }
+      ],
+      "supporting": [],
+      "note": "当前 sha 等于续跑重核记录，不等于 63 快照。沿用续跑静态状态，不用旧行号。静态变化不是修复或安全通过。未运行。 只审查，不授权修复。"
+    },
+    {
+      "id": "bg-pid",
+      "origins": [
+        "background.md#高-PID"
+      ],
+      "title": "续跑把仍存在的 PID 当成可复用旧 run 并写回执",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json",
+        "continuation-current-recheck-2026-11-05.json"
+      ],
+      "carried_static_status": "active",
+      "findings_status": "active",
+      "continuation_status": "active",
+      "severity": "high",
+      "confidence": "确定",
+      "fingerprint": "continuation-current-match",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "gateway/clawd_continuation_admit.py:182-192 非终态且本进程无活 task 时，别的 pid 只要求 _pid_alive，不比 owner_started",
+        "gateway/clawd_continuation_admit.py:337-341 reserve 写入 owner_started，复用判断未读它",
+        "gateway/clawd_continuation_admit.py:315-316 与 342-343 复用成功返回旧 run_id，不 _launch",
+        "gateway/clawd_continuation.py:479-482 调用方随后写 admitted 回执"
+      ],
+      "files": [
+        {
+          "path": "gateway/clawd_continuation_admit.py",
+          "role": "product-source",
+          "fingerprint": "partial-match",
+          "current_sha256": "a8e6b2f1c8595708186c6aba4ee034efefec107f8cd0b2bcc8a7b1e9cc017f3a",
+          "findings_sha256": "57e699c2ce583fa8f1d024442a5da01be3d1524ce906d16e4357132ee0a35282",
+          "continuation_sha256": "a8e6b2f1c8595708186c6aba4ee034efefec107f8cd0b2bcc8a7b1e9cc017f3a",
+          "unstable": false
+        }
+      ],
+      "supporting": [],
+      "note": "当前 sha 等于续跑重核记录，不等于 63 快照。沿用续跑静态状态，不用旧行号。静态变化不是修复或安全通过。未运行。 只审查，不授权修复。"
+    },
+    {
+      "id": "bg-stop",
+      "origins": [
+        "background.md#高-停止"
+      ],
+      "title": "停止打不中续跑回合",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json",
+        "continuation-current-recheck-2026-11-05.json"
+      ],
+      "carried_static_status": "active",
+      "findings_status": "active",
+      "continuation_status": "active",
+      "severity": "high",
+      "confidence": "确定",
+      "fingerprint": "continuation-current-match",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "gateway/clawd_continuation_admit.py:137-180 _launch 不写 _active_run_agents，不传 request_id；若 _active_run_tasks 是 dict 则登记 task",
+        "gateway/platforms/api_server_runs.py:1291-1292 stop 装载的 agent/task 来自这两张表",
+        "gateway/platforms/api_server_runs.py:1556-1580 有 authority 且任务无 delivery_id 时走 stop_run 并返回；无 authority 时仅 agent 非空才 request_hard_interrupt，不取消 task"
+      ],
+      "files": [
+        {
+          "path": "gateway/clawd_continuation_admit.py",
+          "role": "product-source",
+          "fingerprint": "partial-match",
+          "current_sha256": "a8e6b2f1c8595708186c6aba4ee034efefec107f8cd0b2bcc8a7b1e9cc017f3a",
+          "findings_sha256": "57e699c2ce583fa8f1d024442a5da01be3d1524ce906d16e4357132ee0a35282",
+          "continuation_sha256": "a8e6b2f1c8595708186c6aba4ee034efefec107f8cd0b2bcc8a7b1e9cc017f3a",
+          "unstable": false
+        },
+        {
+          "path": "gateway/platforms/api_server_runs.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "554cb28b411b323fab038d4f24dedc7e4876b7266f2044bc5f3730e528fa122b",
+          "findings_sha256": "554cb28b411b323fab038d4f24dedc7e4876b7266f2044bc5f3730e528fa122b",
+          "continuation_sha256": "554cb28b411b323fab038d4f24dedc7e4876b7266f2044bc5f3730e528fa122b",
+          "unstable": false
+        }
+      ],
+      "supporting": [],
+      "note": "当前 sha 等于续跑重核记录，不等于 63 快照。沿用续跑静态状态，不用旧行号。静态变化不是修复或安全通过。未运行。 只审查，不授权修复。"
+    },
+    {
+      "id": "bg-human",
+      "origins": [
+        "background.md#高-人话"
+      ],
+      "title": "已发射的续跑不再服从更新的人话",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json",
+        "continuation-current-recheck-2026-11-05.json"
+      ],
+      "carried_static_status": "active",
+      "findings_status": "active",
+      "continuation_status": "active",
+      "severity": "high",
+      "confidence": "确定",
+      "fingerprint": "continuation-current-match",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "gateway/clawd_continuation.py:442-448 claim 后只再 _decide 一次；非 admit 才释放并改走该决策",
+        "gateway/clawd_continuation.py:468 await admit，其间不再 decide",
+        "gateway/clawd_continuation_admit.py:141-172 _go 不调用 decide，不比较人话代次",
+        "gateway/clawd_continuation.py:479-482 回执不因新人话撤销"
+      ],
+      "files": [
+        {
+          "path": "gateway/clawd_continuation.py",
+          "role": "product-source",
+          "fingerprint": "partial-match",
+          "current_sha256": "6c2be349953a7b1044549e322b5443d6e34847084bec600c46728eeae2c56d4f",
+          "findings_sha256": "300f059641a218a78bf8be30fe7a1e4e162f44053b3105efe0bfc78341bbe476",
+          "continuation_sha256": "6c2be349953a7b1044549e322b5443d6e34847084bec600c46728eeae2c56d4f",
+          "unstable": false
+        },
+        {
+          "path": "gateway/clawd_continuation_admit.py",
+          "role": "product-source",
+          "fingerprint": "partial-match",
+          "current_sha256": "a8e6b2f1c8595708186c6aba4ee034efefec107f8cd0b2bcc8a7b1e9cc017f3a",
+          "findings_sha256": "57e699c2ce583fa8f1d024442a5da01be3d1524ce906d16e4357132ee0a35282",
+          "continuation_sha256": "a8e6b2f1c8595708186c6aba4ee034efefec107f8cd0b2bcc8a7b1e9cc017f3a",
+          "unstable": false
+        }
+      ],
+      "supporting": [],
+      "note": "当前 sha 等于续跑重核记录，不等于 63 快照。沿用续跑静态状态，不用旧行号。静态变化不是修复或安全通过。未运行。 只审查，不授权修复。"
+    },
+    {
+      "id": "bg-busy",
+      "origins": [
+        "background.md#中-并发拒绝"
+      ],
+      "title": "续跑 busy/draining 会计入尝试次数",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json",
+        "continuation-current-recheck-2026-11-05.json"
+      ],
+      "carried_static_status": "active",
+      "findings_status": "active",
+      "continuation_status": "active",
+      "severity": "medium",
+      "confidence": "确定",
+      "fingerprint": "continuation-current-match",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "gateway/clawd_continuation.py:360-363 冻结前 busy/draining 记一次并 _schedule BACKOFF_S[0]",
+        "gateway/clawd_continuation.py:451-458 对齐阶段同类拒绝同样记次并退避",
+        "gateway/clawd_continuation.py:463-474 record_attempt 在 await admit 之前；admit 再抛 busy/draining 时用同一 attempt 改写并退避",
+        "gateway/clawd_continuation_decision.py:20 MAX_ATTEMPTS=5；343-344 才是 attempts_exhausted。342 行成功次数不是闸门"
+      ],
+      "files": [
+        {
+          "path": "gateway/clawd_continuation.py",
+          "role": "product-source",
+          "fingerprint": "partial-match",
+          "current_sha256": "6c2be349953a7b1044549e322b5443d6e34847084bec600c46728eeae2c56d4f",
+          "findings_sha256": "300f059641a218a78bf8be30fe7a1e4e162f44053b3105efe0bfc78341bbe476",
+          "continuation_sha256": "6c2be349953a7b1044549e322b5443d6e34847084bec600c46728eeae2c56d4f",
+          "unstable": false
+        }
+      ],
+      "supporting": [],
+      "note": "当前 sha 等于续跑重核记录，不等于 63 快照。沿用续跑静态状态，不用旧行号。静态变化不是修复或安全通过。未运行。 只审查，不授权修复。"
+    },
+    {
+      "id": "bg-plan",
+      "origins": [
+        "background.md#中-计划闸门"
+      ],
+      "title": "计划探针缺失，但没有可触发的计划待批输入",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json",
+        "continuation-current-recheck-2026-11-05.json"
+      ],
+      "carried_static_status": "false_positive",
+      "findings_status": "false_positive",
+      "continuation_status": "false_positive",
+      "severity": "medium",
+      "confidence": "确定",
+      "fingerprint": "continuation-current-match",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "gateway/clawd_continuation_gates.py:47-51 属性不可调用时 plan_pending 返回 False，不把 unknown 置真",
+        "gateway/clawd_continuation_gates.py:54-65 collect_gates 只消费该返回值",
+        "gateway/clawd_continuation_decision.py:211-244 transcript_plan_pending 只扫已载入行",
+        "gateway/clawd_continuation_decision.py:340-344 计划闸门仍在 attempts 比较之前；342 行注释不放行"
+      ],
+      "files": [
+        {
+          "path": "gateway/clawd_continuation_decision.py",
+          "role": "product-source",
+          "fingerprint": "partial-match",
+          "current_sha256": "fa244674385cc0b216ca29227d32025fb51848a9a7d43a5c34a4f77cd9b97dbd",
+          "findings_sha256": "9bd9fd9d65e78a7f9d9ebd240b63d10b5262c4e1c82557c0110bad53285751e1",
+          "continuation_sha256": "fa244674385cc0b216ca29227d32025fb51848a9a7d43a5c34a4f77cd9b97dbd",
+          "unstable": false
+        },
+        {
+          "path": "gateway/clawd_continuation_gates.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "6d2fa59a5c89ecf198799fb41e51fd7c3c6e671a0e23d2008ea0324ea1511ae9",
+          "findings_sha256": "6d2fa59a5c89ecf198799fb41e51fd7c3c6e671a0e23d2008ea0324ea1511ae9",
+          "continuation_sha256": "6d2fa59a5c89ecf198799fb41e51fd7c3c6e671a0e23d2008ea0324ea1511ae9",
+          "unstable": false
+        }
+      ],
+      "supporting": [],
+      "note": "当前 sha 等于续跑重核记录，不等于 63 快照。沿用续跑静态状态，不用旧行号。静态变化不是修复或安全通过。未运行。 已知误报，不升格。"
+    },
+    {
+      "id": "bg-window",
+      "origins": [
+        "background.md#中-300条"
+      ],
+      "title": "续跑预检用原始会话查租约，触发只看最新 300 条",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json",
+        "continuation-current-recheck-2026-11-05.json"
+      ],
+      "carried_static_status": "active",
+      "findings_status": "active",
+      "continuation_status": "active",
+      "severity": "medium",
+      "confidence": "确定",
+      "fingerprint": "continuation-current-match",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "gateway/clawd_continuation.py:306 与 501-503 预检 get_messages(session_id, limit=300, latest=True)，不传 include_ancestors",
+        "hermes_state_messages.py:1370-1372 include_ancestors 默认 False。本文件不在归并哈希内，只核签名默认",
+        "gateway/clawd_continuation.py:324 把传入 session_id 交给 turn_lease_expires",
+        "gateway/clawd_continuation_gates.py:68-73 查询 conversation_id = 传入 id，不走谱系根",
+        "hermes_state_compression.py:728-750 写入方用 _session_turn_lease_key_on_conn",
+        "gateway/wake.py:215-220 投递前 resolve_resume_session_id，失败则保留原 id"
+      ],
+      "files": [
+        {
+          "path": "gateway/clawd_continuation.py",
+          "role": "product-source",
+          "fingerprint": "partial-match",
+          "current_sha256": "6c2be349953a7b1044549e322b5443d6e34847084bec600c46728eeae2c56d4f",
+          "findings_sha256": "300f059641a218a78bf8be30fe7a1e4e162f44053b3105efe0bfc78341bbe476",
+          "continuation_sha256": "6c2be349953a7b1044549e322b5443d6e34847084bec600c46728eeae2c56d4f",
+          "unstable": false
+        },
+        {
+          "path": "gateway/clawd_continuation_gates.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "6d2fa59a5c89ecf198799fb41e51fd7c3c6e671a0e23d2008ea0324ea1511ae9",
+          "findings_sha256": "6d2fa59a5c89ecf198799fb41e51fd7c3c6e671a0e23d2008ea0324ea1511ae9",
+          "continuation_sha256": "6d2fa59a5c89ecf198799fb41e51fd7c3c6e671a0e23d2008ea0324ea1511ae9",
+          "unstable": false
+        },
+        {
+          "path": "gateway/wake.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "7fe985e4606b769355c942ba137e5d52037cd96d61c1a6072a2e837f782b1a32",
+          "findings_sha256": "7fe985e4606b769355c942ba137e5d52037cd96d61c1a6072a2e837f782b1a32",
+          "continuation_sha256": "7fe985e4606b769355c942ba137e5d52037cd96d61c1a6072a2e837f782b1a32",
+          "unstable": false
+        },
+        {
+          "path": "hermes_state_compression.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "8b6e2df32259d1d1c89a6f7215c8ba23ff7a91f69ecb83bcc9f3ff9a52863670",
+          "findings_sha256": "8b6e2df32259d1d1c89a6f7215c8ba23ff7a91f69ecb83bcc9f3ff9a52863670",
+          "continuation_sha256": "8b6e2df32259d1d1c89a6f7215c8ba23ff7a91f69ecb83bcc9f3ff9a52863670",
+          "unstable": false
+        }
+      ],
+      "supporting": [],
+      "note": "当前 sha 等于续跑重核记录，不等于 63 快照。沿用续跑静态状态，不用旧行号。静态变化不是修复或安全通过。未运行。 只审查，不授权修复。"
+    },
+    {
+      "id": "bg-approval-key",
+      "origins": [
+        "background.md#中-审批键"
+      ],
+      "title": "审批队列键不一致，但真实门不靠这把键放行",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json"
+      ],
+      "carried_static_status": "false_positive",
+      "findings_status": "false_positive",
+      "continuation_status": null,
+      "severity": "medium",
+      "confidence": "确定",
+      "fingerprint": "changed-branch-sufficient",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "gateway/platforms/api_server.py:3273-3282"
+      ],
+      "files": [
+        {
+          "path": "gateway/clawd_continuation_gates.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "6d2fa59a5c89ecf198799fb41e51fd7c3c6e671a0e23d2008ea0324ea1511ae9",
+          "findings_sha256": "6d2fa59a5c89ecf198799fb41e51fd7c3c6e671a0e23d2008ea0324ea1511ae9",
+          "continuation_sha256": "6d2fa59a5c89ecf198799fb41e51fd7c3c6e671a0e23d2008ea0324ea1511ae9",
+          "unstable": false
+        },
+        {
+          "path": "gateway/platforms/api_server.py",
+          "role": "product-source",
+          "fingerprint": "changed",
+          "current_sha256": "e653b26b4bcb8e816cc673c62304727b511bbb24b980cfff8024d35beeab7a5c",
+          "findings_sha256": "b95284ed570ea9f3ed4f0218af12eff91891373a32a93f60f89658b43ba839de",
+          "continuation_sha256": null,
+          "unstable": false
+        }
+      ],
+      "supporting": [],
+      "note": "当前登记仍按 run_id，并在 enqueue 前写 waiting_for_approval。gates.py 哈希匹配，未重读。不升格。未运行。"
+    },
+    {
+      "id": "bg-swallow",
+      "origins": [
+        "background.md#低-吞异常"
+      ],
+      "title": "续跑通知失败后投递仍算完成，评估失败不排重试",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json",
+        "continuation-current-recheck-2026-11-05.json"
+      ],
+      "carried_static_status": "active",
+      "findings_status": "active",
+      "continuation_status": "active",
+      "severity": "low",
+      "confidence": "确定",
+      "fingerprint": "continuation-current-match",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "gateway/wake.py:231-235 异常只记日志，不抛出，函数随后结束",
+        "gateway/clawd_continuation.py:293-301 JournalUnavailable 与宽 except 只 fail_closed，不 _schedule",
+        "gateway/clawd_continuation.py:257-264 fail_closed 只记事件"
+      ],
+      "files": [
+        {
+          "path": "gateway/clawd_continuation.py",
+          "role": "product-source",
+          "fingerprint": "partial-match",
+          "current_sha256": "6c2be349953a7b1044549e322b5443d6e34847084bec600c46728eeae2c56d4f",
+          "findings_sha256": "300f059641a218a78bf8be30fe7a1e4e162f44053b3105efe0bfc78341bbe476",
+          "continuation_sha256": "6c2be349953a7b1044549e322b5443d6e34847084bec600c46728eeae2c56d4f",
+          "unstable": false
+        },
+        {
+          "path": "gateway/wake.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "7fe985e4606b769355c942ba137e5d52037cd96d61c1a6072a2e837f782b1a32",
+          "findings_sha256": "7fe985e4606b769355c942ba137e5d52037cd96d61c1a6072a2e837f782b1a32",
+          "continuation_sha256": "7fe985e4606b769355c942ba137e5d52037cd96d61c1a6072a2e837f782b1a32",
+          "unstable": false
+        }
+      ],
+      "supporting": [],
+      "note": "当前 sha 等于续跑重核记录，不等于 63 快照。沿用续跑静态状态，不用旧行号。静态变化不是修复或安全通过。未运行。 只审查，不授权修复。"
+    },
+    {
+      "id": "bg-claim-true",
+      "origins": [
+        "background.md#低-无账本"
+      ],
+      "title": "缺行返回 True 不会让第二个产品进程拿到同一事件",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json"
+      ],
+      "carried_static_status": "false_positive",
+      "findings_status": "false_positive",
+      "continuation_status": null,
+      "severity": "low",
+      "confidence": "确定",
+      "fingerprint": "match",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "tools/async_delegation.py:582-597"
+      ],
+      "files": [
+        {
+          "path": "tools/async_delegation.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "a76a78ee29576b6b40d42044666b350f63d33e8b42a792b17bcb0cbd73069082",
+          "findings_sha256": "a76a78ee29576b6b40d42044666b350f63d33e8b42a792b17bcb0cbd73069082",
+          "continuation_sha256": null,
+          "unstable": false
+        }
+      ],
+      "supporting": [],
+      "note": "引用产品源码 sha256 与 final-findings/coverage 一致。沿用该静态标签和未运行标记。不是当前运行验证、安全通过或已修。"
+    },
+    {
+      "id": "bg-sidecar",
+      "origins": [
+        "background.md#低-sidecar"
+      ],
+      "title": "sidecar main 仍会起旧线程，但 clawd 安装链不调用它",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json"
+      ],
+      "carried_static_status": "false_positive",
+      "findings_status": "false_positive",
+      "continuation_status": null,
+      "severity": "low",
+      "confidence": "确定",
+      "fingerprint": "changed-branch-sufficient",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "apps/panel/sidecar/hermes_panel_sidecar.py:6251-6258"
+      ],
+      "files": [
+        {
+          "path": "apps/panel/sidecar/hermes_panel_sidecar.py",
+          "role": "product-source",
+          "fingerprint": "changed",
+          "current_sha256": "11840a85bd8ce3a5be3a9abd4797b74cea1050895b19e80a63e95bd1fde8ff82",
+          "findings_sha256": "c8e2b0890e489e2f5c96183068f06a5d923ae67356f6fdfa2fba751288fd9bc8",
+          "continuation_sha256": null,
+          "unstable": false
+        },
+        {
+          "path": "clawd_server/bind.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "a0cfe9432fbd526d11850105d040d0d0cf1e85f9ceabada2aa57ff04f20d101b",
+          "findings_sha256": "a0cfe9432fbd526d11850105d040d0d0cf1e85f9ceabada2aa57ff04f20d101b",
+          "continuation_sha256": null,
+          "unstable": false
+        },
+        {
+          "path": "clawd_server/server.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "ea3534ab92e054fe38c79f6533b8797c86dea07facdfb09d3badc5a060dd03ab",
+          "findings_sha256": "ea3534ab92e054fe38c79f6533b8797c86dea07facdfb09d3badc5a060dd03ab",
+          "continuation_sha256": null,
+          "unstable": false
+        }
+      ],
+      "supporting": [],
+      "note": "main 仍启动 auto-continue 线程。bind.py 与 server.py 哈希匹配，安装链判断沿用匹配字节，未重读。不是新产品入口结论。"
+    },
+    {
+      "id": "nat-environ",
+      "origins": [
+        "native-safety.md#1"
+      ],
+      "title": "never-free environ 按完整 NAME=value 无界保留",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json"
+      ],
+      "carried_static_status": "active",
+      "findings_status": "active",
+      "continuation_status": null,
+      "severity": "medium",
+      "confidence": "可能",
+      "fingerprint": "match",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "hermes_bootstrap.py:373-386"
+      ],
+      "files": [
+        {
+          "path": "hermes_bootstrap.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "f242036b2d35b92283b9a7e97c7059e537607fc4b02026f657a6d00cb4683f69",
+          "findings_sha256": "f242036b2d35b92283b9a7e97c7059e537607fc4b02026f657a6d00cb4683f69",
+          "continuation_sha256": null,
+          "unstable": false
+        }
+      ],
+      "supporting": [],
+      "note": "引用产品源码 sha256 与 final-findings/coverage 一致。沿用该静态标签和未运行标记。不是当前运行验证、安全通过或已修。"
+    },
+    {
+      "id": "nat-peek",
+      "origins": [
+        "native-safety.md#2"
+      ],
+      "title": "未设 argtypes 时 c_void_p 实例传入的是句柄值，不是对象地址",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json"
+      ],
+      "carried_static_status": "false_positive",
+      "findings_status": "false_positive",
+      "continuation_status": null,
+      "severity": "medium",
+      "confidence": "确定",
+      "fingerprint": "match",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "tools/environments/base_output.py:450-458",
+        "artifacts/core-audit-native-reference/_ctypes.c:2321-2348",
+        "artifacts/core-audit-native-reference/cfield.c:1697"
+      ],
+      "files": [
+        {
+          "path": "tools/environments/base_output.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "e951f16776fa76589e03ea035d8ec40543993eb85e80ea609963190781a8d0b5",
+          "findings_sha256": "e951f16776fa76589e03ea035d8ec40543993eb85e80ea609963190781a8d0b5",
+          "continuation_sha256": null,
+          "unstable": false
+        }
+      ],
+      "supporting": [
+        {
+          "path": "artifacts/core-audit-native-reference/_ctypes.c",
+          "fingerprint": "match",
+          "reason": null,
+          "current_sha256": "78482188c25a175a1fe5fbf97bbfa828d28abaf667b29c5935576df80c2c419d",
+          "used_to_update_conclusion": false
+        },
+        {
+          "path": "artifacts/core-audit-native-reference/cfield.c",
+          "fingerprint": "match",
+          "reason": null,
+          "current_sha256": "99fff496490463379e645fdccc2bfa398874eae3983b3ec93a90364a55c99f92",
+          "used_to_update_conclusion": false
+        }
+      ],
+      "note": "引用产品源码 sha256 与 final-findings/coverage 一致。沿用该静态标签和未运行标记。不是当前运行验证、安全通过或已修。"
+    },
+    {
+      "id": "nat-console",
+      "origins": [
+        "native-safety.md#3"
+      ],
+      "title": "GetConsoleMode 收到的是句柄值，不能据此断定真实控制台被当成非交互",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json"
+      ],
+      "carried_static_status": "false_positive",
+      "findings_status": "false_positive",
+      "continuation_status": null,
+      "severity": "medium",
+      "confidence": "确定",
+      "fingerprint": "match",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "tools/mcp_oauth.py:312-331"
+      ],
+      "files": [
+        {
+          "path": "tools/mcp_oauth.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "b25655d6a2ca717b3697f2fe98b5f817da5605c203ebdce8823da55398a8b99f",
+          "findings_sha256": "b25655d6a2ca717b3697f2fe98b5f817da5605c203ebdce8823da55398a8b99f",
+          "continuation_sha256": null,
+          "unstable": false
+        }
+      ],
+      "supporting": [],
+      "note": "引用产品源码 sha256 与 final-findings/coverage 一致。沿用该静态标签和未运行标记。不是当前运行验证、安全通过或已修。"
+    },
+    {
+      "id": "nat-cuda",
+      "origins": [
+        "native-safety.md#4"
+      ],
+      "title": "未设 argtypes 时 c_int 实例传入的是设备序号整数，不是对象地址",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json"
+      ],
+      "carried_static_status": "false_positive",
+      "findings_status": "false_positive",
+      "continuation_status": null,
+      "severity": "low",
+      "confidence": "确定",
+      "fingerprint": "match",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "hermes_cli/local_runtime/hardware.py:302-314"
+      ],
+      "files": [
+        {
+          "path": "hermes_cli/local_runtime/hardware.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "83ba7592a640ba6b2d1502ec7febe1006232dea26c361a1ee0ca703d3b66f923",
+          "findings_sha256": "83ba7592a640ba6b2d1502ec7febe1006232dea26c361a1ee0ca703d3b66f923",
+          "continuation_sha256": null,
+          "unstable": false
+        }
+      ],
+      "supporting": [],
+      "note": "引用产品源码 sha256 与 final-findings/coverage 一致。沿用该静态标签和未运行标记。不是当前运行验证、安全通过或已修。"
+    },
+    {
+      "id": "nat-job",
+      "origins": [
+        "native-safety.md#5"
+      ],
+      "title": "GetCurrentProcess 默认 restype 截成 32 位；x64 寄存器高位未证实",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json"
+      ],
+      "carried_static_status": "unverified",
+      "findings_status": "unverified",
+      "continuation_status": null,
+      "severity": "medium",
+      "confidence": "需验证",
+      "fingerprint": "match",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "hermes_cli/process_identity.py:800-816",
+        "hermes_platform/host/facts.py:62-63",
+        "artifacts/core-audit-native-reference/callproc.c:792-793",
+        "artifacts/core-audit-native-reference/callproc.c:1005-1006"
+      ],
+      "files": [
+        {
+          "path": "hermes_cli/process_identity.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "0e30d07f84e2bae9dee41fd6260e2e83b791a46b0a0042a665a6b72f25f143be",
+          "findings_sha256": "0e30d07f84e2bae9dee41fd6260e2e83b791a46b0a0042a665a6b72f25f143be",
+          "continuation_sha256": null,
+          "unstable": false
+        },
+        {
+          "path": "hermes_platform/host/facts.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "52eef216017ca8e18d7365ec10a9494b2d261280cfc70d9e0b94a2cc7b363d7a",
+          "findings_sha256": "52eef216017ca8e18d7365ec10a9494b2d261280cfc70d9e0b94a2cc7b363d7a",
+          "continuation_sha256": null,
+          "unstable": false
+        }
+      ],
+      "supporting": [
+        {
+          "path": "artifacts/core-audit-native-reference/callproc.c",
+          "fingerprint": "match",
+          "reason": null,
+          "current_sha256": "6800f829135dc34940011243dbcd733eaeca8aa29074f3aa94a980469185ce69",
+          "used_to_update_conclusion": false
+        },
+        {
+          "path": "artifacts/core-audit-native-reference/callproc.c",
+          "fingerprint": "match",
+          "reason": null,
+          "current_sha256": "6800f829135dc34940011243dbcd733eaeca8aa29074f3aa94a980469185ce69",
+          "used_to_update_conclusion": false
+        }
+      ],
+      "note": "引用产品源码 sha256 与 final-findings/coverage 一致。沿用该静态标签和未运行标记。不是当前运行验证、安全通过或已修。"
+    },
+    {
+      "id": "nat-cf",
+      "origins": [
+        "native-safety.md#6"
+      ],
+      "title": "CFString 创建失败后仍 CFRelease",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json"
+      ],
+      "carried_static_status": "active",
+      "findings_status": "active",
+      "continuation_status": null,
+      "severity": "low",
+      "confidence": "确定",
+      "fingerprint": "match",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "hermes_platform/host/darwin_pci.py:31-39",
+        "hermes_platform/host/darwin_pci.py:59",
+        "hermes_platform/host/darwin_pci.py:73-76"
+      ],
+      "files": [
+        {
+          "path": "hermes_platform/host/darwin_pci.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "2ecbf4c68873f16f6de855794503c3ba781e3f26ea8da910a8ce5cd513f96fcb",
+          "findings_sha256": "2ecbf4c68873f16f6de855794503c3ba781e3f26ea8da910a8ce5cd513f96fcb",
+          "continuation_sha256": null,
+          "unstable": false
+        }
+      ],
+      "supporting": [],
+      "note": "引用产品源码 sha256 与 final-findings/coverage 一致。沿用该静态标签和未运行标记。不是当前运行验证、安全通过或已修。"
+    },
+    {
+      "id": "nat-pe",
+      "origins": [
+        "native-safety.md#7"
+      ],
+      "title": "固定版本信息的返回长度未使用；成功时是否保证至少 16 字节没有契约",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json"
+      ],
+      "carried_static_status": "unverified",
+      "findings_status": "unverified",
+      "continuation_status": null,
+      "severity": "low",
+      "confidence": "需验证",
+      "fingerprint": "match",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "hermes_platform/resolver/app.py:246-272"
+      ],
+      "files": [
+        {
+          "path": "hermes_platform/resolver/app.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "ee5ff2a8d9d67534df22e722d7a7235e4c98810aeeedaf2d3948ea5d53db0063",
+          "findings_sha256": "ee5ff2a8d9d67534df22e722d7a7235e4c98810aeeedaf2d3948ea5d53db0063",
+          "continuation_sha256": null,
+          "unstable": false
+        }
+      ],
+      "supporting": [],
+      "note": "引用产品源码 sha256 与 final-findings/coverage 一致。沿用该静态标签和未运行标记。不是当前运行验证、安全通过或已修。"
+    },
+    {
+      "id": "nat-close",
+      "origins": [
+        "native-safety.md#8"
+      ],
+      "title": "更新锁用未声明宽度的 CloseHandle 关闭 c_void_p 返回的句柄整数",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json"
+      ],
+      "carried_static_status": "active",
+      "findings_status": "active",
+      "continuation_status": null,
+      "severity": "low",
+      "confidence": "可能",
+      "fingerprint": "match",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "hermes_cli/update_lock.py:801-821",
+        "hermes_cli/update_lock.py:818-821",
+        "/usr/lib/python3.13/ctypes/wintypes.py:60",
+        "artifacts/core-audit-native-reference/callproc.c:708-719",
+        "artifacts/core-audit-native-reference/cfield.c:1441"
+      ],
+      "files": [
+        {
+          "path": "hermes_cli/update_lock.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "2e02db3e627de248b88d912c1f9421a40a738899ebdef9d93998ce8d09e01a8d",
+          "findings_sha256": "2e02db3e627de248b88d912c1f9421a40a738899ebdef9d93998ce8d09e01a8d",
+          "continuation_sha256": null,
+          "unstable": false
+        }
+      ],
+      "supporting": [
+        {
+          "path": "/usr/lib/python3.13/ctypes/wintypes.py",
+          "fingerprint": "blocked",
+          "reason": "path-out-of-bounds",
+          "current_sha256": null,
+          "used_to_update_conclusion": false
+        },
+        {
+          "path": "artifacts/core-audit-native-reference/callproc.c",
+          "fingerprint": "match",
+          "reason": null,
+          "current_sha256": "6800f829135dc34940011243dbcd733eaeca8aa29074f3aa94a980469185ce69",
+          "used_to_update_conclusion": false
+        },
+        {
+          "path": "artifacts/core-audit-native-reference/cfield.c",
+          "fingerprint": "match",
+          "reason": null,
+          "current_sha256": "99fff496490463379e645fdccc2bfa398874eae3983b3ec93a90364a55c99f92",
+          "used_to_update_conclusion": false
+        }
+      ],
+      "note": "引用产品源码 sha256 与 final-findings/coverage 一致。沿用该静态标签和未运行标记。不是当前运行验证、安全通过或已修。 支持路径越界或不可访问，已 blocked，未打开：/usr/lib/python3.13/ctypes/wintypes.py。"
+    },
+    {
+      "id": "stor-s1",
+      "origins": [
+        "storage.md#S1"
+      ],
+      "title": "按 session_id 找不到 owner 时写入环境库",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json"
+      ],
+      "carried_static_status": "active",
+      "findings_status": "active",
+      "continuation_status": null,
+      "severity": "high",
+      "confidence": "确定",
+      "fingerprint": "match",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "gateway/session_persistence.py:227-246",
+        "gateway/session_persistence.py:202-209"
+      ],
+      "files": [
+        {
+          "path": "gateway/session_persistence.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "92ab8f19425afe80e99e444b9a0475707049528697572cd8513106318bd3f08e",
+          "findings_sha256": "92ab8f19425afe80e99e444b9a0475707049528697572cd8513106318bd3f08e",
+          "continuation_sha256": null,
+          "unstable": false
+        }
+      ],
+      "supporting": [],
+      "note": "引用产品源码 sha256 与 final-findings/coverage 一致。沿用该静态标签和未运行标记。不是当前运行验证、安全通过或已修。"
+    },
+    {
+      "id": "stor-s2",
+      "origins": [
+        "storage.md#S2"
+      ],
+      "title": "同 session_id 的进程索引不带 profile",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json"
+      ],
+      "carried_static_status": "active",
+      "findings_status": "active",
+      "continuation_status": null,
+      "severity": "medium",
+      "confidence": "可能",
+      "fingerprint": "match",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "gateway/session_persistence.py:233-236"
+      ],
+      "files": [
+        {
+          "path": "gateway/session_persistence.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "92ab8f19425afe80e99e444b9a0475707049528697572cd8513106318bd3f08e",
+          "findings_sha256": "92ab8f19425afe80e99e444b9a0475707049528697572cd8513106318bd3f08e",
+          "continuation_sha256": null,
+          "unstable": false
+        }
+      ],
+      "supporting": [],
+      "note": "引用产品源码 sha256 与 final-findings/coverage 一致。沿用该静态标签和未运行标记。不是当前运行验证、安全通过或已修。"
+    },
+    {
+      "id": "stor-s3",
+      "origins": [
+        "storage.md#S3"
+      ],
+      "title": "重写在没有库时返回成功",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json"
+      ],
+      "carried_static_status": "active",
+      "findings_status": "active",
+      "continuation_status": null,
+      "severity": "high",
+      "confidence": "确定",
+      "fingerprint": "match",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "gateway/session_transcript.py:540-551"
+      ],
+      "files": [
+        {
+          "path": "gateway/session_transcript.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "b1e427996751310287ac56c99f2265122f26c001acee2cd2b5198519c402f9e2",
+          "findings_sha256": "b1e427996751310287ac56c99f2265122f26c001acee2cd2b5198519c402f9e2",
+          "continuation_sha256": null,
+          "unstable": false
+        }
+      ],
+      "supporting": [],
+      "note": "引用产品源码 sha256 与 final-findings/coverage 一致。沿用该静态标签和未运行标记。不是当前运行验证、安全通过或已修。"
+    },
+    {
+      "id": "stor-s4",
+      "origins": [
+        "storage.md#S4"
+      ],
+      "title": "/branch 吞掉复制失败后仍切换，条数来自内存",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json"
+      ],
+      "carried_static_status": "active",
+      "findings_status": "active",
+      "continuation_status": null,
+      "severity": "medium",
+      "confidence": "确定",
+      "fingerprint": "match",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "gateway/slash_commands_session.py:1263-1281"
+      ],
+      "files": [
+        {
+          "path": "gateway/slash_commands_session.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "2d207bda33466ad9c80e2b62df5f4697dababeeb068ecd18f3da52836d5e04dd",
+          "findings_sha256": "2d207bda33466ad9c80e2b62df5f4697dababeeb068ecd18f3da52836d5e04dd",
+          "continuation_sha256": null,
+          "unstable": false
+        }
+      ],
+      "supporting": [],
+      "note": "引用产品源码 sha256 与 final-findings/coverage 一致。沿用该静态标签和未运行标记。不是当前运行验证、安全通过或已修。"
+    },
+    {
+      "id": "stor-s5",
+      "origins": [
+        "storage.md#S5"
+      ],
+      "title": "state_meta 盖章失败后替换检测保持关闭",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json"
+      ],
+      "carried_static_status": "active",
+      "findings_status": "active",
+      "continuation_status": null,
+      "severity": "medium",
+      "confidence": "确定",
+      "fingerprint": "match",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "hermes_state.py:1211-1220"
+      ],
+      "files": [
+        {
+          "path": "hermes_state.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "d8f229db6de935a4892a3aaef038b396036c1e661f38fe169161864884a32fed",
+          "findings_sha256": "d8f229db6de935a4892a3aaef038b396036c1e661f38fe169161864884a32fed",
+          "continuation_sha256": null,
+          "unstable": false
+        }
+      ],
+      "supporting": [],
+      "note": "引用产品源码 sha256 与 final-findings/coverage 一致。沿用该静态标签和未运行标记。不是当前运行验证、安全通过或已修。"
+    },
+    {
+      "id": "stor-s6",
+      "origins": [
+        "storage.md#S6"
+      ],
+      "title": "close 失败后仍清空代际身份",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json"
+      ],
+      "carried_static_status": "active",
+      "findings_status": "active",
+      "continuation_status": null,
+      "severity": "medium",
+      "confidence": "确定",
+      "fingerprint": "match",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "hermes_state.py:1580-1585"
+      ],
+      "files": [
+        {
+          "path": "hermes_state.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "d8f229db6de935a4892a3aaef038b396036c1e661f38fe169161864884a32fed",
+          "findings_sha256": "d8f229db6de935a4892a3aaef038b396036c1e661f38fe169161864884a32fed",
+          "continuation_sha256": null,
+          "unstable": false
+        }
+      ],
+      "supporting": [],
+      "note": "引用产品源码 sha256 与 final-findings/coverage 一致。沿用该静态标签和未运行标记。不是当前运行验证、安全通过或已修。"
+    },
+    {
+      "id": "stor-s7",
+      "origins": [
+        "storage.md#S7"
+      ],
+      "title": "/branch 按 500 行分块提交",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json"
+      ],
+      "carried_static_status": "active",
+      "findings_status": "active",
+      "continuation_status": null,
+      "severity": "medium",
+      "confidence": "确定",
+      "fingerprint": "match",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "gateway/slash_commands_session.py:1263-1269"
+      ],
+      "files": [
+        {
+          "path": "gateway/slash_commands_session.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "2d207bda33466ad9c80e2b62df5f4697dababeeb068ecd18f3da52836d5e04dd",
+          "findings_sha256": "2d207bda33466ad9c80e2b62df5f4697dababeeb068ecd18f3da52836d5e04dd",
+          "continuation_sha256": null,
+          "unstable": false
+        }
+      ],
+      "supporting": [],
+      "note": "引用产品源码 sha256 与 final-findings/coverage 一致。沿用该静态标签和未运行标记。不是当前运行验证、安全通过或已修。"
+    },
+    {
+      "id": "stor-s8",
+      "origins": [
+        "storage.md#S8"
+      ],
+      "title": "路由切换先提交索引，结束或重开会话失败只打 debug 仍返回成功",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json"
+      ],
+      "carried_static_status": "active",
+      "findings_status": "active",
+      "continuation_status": null,
+      "severity": "medium",
+      "confidence": "确定",
+      "fingerprint": "match",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "gateway/session.py:1204-1214",
+        "gateway/session.py:1317-1348",
+        "gateway/session_recovery.py:291-321"
+      ],
+      "files": [
+        {
+          "path": "gateway/session.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "ea2e48b1313fcb24054dccbbdc631321c7cad5526097588b65d20ab86346a870",
+          "findings_sha256": "ea2e48b1313fcb24054dccbbdc631321c7cad5526097588b65d20ab86346a870",
+          "continuation_sha256": null,
+          "unstable": false
+        },
+        {
+          "path": "gateway/session_recovery.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "6fa7af72184b49bb4623bcfc487897bbe586ecd36fd09c9906261b83b87ef385",
+          "findings_sha256": "6fa7af72184b49bb4623bcfc487897bbe586ecd36fd09c9906261b83b87ef385",
+          "continuation_sha256": null,
+          "unstable": false
+        }
+      ],
+      "supporting": [],
+      "note": "引用产品源码 sha256 与 final-findings/coverage 一致。沿用该静态标签和未运行标记。不是当前运行验证、安全通过或已修。"
+    },
+    {
+      "id": "stor-s9",
+      "origins": [
+        "storage.md#S9"
+      ],
+      "title": "rollback 异常被丢弃；3.14.9 的 executescript 会先提交仍开着的事务",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json"
+      ],
+      "carried_static_status": "active",
+      "findings_status": "active",
+      "continuation_status": null,
+      "severity": "medium",
+      "confidence": "确定",
+      "fingerprint": "match",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "hermes_state.py:1047-1057",
+        "artifacts/core-audit-native-reference/cursor.c:1046-1055"
+      ],
+      "files": [
+        {
+          "path": "hermes_state.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "d8f229db6de935a4892a3aaef038b396036c1e661f38fe169161864884a32fed",
+          "findings_sha256": "d8f229db6de935a4892a3aaef038b396036c1e661f38fe169161864884a32fed",
+          "continuation_sha256": null,
+          "unstable": false
+        }
+      ],
+      "supporting": [
+        {
+          "path": "artifacts/core-audit-native-reference/cursor.c",
+          "fingerprint": "match",
+          "reason": null,
+          "current_sha256": "6571430ca1981d6927a54627273d75b7ad52f6ef7f2c92a0165e85ad47c57dba",
+          "used_to_update_conclusion": false
+        }
+      ],
+      "note": "引用产品源码 sha256 与 final-findings/coverage 一致。沿用该静态标签和未运行标记。不是当前运行验证、安全通过或已修。"
+    },
+    {
+      "id": "stor-a1",
+      "origins": [
+        "storage.md#A1"
+      ],
+      "title": "生图库校验 fd 关闭后按固定路径重开；不是 state.db",
+      "sources": [
+        "final-findings-2026-11-05.json",
+        "final-coverage-2026-11-05.json"
+      ],
+      "carried_static_status": "active",
+      "findings_status": "active",
+      "continuation_status": null,
+      "severity": "low",
+      "confidence": "确定",
+      "fingerprint": "match",
+      "runtime_verified": false,
+      "verified_repair": false,
+      "not_run": true,
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "kernel_safe": false,
+      "security_pass": false,
+      "unresolved": false,
+      "unresolved_reason": null,
+      "line_numbers_sha_bound": true,
+      "current_locators": [
+        "apps/panel/sidecar/image_studio.py:563-591"
+      ],
+      "files": [
+        {
+          "path": "apps/panel/sidecar/image_studio.py",
+          "role": "product-source",
+          "fingerprint": "match",
+          "current_sha256": "8d658411e827ee2adee269d88760db8d3743c6ee6504c554c93d0d89389e439d",
+          "findings_sha256": "8d658411e827ee2adee269d88760db8d3743c6ee6504c554c93d0d89389e439d",
+          "continuation_sha256": null,
+          "unstable": false
+        }
+      ],
+      "supporting": [],
+      "note": "引用产品源码 sha256 与 final-findings/coverage 一致。沿用该静态标签和未运行标记。不是当前运行验证、安全通过或已修。"
+    }
+  ]
+}

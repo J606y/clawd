@@ -174,9 +174,9 @@ export default function UserStoriesCollage(): React.JSX.Element {
       <div className={styles.hero}>
         <h1>User Stories &amp; Use Cases</h1>
         <p>
-          What the Hermes Agent community is actually building. Every tile
+          Upstream Hermes Agent cases, not clawd users. Every tile
           below links to a real post, issue, video, or gist where someone
-          describes how they use Hermes &mdash; scraped from X, GitHub, Reddit,
+          describes how they use Hermes Agent &mdash; scraped from X, GitHub, Reddit,
           Hacker News, YouTube, blogs, and podcasts.
         </p>
         <div className={styles.meta}>
@@ -293,13 +293,13 @@ export default function UserStoriesCollage(): React.JSX.Element {
       )}
 
       <div className={styles.footer}>
-        Built something with Hermes?{' '}
+        Upstream cases only. Quotes are not rewritten.{' '}
         <a
           href="https://github.com/NousResearch/hermes-agent/edit/main/website/src/data/userStories.json"
           target="_blank"
           rel="noopener noreferrer"
         >
-          Add your story to this page
+          Edit the upstream story file
         </a>{' '}
         by editing <code>userStories.json</code>, or post it in the{' '}
         <a href="https://discord.gg/NousResearch" target="_blank" rel="noopener noreferrer">

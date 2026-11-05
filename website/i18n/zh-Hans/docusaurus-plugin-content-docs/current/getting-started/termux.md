@@ -6,6 +6,12 @@ description: "通过签名 APT 仓库安装适用于 aarch64 Android 的 Hermes 
 
 # 在 Android 上使用 Termux
 
+<!-- clawd-docs-note -->
+:::warning 不是本检出
+本页的安装器、安装包和下载说明属于上游 Hermes Agent，不会安装 clawd。本检出不发布安装器地址。在本检出中运行 `./clawd`。配置命令写成 `clawd setup`。`clawd` 拒绝 `update`、`desktop`、`dashboard`、`gui` 和 `webapp`。本检出的 Web 界面是 `clawd panel`。
+:::
+
+
 Hermes 的 Termux 软件包适用于 aarch64（arm64-v8a）设备，目前处于预发布测试阶段。
 它包含 Python、Node.js、npm、uv、ripgrep、FFmpeg 和核心 Python 依赖。
 安装时无需在手机上编译核心依赖或组装 Python 环境。

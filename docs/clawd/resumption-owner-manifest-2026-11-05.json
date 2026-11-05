@@ -1,0 +1,584 @@
+{
+  "schema_version": 2,
+  "kind": "resumption-owner-ledger",
+  "observed_at": "2026-11-05T05:47:57+08:00",
+  "acceptance_executed": false,
+  "implementation_complete": false,
+  "pass_forbidden": true,
+  "do_not_feed_to_acceptance_gate": true,
+  "acceptance_gate_manifest": "/root/hermes-workspace/clawd/docs/clawd/implementation-completion-manifest.json",
+  "gate_status_vocabulary": ["implemented", "unverified", "pending", "blocked"],
+  "ledger_status_vocabulary": ["implemented-unverified", "unwired", "blocked", "detail-pending", "in-flight", "not-done"],
+  "status_means": {
+    "implemented-unverified": "本轮在启动或公共注册链上看到调用点。不是测试通过，不是 pass。",
+    "unwired": "活入口未接到，或旧路径绕过安装仍可达。不是 pass。",
+    "blocked": "缺安全接口或外部真实依赖。禁止假成功、空列表或模拟通过。",
+    "detail-pending": "已派独立只读准备 owner。报告尚未产生。禁止轮询等待，禁止把缺失报告写成 pass 或 fail。",
+    "in-flight": "其他 owner 正在改。本快照不能冻结他们的中间文件，也不能标完成。",
+    "not-done": "尚未做。不是 pass。"
+  },
+  "not_a_replacement_for": "/root/hermes-workspace/clawd/docs/clawd/implementation-completion-manifest.json",
+  "stale_gate_manifest": {
+    "path": "/root/hermes-workspace/clawd/docs/clawd/implementation-completion-manifest.json",
+    "observed_at_inside_file": "2026-11-05T03:07:52+0800",
+    "implementation_complete": false,
+    "do_not_edit_in_this_round": true,
+    "do_not_redispatch_from_stale_absent": [
+      "runtime_native.py",
+      "admin_native.py",
+      "browser_native.py",
+      "clawd_projects/migration.py",
+      "MANIFEST.in",
+      "scripts/clawd_acceptance",
+      "scripts/clawd_cutover"
+    ],
+    "note": "03:07 清单把上述文件写成 absent。当前检出已有这些文件。不要按那份过期证据重派。MANIFEST.in 递归配合 include-package-data 覆盖深层资源曾判非缺陷，不重复盲改。"
+  },
+  "detail_reports_not_yet_produced": [
+    "/root/hermes-workspace/clawd/docs/clawd/resumption-memory-todo-detail-2026-11-05.md",
+    "/root/hermes-workspace/clawd/docs/clawd/resumption-event-files-detail-2026-11-05.md",
+    "/root/hermes-workspace/clawd/docs/clawd/resumption-migration-detail-2026-11-05.md",
+    "/root/hermes-workspace/clawd/docs/clawd/resumption-runtime-detail-2026-11-05.md",
+    "/root/hermes-workspace/clawd/docs/clawd/resumption-distribution-detail-2026-11-05.md",
+    "/root/hermes-workspace/clawd/docs/clawd/resumption-licenses-detail-2026-11-05.md"
+  ],
+  "public_entries_not_modified": [
+    "clawd_server/native.py",
+    "clawd_server/bind.py",
+    "clawd_server/server.py",
+    "clawd_server/admin_routes.py",
+    "clawd_server/admin_native.py",
+    "clawd_server/admin_common.py",
+    "gateway/platforms/api_server.py",
+    "apps/panel/src/react/lib/admin-api.ts",
+    "apps/panel/src/react/lib/sidecar.ts",
+    "apps/panel/src/react/lib/queries.ts",
+    "apps/panel/src/react/lib/api.ts"
+  ],
+  "git_head_not_reread": "c314285f077e91937c995d419b9fa40af9eb4981",
+  "rollup": {
+    "items": 28,
+    "implemented-unverified": 6,
+    "unwired": 4,
+    "blocked": 2,
+    "detail-pending": 10,
+    "in-flight": 3,
+    "not-done": 3,
+    "pass": 0,
+    "acceptance_exit": null
+  },
+  "items": [
+    {
+      "id": "startup-serve-chain",
+      "scope": "clawd 面板活入口只走 clawd_server.__main__ serve，再 load_sidecar 后 bind，再起侧车线程",
+      "owner": "integration",
+      "status": "implemented-unverified",
+      "class": "implemented-unverified",
+      "blocking": true,
+      "pass_forbidden": true,
+      "evidence": [
+        "clawd_server/__main__.py:85-94 export_resource_env 后 run_serve",
+        "clawd_server/server.py:144-152 _start_api、_start_continuation、load_sidecar、bind，然后才 _start_sidecar",
+        "clawd_server/server.py:220-228 ThreadingHTTPServer.serve_forever，不调用 sidecar.main()"
+      ],
+      "consumption": [
+        "python -m clawd_server serve",
+        "clawd_server.server.PanelServer.start"
+      ]
+    },
+    {
+      "id": "api-register-order",
+      "scope": "APIServerAdapter.connect 在 /p/{profile} catch-all 之前注册项目路由和 effort 路由",
+      "owner": "integration",
+      "status": "implemented-unverified",
+      "class": "implemented-unverified",
+      "blocking": true,
+      "pass_forbidden": true,
+      "evidence": [
+        "gateway/platforms/api_server.py:4015-4017 _http_route_table",
+        "gateway/platforms/api_server.py:4018-4021 register_project_routes 然后 register_effort_routes",
+        "gateway/platforms/api_server.py:4024 /p/{profile}/{tail:.*} 在二者之后"
+      ],
+      "consumption": [
+        "APIServerAdapter.connect",
+        "gateway.platforms.clawd_project_routes.register_project_routes",
+        "gateway.platforms.clawd_effort_routes.register_effort_routes"
+      ],
+      "note": "只看到注册调用顺序。没有启动适配器，没有发请求。"
+    },
+    {
+      "id": "native-install-chain",
+      "scope": "bind 调用 native.install：先 stdout config_set 包装，browser 与 runtime 各至多一次，admin 每次都装且必须留下 admin config_set 与删除路由",
+      "owner": "integration",
+      "status": "implemented-unverified",
+      "class": "implemented-unverified",
+      "blocking": true,
+      "pass_forbidden": true,
+      "evidence": [
+        "clawd_server/bind.py:147-149 install(mod) 后 file_roots_under_home",
+        "clawd_server/native.py:33-49 browser、runtime、admin 顺序；admin 未接管 config_set 或未挂删除路由则 RuntimeError",
+        "clawd_server/runtime_native.py:67-77 替换 get_session_run 与 get_run_wait",
+        "clawd_server/browser_native.py:37-47 替换 live_task 并退役影子库入口",
+        "clawd_server/admin_native.py:99-140 替换管理函数并调用 admin_routes.install"
+      ],
+      "consumption": [
+        "clawd_server.bind.bind",
+        "clawd_server.native.install"
+      ]
+    },
+    {
+      "id": "serve-skips-sidecar-main",
+      "scope": "活服务不调用 sidecar.main，因此不从这条路径启动 auto-continue 线程",
+      "owner": "integration",
+      "status": "implemented-unverified",
+      "class": "implemented-unverified",
+      "blocking": true,
+      "pass_forbidden": true,
+      "evidence": [
+        "clawd_server/bind.py:135-145 替换 _continue_watcher、_continue_tick、main",
+        "clawd_server/server.py:220-228 自行 serve_forever",
+        "apps/panel/sidecar/hermes_panel_sidecar.py:6168-6183 main 与 __main__ 仍会启动 auto-continue"
+      ],
+      "consumption": [
+        "clawd_server.server.PanelServer._start_sidecar"
+      ]
+    },
+    {
+      "id": "uninstalled-native-bypass-still-reachable",
+      "scope": "未走 bind/native.install 时，侧车旧 get_session_run、get_run_wait 和 auto-continue 仍是活函数",
+      "owner": "runtime-detail",
+      "status": "unwired",
+      "class": "unwired",
+      "blocking": true,
+      "pass_forbidden": true,
+      "detail_report": "/root/hermes-workspace/clawd/docs/clawd/resumption-runtime-detail-2026-11-05.md",
+      "evidence": [
+        "apps/panel/sidecar/hermes_panel_sidecar.py:5983 get_session_run",
+        "apps/panel/sidecar/hermes_panel_sidecar.py:5985 get_session_run",
+        "apps/panel/sidecar/hermes_panel_sidecar.py:6096 get_run_wait",
+        "apps/panel/sidecar/hermes_panel_sidecar.py:6175 threading.Thread(_continue_watcher)",
+        "apps/panel/sidecar/hermes_panel_sidecar.py:6182 if __name__ == __main__: main()",
+        "测试与直接导入可 load_sidecar() 而不 bind；那不是面板 serve 活路径，但旧函数在安装前就是模块全局"
+      ],
+      "consumption": [
+        "python apps/panel/sidecar/hermes_panel_sidecar.py",
+        "import sidecar.hermes_panel_sidecar 且未调用 bind"
+      ],
+      "note": "serve 路径已安装 native，不能据此说旧分支已从所有入口退役。run/lease 语义交给 runtime detail，本项不标已验收。不要删除侧车源码来制造退役。"
+    },
+    {
+      "id": "settings-existing-admin-replacements",
+      "scope": "已有管理函数由 admin_native.install 替换到侧车模块；CLI 包装拒绝；宿主更新重启保持拒绝",
+      "owner": "settings-integrator",
+      "status": "implemented-unverified",
+      "class": "implemented-unverified",
+      "blocking": true,
+      "pass_forbidden": true,
+      "evidence": [
+        "clawd_server/admin_native.py:16-47 REPLACED",
+        "clawd_server/admin_native.py:50-61 BLOCKED",
+        "clawd_server/admin_native.py:134-137 _hermes 与 _hermes_set 拒绝子进程",
+        "clawd_server/bind.py:104-129 restart_service 与 start_update 在 install 前已拒绝，admin 再次盖住"
+      ],
+      "consumption": [
+        "侧车既有 /config、/models、/mcp、/plugins、/profiles、/webhooks、/settings 名称查找",
+        "不证明新路由已注册"
+      ],
+      "exclusive_files": [
+        "clawd_server/admin_routes.py",
+        "clawd_server/admin_native.py",
+        "clawd_server/admin_common.py",
+        "apps/panel/src/react/lib/admin-api.ts",
+        "apps/panel/src/react/lib/sidecar.ts",
+        "apps/panel/src/react/lib/queries.ts",
+        "apps/panel/src/react/lib/api.ts"
+      ]
+    },
+    {
+      "id": "settings-new-public-routes",
+      "scope": "工作清单中的新设置能力还没有公共路由注册",
+      "owner": "settings-integrator",
+      "status": "unwired",
+      "class": "unwired",
+      "blocking": true,
+      "pass_forbidden": true,
+      "evidence": [
+        "clawd_server/admin_routes.py:13-16 只挂 POST /profiles/delete-preview 与 POST /profiles/delete-confirm",
+        "clawd_server/admin_mcp.py 无 def create_mcp",
+        "快照时 clawd_server 没有 admin_skills.py、admin_tools.py、admin_memory.py、admin_connections.py、admin_logs.py",
+        "admin_native.py 未导入这些名字",
+        "docs/clawd/settings-implementation-worklist.json meta.stage=contract-only，runtimeVerified=false"
+      ],
+      "consumption": [
+        "Handler._route 包装只拦截两条删除路由",
+        "apps/panel/src/react/lib/admin-api.ts:83 只见 delete-preview 消费"
+      ],
+      "note": "设置 owner 正在改页面与后端。缺文件是 05:47 快照，不是永久派发名单。新路由只能由设置公共集成人写入独占文件。"
+    },
+    {
+      "id": "settings-no-safe-interface",
+      "scope": "没有安全进程内接口的设置能力，保留为真实缺口",
+      "owner": "settings-gap",
+      "status": "blocked",
+      "class": "blocked",
+      "blocking": true,
+      "pass_forbidden": true,
+      "evidence": [
+        "docs/clawd/settings-core-contract.md:64",
+        "docs/clawd/settings-implementation-worklist.json notTasks",
+        "clawd_server/admin_native.py:50-60 BLOCKED",
+        "clawd_server/bind.py:108-123 update 拒绝且不读系统安装目录"
+      ],
+      "must_not_fake": [
+        "宿主更新与 clawd update",
+        "宿主重启",
+        "进程级 profile 切换",
+        "插件热加载",
+        "插件安装器",
+        "记忆 setup 命令",
+        "电脑控制授权",
+        "MCP 目录安装",
+        "消息配对流",
+        "环境明文查看",
+        "Webhook 投递日志",
+        "systemd journal"
+      ],
+      "required_response": "501 或明确禁用。禁止空列表、applied:true、processSwitched:true、loadedNow:true。禁止从用户总体目标静默删除。",
+      "later_file_scope_if_a_safe_api_exists": [
+        "不在本轮指定实现文件",
+        "出现安全接口之前，公共集成人只保持拒绝，不造假开关"
+      ]
+    },
+    {
+      "id": "profile-delete-preview-fingerprint",
+      "scope": "配置档删除预览/确认：120 秒凭证与 fingerprint 参数已接到公共路由",
+      "owner": "settings-integrator",
+      "status": "implemented-unverified",
+      "class": "implemented-unverified",
+      "blocking": true,
+      "pass_forbidden": true,
+      "evidence": [
+        "clawd_server/admin_profiles.py:219 _PREVIEW_TTL_S = 120.0",
+        "clawd_server/admin_profiles.py:451 _fingerprint",
+        "clawd_server/admin_profiles.py:664 confirm_delete_profile 核对 token、fingerprint、paths",
+        "clawd_server/admin_profiles.py:692 delete_profile 只带名称不能当确认",
+        "clawd_server/admin_routes.py:63-72 转发 token 与 fingerprint",
+        "apps/panel/src/react/lib/admin-api.ts:2 与 :83 只打 preview/confirm"
+      ],
+      "consumption": [
+        "POST /panel-sidecar/profiles/delete-preview",
+        "POST /panel-sidecar/profiles/delete-confirm"
+      ],
+      "note": "没有执行预览或删除。函数存在不是删除已验收。"
+    },
+    {
+      "id": "carry-ipv6-authority-home",
+      "scope": "IPv6 authority/home 解析修复",
+      "owner": "event-files-detail",
+      "status": "detail-pending",
+      "class": "detail-pending",
+      "blocking": true,
+      "pass_forbidden": true,
+      "detail_report": "/root/hermes-workspace/clawd/docs/clawd/resumption-event-files-detail-2026-11-05.md",
+      "evidence": [
+        "本总账不逐域重核",
+        "启动链旁证：server.loopback_host 接受 ::1；_start_sidecar 写死 127.0.0.1。这不是 authority/home 修复证明"
+      ],
+      "later_file_scope": "由 event-files detail 给出，公共启动文件仍只归集成人"
+    },
+    {
+      "id": "carry-memory-idle-retarget",
+      "scope": "memory-final-wiring 空闲改绑",
+      "owner": "memory-todo-detail",
+      "status": "detail-pending",
+      "class": "detail-pending",
+      "blocking": true,
+      "pass_forbidden": true,
+      "detail_report": "/root/hermes-workspace/clawd/docs/clawd/resumption-memory-todo-detail-2026-11-05.md",
+      "evidence": [
+        "拆分前只见 agent/turn_facade.py:203 定义、:375 调用 _idle_project_memory_retarget",
+        "不把该命中标成接线完成或已验收"
+      ]
+    },
+    {
+      "id": "carry-todo-trusted-projection",
+      "scope": "todo 可信投影；profile 不明必须拒绝，不猜 default",
+      "owner": "memory-todo-detail",
+      "status": "detail-pending",
+      "class": "detail-pending",
+      "blocking": true,
+      "pass_forbidden": true,
+      "detail_report": "/root/hermes-workspace/clawd/docs/clawd/resumption-memory-todo-detail-2026-11-05.md",
+      "evidence": [
+        "面板类型里已有 delegationId/todoId/executionStatus 字段名",
+        "字段名不是投影已接，也不是 profile 不明拒绝已验收"
+      ]
+    },
+    {
+      "id": "carry-events-mismatch-sse",
+      "scope": "事件错配立即退出、当前身份最多 3 次 250ms 重订、SSE iter_any 与 no-cache/no-buffer",
+      "owner": "event-files-detail",
+      "status": "detail-pending",
+      "class": "detail-pending",
+      "blocking": true,
+      "pass_forbidden": true,
+      "detail_report": "/root/hermes-workspace/clawd/docs/clawd/resumption-event-files-detail-2026-11-05.md",
+      "evidence": ["未逐域重核，未实测 SSE"]
+    },
+    {
+      "id": "carry-attachment-fd-abspath",
+      "scope": "附件根 fd、O_NOFOLLOW、absPath 保留与消费者",
+      "owner": "event-files-detail",
+      "status": "detail-pending",
+      "class": "detail-pending",
+      "blocking": true,
+      "pass_forbidden": true,
+      "detail_report": "/root/hermes-workspace/clawd/docs/clawd/resumption-event-files-detail-2026-11-05.md",
+      "evidence": [
+        "server.py:69-109 注入附件根前缀，拒绝生产 home",
+        "absPath 兼容必须保留。注入会改变 HTML，不能用原始文件逐字节比较冒充验收"
+      ]
+    },
+    {
+      "id": "carry-runtime-effort-fence",
+      "scope": "pending effort 在 authority、admission_held、keyed_turn 与 mutation_lock 内提交，并在冻结 model_options 前写入快照",
+      "owner": "runtime-detail",
+      "status": "detail-pending",
+      "class": "detail-pending",
+      "blocking": true,
+      "pass_forbidden": true,
+      "detail_report": "/root/hermes-workspace/clawd/docs/clawd/resumption-runtime-detail-2026-11-05.md",
+      "evidence": [
+        "拆分前看见 gateway/platforms/api_server_runs.py:879-891 在历史加载前调用 commit_trusted_pending_effort",
+        "gateway/platforms/api_server.py:3087 与 :3128 走 _prepare_admitted_session_chat",
+        "gateway/session_api_turn.py:645-650 keyed_turn 与 mutation_lock；runner 无 authority 时 profile_admission_lock 交出 None，提交函数返回 None 并继续",
+        "无 authority 不是失败关闭。由 runtime detail 裁定，本项不标已实现"
+      ]
+    },
+    {
+      "id": "carry-runtime-counts",
+      "scope": "active_count 仍是 completion units；真实 child 与本进程回执分开；活动页刷新不把空数组当已知零",
+      "owner": "runtime-detail",
+      "status": "detail-pending",
+      "class": "detail-pending",
+      "blocking": true,
+      "pass_forbidden": true,
+      "detail_report": "/root/hermes-workspace/clawd/docs/clawd/resumption-runtime-detail-2026-11-05.md",
+      "evidence": ["未在本总账重核计数消费者。禁止为 UI 人数改 drain 语义。"]
+    },
+    {
+      "id": "carry-migration-token-rollback",
+      "scope": "迁移 write_token、条件回滚、崩溃认领；不是跨 projects.db/state.db 原子事务",
+      "owner": "migration-detail",
+      "status": "detail-pending",
+      "class": "detail-pending",
+      "blocking": true,
+      "pass_forbidden": true,
+      "detail_report": "/root/hermes-workspace/clawd/docs/clawd/resumption-migration-detail-2026-11-05.md",
+      "evidence": [
+        "clawd_projects/migration.py 存在，含 rollback_folder_migration 与 get_session_write_token 检查",
+        "存在不等于迁移或崩溃恢复已验收。没有实际迁移。"
+      ]
+    },
+    {
+      "id": "carry-distribution-stage-nix",
+      "scope": "唯一 stage/锁、完整性 v2、Nix 构建期资源、包数据与运行时 bundle 定位",
+      "owner": "distribution-detail",
+      "status": "detail-pending",
+      "class": "detail-pending",
+      "blocking": true,
+      "pass_forbidden": true,
+      "detail_report": "/root/hermes-workspace/clawd/docs/clawd/resumption-distribution-detail-2026-11-05.md",
+      "evidence": [
+        "clawd_server/resources.py 有 CONTRACT_NAME 与 stage_distribution",
+        "pyproject.toml 与 MANIFEST.in 含 bundled/RESOURCE_CONTRACT.json",
+        "不按旧清单的 MANIFEST 递归误报重派"
+      ],
+      "note": "源码可导入和清单声明都不是脱离源码可运行。wheel 成员齐也不能证明面板脱离源码可运行。"
+    },
+    {
+      "id": "carry-distribution-real-archives",
+      "scope": "CLAWD_DISTRIBUTION_WHEEL 与 CLAWD_DISTRIBUTION_SDIST 指向真实新包后，逐 RESOURCE_CONTRACT 核大小、sha256、禁入/额外与许可",
+      "owner": "distribution-acceptance",
+      "status": "blocked",
+      "class": "blocked",
+      "blocking": true,
+      "pass_forbidden": true,
+      "detail_report": "/root/hermes-workspace/clawd/docs/clawd/resumption-distribution-detail-2026-11-05.md",
+      "evidence": [
+        "本轮未构建 wheel/sdist，未设置两个环境变量，未打开档案",
+        "tests/clawd_server/test_distribution_package_manifest.py:343-351 缺任一变量会 AssertionError",
+        "该断言失败不是产品缺陷信号；验收前必须先记 blocked/2，不能把缺档案跑成失败后改写成通过"
+      ],
+      "required_later": [
+        "隔离目录实际构建",
+        "同时设置 CLAWD_DISTRIBUTION_WHEEL 与 CLAWD_DISTRIBUTION_SDIST",
+        "打开两个档案",
+        "RESOURCE_CONTRACT.json 的 files[].path 逐条 type=file、size、sha256",
+        "无符号链接、无清单外残留、无 desktop",
+        "四个未知内部包许可不得套 MIT"
+      ]
+    },
+    {
+      "id": "carry-licenses-four-unknown",
+      "scope": "许可提取；四个内部包许可未知，不能套 MIT",
+      "owner": "licenses-detail",
+      "status": "detail-pending",
+      "class": "detail-pending",
+      "blocking": true,
+      "pass_forbidden": true,
+      "detail_report": "/root/hermes-workspace/clawd/docs/clawd/resumption-licenses-detail-2026-11-05.md",
+      "evidence": [
+        "交接写明许可提取脚本和测试未运行",
+        "本轮未运行 scripts/clawd_inventory/generate.py"
+      ]
+    },
+    {
+      "id": "carry-settings-pages",
+      "scope": "全部设置页：技能、MCP 新增、模型端点、开放对象、汉化、工具集、记忆提供方、连接、已装插件非秘密配置、定时任务 deliver/skills/repeat、更新页禁用、日志 journal 501",
+      "owner": "settings-pages",
+      "status": "in-flight",
+      "class": "in-flight",
+      "blocking": true,
+      "pass_forbidden": true,
+      "evidence": [
+        "docs/clawd/settings-implementation-worklist.json 仍是 contract-only",
+        "其他 owner 正在改设置。本快照不冻结其中间diff",
+        "公共注册见 settings-new-public-routes 与 settings-no-safe-interface"
+      ],
+      "later_file_scope": [
+        "clawd_server/admin_skills.py",
+        "clawd_server/admin_mcp.py",
+        "clawd_server/admin_models.py",
+        "clawd_server/admin_settings.py",
+        "clawd_server/admin_tools.py",
+        "clawd_server/admin_memory.py",
+        "clawd_server/admin_connections.py",
+        "clawd_server/admin_plugins.py",
+        "clawd_server/admin_logs.py",
+        "apps/panel/src/react/pages/settings/skills-tab.tsx",
+        "apps/panel/src/react/pages/settings/mcp-tab.tsx",
+        "apps/panel/src/react/pages/settings/models-tab.tsx",
+        "apps/panel/src/react/pages/settings/config-tab.tsx",
+        "apps/panel/src/react/lib/settings-zh-supplement.json",
+        "apps/panel/src/react/pages/settings/tools-section.tsx",
+        "apps/panel/src/react/pages/settings/memory-section.tsx",
+        "apps/panel/src/react/pages/settings/connections-section.tsx",
+        "apps/panel/src/react/pages/settings/plugins-tab.tsx",
+        "apps/panel/src/react/pages/settings/jobs-tab.tsx",
+        "apps/panel/src/react/pages/settings/update-tab.tsx",
+        "apps/panel/src/react/pages/settings/logs-tab.tsx"
+      ]
+    },
+    {
+      "id": "carry-brand-surfaces",
+      "scope": "品牌 metadata、CLI/TUI、Web、docs、插件；真实第三方与兼容标识不机械替换",
+      "owner": "brand",
+      "status": "in-flight",
+      "class": "in-flight",
+      "blocking": true,
+      "pass_forbidden": true,
+      "evidence": [
+        "交接遗留：tests/test_hermes_constants.py:617-619、侧车可见旧文案、website/sidebars.ts、plugin-catalog/、optional-skills/",
+        "品牌 owner 正在改。本轮不重核这些文件，不把交接遗留列表当成当前字节事实，也不标收口"
+      ]
+    },
+    {
+      "id": "carry-five-cap-removal",
+      "scope": "取消成功连续续跑 5 次硬停，保留取消、审批、失败预算、无工作不自激和可归因恢复",
+      "owner": "continuation",
+      "status": "in-flight",
+      "class": "in-flight",
+      "blocking": true,
+      "pass_forbidden": true,
+      "evidence": [
+        "交接确认 gateway/clawd_continuation_decision.py 仍有 streak_limit",
+        "续跑 owner 正在改。本轮不重读决策文件，不把交接行号当成仍未改的证明，也不标已移除"
+      ],
+      "later_file_scope": [
+        "gateway/clawd_continuation_decision.py",
+        "gateway/clawd_continuation.py",
+        "续跑 journal 消费点",
+        "必要时 apps/panel chat-page 与两份 transcript，单 owner",
+        "tests/clawd_continuation_cases/",
+        "tests/gateway/test_clawd_continuation.py 需同步新行为，不降低保护测试"
+      ],
+      "note": "侧车 AUTO_CONTINUE_LIMIT 不是第二调度器。不要恢复 watcher。MAX_ATTEMPTS 是失败预算，保留。"
+    },
+    {
+      "id": "carry-browser-daemon-auth",
+      "scope": "浏览器云 dialog 的 target/session/frame 关联，以及 daemon 强制任务授权",
+      "owner": "browser",
+      "status": "unwired",
+      "class": "unwired",
+      "blocking": true,
+      "pass_forbidden": true,
+      "evidence": [
+        "交接：daemon 忽略未知字段、丢 sessionId、事件无 targetId；POSIX 0600 socket 不是任务 token",
+        "浏览器 owner 正在准备精确方案。本轮不改浏览器工具，不读已安装第三方包",
+        "clawd_server/browser_native.install 只替换已有 live_task 入口，不证明 daemon 已授权"
+      ],
+      "later_file_scope": [
+        "不改已安装的 browser-harness",
+        "方案确定前不新派实现",
+        "禁止 Browser.close/dispose 误关用户浏览器、认领未知页或回落 VNC"
+      ]
+    },
+    {
+      "id": "acceptance-package-stage-command",
+      "scope": "现有验收 package 阶段命令只导入 build_wheel，没有构建或打开档案",
+      "owner": "acceptance-orchestrator",
+      "status": "unwired",
+      "class": "unwired",
+      "blocking": true,
+      "pass_forbidden": true,
+      "evidence": [
+        "scripts/clawd_acceptance/stages.py:136-143 argv 为 python -c 'from setuptools.build_meta import build_wheel'"
+      ],
+      "note": "本轮不改该脚本。真实档案检查见 carry-distribution-real-archives。导入成功不是打包通过。"
+    },
+    {
+      "id": "core-audit-merge",
+      "scope": "八份核心审查与三份后续 JSON 按原始 ID 归并；审查不是修复",
+      "owner": "core-audit",
+      "status": "not-done",
+      "class": "not-done",
+      "blocking": false,
+      "blocks_audit_acceptance": true,
+      "pass_forbidden": true,
+      "evidence": [
+        "docs/clawd/core-audit/ 报告已存在",
+        "交接禁止把 active、mapping、items 直接相加",
+        "本轮未归并，未逐条重读源码"
+      ]
+    },
+    {
+      "id": "gate-manifest-stale",
+      "scope": "验收入口仍只读 03:07 完成清单；该清单过期且 implementation_complete 为 false",
+      "owner": "integration",
+      "status": "not-done",
+      "class": "not-done",
+      "blocking": true,
+      "pass_forbidden": true,
+      "evidence": [
+        "scripts/clawd_acceptance/gate.py:35-57 只接受 schema_version 1 与 implemented/unverified/pending/blocked",
+        "scripts/clawd_acceptance/gate.py:82-93 blocking 项非 implemented 则 run_allowed 为 false",
+        "本文件 schema_version 2，禁止拿来替换门禁清单"
+      ],
+      "note": "集成人在六份 detail 返回并亲自核对后才能改旧清单。本 agent 不改。"
+    },
+    {
+      "id": "acceptance-not-executed",
+      "scope": "lint、type、build、核心、TUI、面板、恢复竞态、脱源码分发均未执行",
+      "owner": "acceptance",
+      "status": "not-done",
+      "class": "not-done",
+      "blocking": true,
+      "pass_forbidden": true,
+      "evidence": [
+        "本轮无测试、构建、导入产品、网络、浏览器或探针",
+        "命令计划见 /root/hermes-workspace/clawd/docs/clawd/resumption-acceptance-2026-11-05.md"
+      ]
+    }
+  ]
+}

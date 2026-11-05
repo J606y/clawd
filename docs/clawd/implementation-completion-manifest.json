@@ -1,0 +1,458 @@
+{
+  "schema_version": 1,
+  "implementation_complete": true,
+  "observed_at": "2026-11-05T21:32:00+0800",
+  "implemented_means": "code delivered, not tests passed",
+  "items": [
+    {
+      "id": "panel-auth-csrf",
+      "scope": "panel edge Origin/Referer/Sec-Fetch-Site and cookie auth before proxy",
+      "owner": "parent",
+      "status": "implemented",
+      "evidence": [
+        "clawd_server/auth.py:309 origin_allowed",
+        "clawd_server/server.py:242 _authed calls origin_allowed then cookie hash",
+        "clawd_server/server.py:264 _renew",
+        "sha256 clawd_server/auth.py db2dc7f169dbe4e4da6e9c1b9f1b8858c9ca2ecee3577e515e1b2c2d4b9e96ca",
+        "sha256 clawd_server/server.py ea3534ab92e054fe38c79f6533b8797c86dea07facdfb09d3badc5a060dd03ab"
+      ],
+      "blocking": true
+    },
+    {
+      "id": "approval-generation-forward",
+      "scope": "approval POST forwards request_id, execution_generation, choice; core rejects missing or stale generation",
+      "owner": "parent",
+      "status": "implemented",
+      "evidence": [
+        "apps/panel/src/react/lib/api.ts:417 body request_id, execution_generation, choice",
+        "clawd_server/server.py:289 _proxy forwards non-hop headers",
+        "gateway/platforms/api_server_authority_runs.py:119-122 requires request_id, execution_generation, choice",
+        "sha256 apps/panel/src/react/lib/api.ts 74f2e6645f64ec1f17b060f84dec15635e0d2e0e5c28cd0d15645382baf963b7"
+      ],
+      "blocking": true
+    },
+    {
+      "id": "idempotency-and-sse-forward",
+      "scope": "Idempotency-Key not stripped; run events streamed not buffered",
+      "owner": "parent",
+      "status": "implemented",
+      "evidence": [
+        "clawd_server/server.py:21 _HOP has no idempotency-key",
+        "apps/panel/src/react/lib/api.ts:430 sends Idempotency-Key",
+        "clawd_server/server.py:320 iter_any for sse else iter_chunked"
+      ],
+      "blocking": true
+    },
+    {
+      "id": "continuation-scheduler-owned",
+      "scope": "legacy auto-continue thread replaced; API adapter armed",
+      "owner": "parent",
+      "status": "implemented",
+      "evidence": [
+        "clawd_server/bind.py:138-149 blocks watcher/tick/main then native.install",
+        "clawd_server/server.py:198 _start_continuation calls arm_adapter",
+        "sha256 clawd_server/bind.py a0cfe9432fbd526d11850105d040d0d0cf1e85f9ceabada2aa57ff04f20d101b"
+      ],
+      "blocking": true
+    },
+    {
+      "id": "download-nofollow",
+      "scope": "artifact/download open uses O_NOFOLLOW and rejects non-regular files",
+      "owner": "unowned",
+      "status": "implemented",
+      "evidence": [
+        "apps/panel/sidecar/hermes_panel_sidecar.py:1278 _open_download",
+        "apps/panel/sidecar/hermes_panel_sidecar.py:1298-1304 O_NOFOLLOW on directory and file",
+        "sha256 apps/panel/sidecar/hermes_panel_sidecar.py 11840a85bd8ce3a5be3a9abd4797b74cea1050895b19e80a63e95bd1fde8ff82"
+      ],
+      "blocking": true
+    },
+    {
+      "id": "parent-install-hooks",
+      "scope": "bind calls native.install before file_roots_under_home; native.install calls browser_native.install, runtime_native.install, then admin_native.install",
+      "owner": "parent",
+      "status": "implemented",
+      "evidence": [
+        "clawd_server/bind.py:147-150 install then file_roots_under_home",
+        "clawd_server/native.py:33-45 install_browser, install_runtime, install_admin",
+        "sha256 clawd_server/native.py 58a0af2c2c7208740b56a8dc6ab0d9a500c0b35e134b8c1961df22efbb68e94d",
+        "morning absent claims are stale; build/lib is not the live entry"
+      ],
+      "blocking": true
+    },
+    {
+      "id": "parent-register-routes",
+      "scope": "effort and runtime routes are added in APIServerAdapter.connect before the /p/{profile} catch-all",
+      "owner": "parent",
+      "status": "implemented",
+      "evidence": [
+        "gateway/platforms/api_server.py:1592-1593 _http_route_table extends clawd_runtime_routes.http_routes",
+        "gateway/platforms/api_server.py:4035-4044 route table, register_project_routes, register_effort_routes, then catch-all",
+        "gateway/platforms/clawd_effort_routes.py:205 register_effort_routes",
+        "sha256 gateway/platforms/api_server.py e653b26b4bcb8e816cc673c62304727b511bbb24b980cfff8024d35beeab7a5c"
+      ],
+      "blocking": true
+    },
+    {
+      "id": "project-routes-current-mount",
+      "scope": "register_project_routes is called once on the live adapter; parent does not register a second copy",
+      "owner": "migration",
+      "status": "implemented",
+      "evidence": [
+        "gateway/platforms/api_server.py:4038-4039 sole live call",
+        "gateway/platforms/clawd_project_routes.py:599 register_project_routes",
+        "build/lib copy at the old line 388 is not the live entry and was not treated as a second mount"
+      ],
+      "blocking": true
+    },
+    {
+      "id": "runtime-observers-and-run-facts",
+      "scope": "admission interim/reasoning observers; product path no longer serves sidecar sqlite for run/lease/edit-branch/commentary/background",
+      "owner": "runtime",
+      "status": "implemented",
+      "evidence": [
+        "gateway/platforms/api_server_runs.py:1129 _interim_cb",
+        "clawd_server/runtime_native.py:67 install replaces get_session_run, get_run_wait, commentary, edit_branch, background",
+        "apps/panel/src/react/lib/sidecar.ts:594-636 consumers call /api/runtime sessions active, background, run, execution, edit-branch",
+        "sidecar source functions remain; bind disables sidecar.main. Not deleted, not the product path"
+      ],
+      "blocking": true
+    },
+    {
+      "id": "runtime-usage-context-subagents",
+      "scope": "replace sidecar state.db/agent.log reads for usage, context, subagents",
+      "owner": "runtime",
+      "status": "implemented",
+      "evidence": [
+        "usage-tab.tsx useUsage -> queries.ts:300 sidecar.usage(days) -> sidecar.ts:685 request api/runtime/usage on panel-api, no BASE",
+        "gateway/platforms/clawd_runtime_routes.py:185 GET /api/runtime/usage; :452 handle_usage uses _auth and adapter _ensure_session_db_async",
+        "hermes_state_usage_summary.py summarize_usage reads the passed SessionDB via _read_ctx; no sqlite3.connect and no get_hermes_home",
+        "clawd_server/runtime_native.py:77 install replaces get_usage; :336 session_usage uses mod.HERMES_HOME SessionDB read_only, not a private sqlite open",
+        "clawd_server/native.py:41 install_runtime calls that install; legacy sidecar get_usage body remains for an unbound script and is not the product path",
+        "tests written, not run: tests/clawd_runtime_cases/test_usage_native.py and test_usage_wire.py",
+        "sha256 hermes_state_usage_summary.py 858185d34f9774d931b3eb0f47f199a1e69fd604b707d56770c181e70d0166ba",
+        "sha256 gateway/platforms/clawd_runtime_routes.py 45ac61a9e568b3cc9cd0fb6a3d74c6886801b6b5117de6f84e43f13d231838ad",
+        "sha256 clawd_server/runtime_native.py 367e0ee31af8001fcffb2e308f18054ab2d37596428f5f05d602dd41e7fa54cb43",
+        "sha256 apps/panel/src/react/lib/sidecar.ts 5b4984fbe252d8f6cbd69b79502380b4a9a5d21d30f87a3911bba98f894ceabd"
+      ],
+      "blocking": true
+    },
+    {
+      "id": "runtime-input-origin",
+      "scope": "live message list carries input_origin from the server projection; compiled panel does not call sidecar message-origins",
+      "owner": "runtime",
+      "status": "implemented",
+      "evidence": [
+        "apps/panel/src/react/lib/api.ts:316 messages keeps only server api_queue/api_steer",
+        "gateway/platforms/api_server.py:2789 message_projection supplies origins",
+        "apps/panel/tsconfig.json include is src/react only; src/lib/api.ts:295 sidecar call is outside the compile root"
+      ],
+      "blocking": true
+    },
+    {
+      "id": "admin-native-cli",
+      "scope": "models, cron-model, mcp, plugins, profiles, webhooks, settings use in-process exports; hermes CLI refused",
+      "owner": "admin",
+      "status": "implemented",
+      "evidence": [
+        "clawd_server/admin_native.py:137 install binds REPLACED and sets _hermes to 501 cli_retired",
+        "does not claim host update, restart, process profile switch, plugin hot load, memory setup, computer-use auth, journal, or delivery log",
+        "sha256 clawd_server/admin_native.py db0ce3a5871a513655861056edbe3edcc20b8d6841f0d46932d4a86659915939"
+      ],
+      "blocking": true
+    },
+    {
+      "id": "browser-ownership",
+      "scope": "live task path uses the browser tool registry; window-guard no longer rewrites tools or opens a shadow store",
+      "owner": "browser",
+      "status": "implemented",
+      "evidence": [
+        "clawd_server/browser_native.py:37 install replaces live_task/control/input and retires _live_task_store",
+        "apps/panel/plugins/browser-window-guard/__init__.py:25 register only blocks untracked tools; does not rewrite browser_exec",
+        "windowId/IO handle mapping is not a consumed regression: no caller addresses a task by windowId or IO stream; daemon.py:68 lists Browser.getWindowForTarget only as a targetId param class; IO.read at tools/browser_cdp_tool.py:45 is a redaction path",
+        "sha256 clawd_server/browser_native.py 68fcc80acdd21355419277658cdd93d53e0a4add19321ff46512dd8f9e730e0f"
+      ],
+      "blocking": true
+    },
+    {
+      "id": "explicit-project-migration",
+      "scope": "folder-to-project migration is called from the mounted project routes",
+      "owner": "migration",
+      "status": "implemented",
+      "evidence": [
+        "clawd_projects/migration.py exists",
+        "gateway/platforms/clawd_project_routes.py:15 imports plan/execute/preview/rollback",
+        "gateway/platforms/clawd_project_routes.py:519 plan_folder_migration; :544 execute_folder_migration",
+        "sha256 clawd_projects/migration.py d00d792f2375299c23d2b71aad4270304d022d34f587795b7be1197e78e26056"
+      ],
+      "blocking": true
+    },
+    {
+      "id": "effort-persistence",
+      "scope": "session effort is read and written through mounted API routes; localStorage is not the source for an existing session",
+      "owner": "effort",
+      "status": "implemented",
+      "evidence": [
+        "gateway/platforms/api_server.py:4040 register_effort_routes before catch-all",
+        "gateway/platforms/clawd_effort_routes.py:212-213 GET/PUT /api/sessions/{session_id}/effort",
+        "apps/panel/src/react/pages/chat/chat-page.tsx imports fetchSessionEffort/saveSessionEffort",
+        "apps/panel/src/react/lib/effort-service.ts:70 hits that API; effort.ts localStorage is display/default only",
+        "sha256 apps/panel/src/react/lib/effort-service.ts 2532dd8829201c5b36d7d1012bd3570cd71c6cf5b887ec930966e9b3022d5203"
+      ],
+      "blocking": true
+    },
+    {
+      "id": "wheel-panel-resources",
+      "scope": "packaging stages and locates panel dist, sidecar, and browser-window-guard without requiring the source tree at install time",
+      "owner": "distribution",
+      "status": "implemented",
+      "evidence": [
+        "clawd_server/packaging_backend.py calls stage_distribution before the build hook",
+        "clawd_server/resources.py:163 panel_root; :699 stage_distribution",
+        "pyproject.toml:727 package-data includes bundled/apps/panel dist, sidecar, plugins",
+        "MANIFEST.in recursive-include clawd_server/bundled/apps/panel",
+        "code delivered only; no wheel was opened. package stage stays acceptance blocked/2 without this run's archives"
+      ],
+      "blocking": true
+    },
+    {
+      "id": "upload-abspath-symlink-consumers",
+      "scope": "upload absPath, symlink root recheck, and panel prefix consumers",
+      "owner": "unowned",
+      "status": "implemented",
+      "evidence": [
+        "apps/panel/sidecar/hermes_panel_sidecar.py:1042 root recheck with O_NOFOLLOW",
+        "apps/panel/sidecar/hermes_panel_sidecar.py:5670 upload absPath aligned to injected prefix",
+        "apps/panel/src/react/pages/chat/turns.tsx:18 uploadRef matches absPath to artifact root prefix"
+      ],
+      "blocking": true
+    },
+    {
+      "id": "cutover-rollback-tool",
+      "scope": "isolated rollback tool scripts/clawd_cutover",
+      "owner": "cutover",
+      "status": "implemented",
+      "evidence": [
+        "scripts/clawd_cutover/cli.py:74 main",
+        "sha256 scripts/clawd_cutover/cli.py 568db258d2240486a0b7e847608f105a4e2f7e817772dfc636d894055080b433",
+        "code delivered; no isolated journal was used. rollback stage stays blocked without --rollback-entry"
+      ],
+      "blocking": true
+    },
+    {
+      "id": "acceptance-orchestrator",
+      "scope": "scripts/clawd_acceptance exists; code delivery is not a test pass and does not by itself allow run",
+      "owner": "acceptance",
+      "status": "implemented",
+      "evidence": [
+        "scripts/clawd_acceptance/accept.py",
+        "scripts/clawd_acceptance/gate.py schema 1; run_allowed requires CLI flag and every blocking item implemented",
+        "sha256 scripts/clawd_acceptance/accept.py 3ed14b0d75fbd96da3c798dca6c5f4dcde697a3e1c57e21e1b0c758747796803"
+      ],
+      "blocking": false
+    },
+    {
+      "id": "run-wait-log-projection",
+      "scope": "display wait uses persistent run/lease facts, not an agent.log scrape",
+      "owner": "unowned",
+      "status": "implemented",
+      "evidence": [
+        "clawd_server/runtime_native.py:218 run_wait calls project_run_wait; missing is unknown, not 0"
+      ],
+      "blocking": false
+    },
+    {
+      "id": "cron-event-order",
+      "scope": "panel cron-model is not /api/jobs; no static shared cursor with run SSE was located",
+      "owner": "needs-confirmation",
+      "status": "unverified",
+      "evidence": [
+        "gateway/platforms/api_server.py:1582 /api/jobs",
+        "no shared cursor with run SSE was found in this static pass; not claimed present or absent as a product bug"
+      ],
+      "blocking": false
+    },
+    {
+      "id": "profile-live-retarget",
+      "scope": "process-level profile switch is an approved exclusion; live adapter is not retargeted",
+      "owner": "needs-confirmation",
+      "status": "blocked",
+      "evidence": [
+        "approved notTask; do not implement and do not claim",
+        "clawd_server/admin_profiles.py:183 use_profile; :206 processSwitched false",
+        "clawd_server/admin_native.py BLOCKED use_profile_process_switch does not modify os.environ"
+      ],
+      "blocking": false
+    },
+    {
+      "id": "dashboard-entry-refuse",
+      "scope": "official dashboard command refuses; dead body remains for the headless branch",
+      "owner": "unowned",
+      "status": "implemented",
+      "evidence": [
+        "hermes_cli/main.py:2665 cmd_dashboard refuses when web/package.json is absent",
+        "web/package.json absent",
+        "apps/desktop absent"
+      ],
+      "blocking": false
+    },
+    {
+      "id": "settings-worklist-wired",
+      "scope": "approved settings routes are registered and page consumers call them; excluded host actions stay refused",
+      "owner": "settings",
+      "status": "implemented",
+      "evidence": [
+        "clawd_server/admin_routes.py:16 ROUTE_SPECS; :107 install wraps Handler._route",
+        "skills-tab useSetSkillEnabled; mcp-tab createMcp; models-tab createCustomEndpoint; config-tab getAdvanced",
+        "tools-section.tsx tools/toolsets; memory-section.tsx memory/providers; connections-section.tsx connections/platforms; plugins-tab getPluginConfig",
+        "jobs-tab.tsx submits deliver, skills, repeat on existing jobs API; logs-tab keeps journal 501",
+        "sha256 clawd_server/admin_routes.py 0cf0de753d0efc8f79a9ced1a6247a0ab0d1a3955dd7cb0833e892bd9b1d9332"
+      ],
+      "blocking": true
+    },
+    {
+      "id": "continuation-no-five-cap",
+      "scope": "successful continuation streak is observed only; it does not hard-stop admit",
+      "owner": "continuation",
+      "status": "implemented",
+      "evidence": [
+        "gateway/clawd_continuation_decision.py:342 streak is not a gate; decide does not return streak_limit",
+        "MAX_ATTEMPTS remains the failure budget",
+        "apps/panel/src/react/lib/transcript.ts:301 limited is always false",
+        "sha256 gateway/clawd_continuation_decision.py fa244674385cc0b216ca29227d32025fb51848a9a7d43a5c34a4f77cd9b97dbd",
+        "docs/clawd/continuation-no-five-cap.md is stale and is not current evidence"
+      ],
+      "blocking": true
+    },
+    {
+      "id": "effort-pending-freeze",
+      "scope": "continuation freezes the committed effort spec before launch; FROZEN_LAUNCH prevents a second refresh",
+      "owner": "effort",
+      "status": "implemented",
+      "evidence": [
+        "gateway/clawd_continuation.py:379 refresh_continuation_spec; :465 FROZEN_LAUNCH.set before admit",
+        "gateway/clawd_continuation_admit.py:35 FROZEN_LAUNCH; :328 skips second refresh when set",
+        "sha256 gateway/clawd_continuation.py 6c2be349953a7b1044549e322b5443d6e34847084bec600c46728eeae2c56d4f",
+        "sha256 gateway/clawd_continuation_admit.py a8e6b2f1c8595708186c6aba4ee034efefec107f8cd0b2bcc8a7b1e9cc017f3a"
+      ],
+      "blocking": true
+    },
+    {
+      "id": "project-memory-child-inheritance",
+      "scope": "child reservation snapshots the parent project before release; session fork/compression inherit; idle retarget is facade-owned",
+      "owner": "projects",
+      "status": "implemented",
+      "evidence": [
+        "gateway/session_worker_child.py:85 copy_parent_project_before_release; :45 _inheritance_refused raises and does not publish",
+        "hermes_state_sessions.py:377 and hermes_state_compression.py:375 call inherit_session_project",
+        "agent/turn_facade.py:252 _idle_project_memory_retarget",
+        "runtime_session_child.py is not an inheritance import hit and is not claimed",
+        "sha256 clawd_projects/inheritance.py 87325bcc2aea42005930bf03484012f25c6e2e633a243f49b0eb3c115c6b718c"
+      ],
+      "blocking": true
+    },
+    {
+      "id": "pagination-and-events",
+      "scope": "session, message, and subagent pages use limit/offset; run follow rejects a foreign identity",
+      "owner": "panel",
+      "status": "implemented",
+      "evidence": [
+        "apps/panel/src/react/lib/api.ts:286 listSessions limit/offset; :316 messages limit/offset",
+        "apps/panel/src/react/lib/sidecar.ts:581 requestSubagentsPage limit/offset against /api/runtime/subagents",
+        "apps/panel/src/react/lib/runs.ts:113 foreignIdentity; called at :558 and :590"
+      ],
+      "blocking": true
+    },
+    {
+      "id": "browser-vendor-grant-dialog",
+      "scope": "task grant and dialog identity are enforced on the harness path; missing frame identity fails closed",
+      "owner": "browser",
+      "status": "implemented",
+      "evidence": [
+        "tools/vendor/browser_harness_0_1_13/src/browser_harness/daemon.py:1057 _grant_error before send_raw; mismatch does not attach_first_page",
+        "tools/browser_dialog_tool.py refuses dialog_unscoped and dialog_unowned before Page.handleJavaScriptDialog",
+        "sha256 daemon.py 781609813fa0f0d20dda3c5a634d3bc6a01cc7403d8d7b303874903b15434d45",
+        "live browser frameId emission was not probed; absence fails closed and is not claimed as Chrome-sent",
+        "windowId/IO unmapped is not an approved-capability regression; see browser-ownership"
+      ],
+      "blocking": true
+    },
+    {
+      "id": "distribution-dual-archive",
+      "scope": "package handoff carries this run's wheel and sdist; empty or historical paths are not a green open",
+      "owner": "distribution",
+      "status": "implemented",
+      "evidence": [
+        "scripts/clawd_acceptance/execute.py:1343 _trusted_archive_handoff reads distribution_env wheel and sdist",
+        "missing, ambiguous, or symlink paths do not become a directory listing",
+        "code delivered; no archive was built or opened in this pass"
+      ],
+      "blocking": true
+    },
+    {
+      "id": "license-scope-unknown",
+      "scope": "license compliance stays an acceptance blocked check; unknown is not MIT and not a deleted check",
+      "owner": "acceptance",
+      "status": "blocked",
+      "evidence": [
+        "scripts/clawd_acceptance/execute.py:645 license-scope-unknown remains a required check",
+        "four package metadata/extractor results stay unknown; root MIT does not spill; written authorization is not claimed as a proven duty",
+        "not an implementation gap and not a pass"
+      ],
+      "blocking": false
+    },
+    {
+      "id": "acceptance-real-model-mcp",
+      "scope": "real model and MCP remain required acceptance checks; missing credentials stay blocked",
+      "owner": "acceptance",
+      "status": "blocked",
+      "evidence": [
+        "scripts/clawd_acceptance/execute.py:1284 real-model-mcp",
+        "scripts/clawd_acceptance/stages.py:586",
+        "do not mock; do not delete the check; not a code gap"
+      ],
+      "blocking": false
+    },
+    {
+      "id": "acceptance-browser-external",
+      "scope": "real Chromium remains a required acceptance check; missing binary stays blocked",
+      "owner": "acceptance",
+      "status": "blocked",
+      "evidence": [
+        "scripts/clawd_acceptance/execute.py:251 refuses panel-browser when /usr/bin/chromium is absent",
+        "do not mock; do not delete the check; not a code gap"
+      ],
+      "blocking": false
+    },
+    {
+      "id": "honcho-doc-final",
+      "scope": "nine known Honcho pages are still with the doc owner; intermediate bytes are not final evidence",
+      "owner": "docs",
+      "status": "pending",
+      "evidence": [
+        "waiting for doc-owner final bytes; no hash taken",
+        "website/docs/user-guide/features/honcho.md",
+        "website/docs/user-guide/features/memory-providers.md",
+        "website/docs/reference/cli-commands.md",
+        "website/docs/guides/migrate-from-openclaw.md",
+        "website/i18n/zh-Hans copies of those four plus autonomous-ai-agents-honcho.md",
+        "does not mean the site is complete; does not prove clawd honcho is registered"
+      ],
+      "blocking": false
+    },
+    {
+      "id": "approved-host-refusals",
+      "scope": "approved exclusions stay refused; they are not missing work and are not present capabilities",
+      "owner": "admin",
+      "status": "blocked",
+      "evidence": [
+        "host update and restart stay 403: clawd_server/bind.py:104-110",
+        "process profile switch stays processSwitched false",
+        "plugin hot load, installer, memory setup, computer-use authorization, MCP catalog install, env reveal, and pairing are not implemented",
+        "journal 501: clawd_server/admin_logs.py:107 journal_host_boundary",
+        "webhook deliveries 501: clawd_server/admin_webhooks.py:60 recent_deliveries; not an empty list"
+      ],
+      "blocking": false
+    }
+  ]
+}

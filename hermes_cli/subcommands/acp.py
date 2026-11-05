@@ -1,4 +1,4 @@
-"""``hermes acp`` subcommand parser."""
+"""``clawd acp`` subcommand parser."""
 
 from __future__ import annotations
 
@@ -10,19 +10,19 @@ from hermes_cli.subcommands._shared import add_accept_hooks_flag
 def build_acp_parser(subparsers, *, cmd_acp: Callable) -> None:
     """Attach the ``acp`` subcommand to ``subparsers``."""
     acp_parser = subparsers.add_parser(
-        "acp", help="Run Hermes Agent as an ACP (Agent Client Protocol) server",
-        description="Start Hermes Agent in ACP mode for editor integration (VS Code, Zed, JetBrains)",
+        "acp", help="Run clawd as an ACP (Agent Client Protocol) server",
+        description="Start clawd in ACP mode for editor integration (VS Code, Zed, JetBrains)",
     )
     add_accept_hooks_flag(acp_parser)
     acp_parser.add_argument(
         "--version", action="store_true", dest="acp_version",
-        help="Print Hermes ACP version and exit")
+        help="Print clawd ACP version and exit")
     acp_parser.add_argument(
         "--check", action="store_true",
         help="Verify ACP dependencies and adapter imports, then exit")
     acp_parser.add_argument(
         "--setup", action="store_true",
-        help="Run interactive Hermes provider/model setup for ACP terminal auth")
+        help="Run interactive clawd provider/model setup for ACP terminal auth")
     acp_parser.add_argument(
         "--setup-browser", action="store_true",
         help="Install PM's pinned Chromium for browser_exec (idempotent).")

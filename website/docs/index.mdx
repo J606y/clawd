@@ -1,7 +1,7 @@
 ---
 slug: /
 sidebar_position: 0
-title: "Hermes Agent Documentation"
+title: "clawd Documentation"
 description: "The self-improving AI agent built by Nous Research. A built-in learning loop that creates skills from experience, improves them during use, and remembers across sessions."
 hide_table_of_contents: true
 displayed_sidebar: docs
@@ -10,11 +10,11 @@ displayed_sidebar: docs
 import Link from "@docusaurus/Link";
 
 <head>
-  <title>Hermes Agent Docs (Official) | Nous Research</title>
-  <meta property="og:title" content="Hermes Agent Docs (Official) | Nous Research" />
+  <title>clawd docs | Nous Research</title>
+  <meta property="og:title" content="clawd docs | Nous Research" />
 </head>
 
-# Hermes Agent
+# clawd
 
 The self-improving AI agent built by [Nous Research](https://nousresearch.com). The only agent with a built-in learning loop — it creates skills from experience, improves them during use, nudges itself to persist knowledge, and builds a deepening model of who you are across sessions.
 
@@ -62,7 +62,7 @@ The self-improving AI agent built by [Nous Research](https://nousresearch.com). 
       textDecoration: "none",
     }}
   >
-    Download Desktop
+    Upstream Desktop
   </a>
   <a
     href="https://github.com/NousResearch/hermes-agent"
@@ -82,9 +82,16 @@ The self-improving AI agent built by [Nous Research](https://nousresearch.com). 
 
 ### Windows or macOS
 
-To easily install the command-line and desktop applications, [download the Hermes Desktop installer](https://hermes-agent.nousresearch.com/) from our website and run it.
+<!-- clawd-docs-note -->
+:::warning Not this checkout
+The installers, packages, and download links on this page are upstream Hermes Agent. They do not install clawd. This checkout does not publish an installer URL. From this checkout, run `./clawd`. Setup spelling is `clawd setup`. `clawd` refuses `update`, `desktop`, `dashboard`, `gui`, and `webapp`. The web UI here is `clawd panel`.
+:::
+
+
+To easily install the command-line and desktop applications, [download the Hermes Desktop installer](https://hermes-agent.nousresearch.com/) from the upstream site and run it.
 
 ### Without Hermes Desktop:
+
 
 For a command-line only install without Hermes Desktop, run:
 
@@ -110,7 +117,7 @@ See the full **[Installation Guide](./getting-started/installation.md)** for wha
 After installing, run `hermes setup --portal` — one OAuth covers a model plus all four Tool Gateway tools (web search, image generation, TTS, browser). See [Nous Portal](./integrations/nous-portal.md).
 :::
 
-## What is Hermes Agent?
+## What is clawd?
 
 It's not a coding copilot tethered to an IDE or a chatbot wrapper around a single API. It's an **autonomous agent** that gets more capable the longer it runs. It lives wherever you put it — a $5 VPS, a GPU cluster, or serverless infrastructure (Daytona, Modal) that costs nearly nothing when idle. Talk to it from Telegram while it works on a cloud VM you never SSH into yourself. It's not tied to your laptop.
 
@@ -127,14 +134,14 @@ It's not a coding copilot tethered to an IDE or a chatbot wrapper around a singl
 | 🔧 **[Tools & Toolsets](./user-guide/features/tools.md)**                   | 60+ built-in tools and how to configure them                          |
 | 🧠 **[Memory System](./user-guide/features/memory.md)**                     | Persistent memory that grows across sessions                          |
 | 📚 **[Skills System](./user-guide/features/skills.md)**                     | Procedural memory the agent creates and reuses                        |
-| 🔌 **[MCP Integration](./user-guide/features/mcp.md)**                      | Connect to MCP servers, filter their tools, and extend Hermes safely  |
-| 🧭 **[Use MCP with Hermes](./guides/use-mcp-with-hermes.md)**               | Practical MCP setup patterns, examples, and tutorials                 |
+| 🔌 **[MCP Integration](./user-guide/features/mcp.md)**                      | Connect to MCP servers, filter their tools, and extend clawd safely  |
+| 🧭 **[Use MCP with clawd](./guides/use-mcp-with-hermes.md)**               | Practical MCP setup patterns, examples, and tutorials                 |
 | 🎙️ **[Voice Mode](./user-guide/features/voice-mode.md)**                    | Real-time voice interaction in CLI, Telegram, Discord, and Discord VC |
-| 🗣️ **[Use Voice Mode with Hermes](./guides/use-voice-mode-with-hermes.md)** | Hands-on setup and usage patterns for Hermes voice workflows          |
-| 🎭 **[Personality & SOUL.md](./user-guide/features/personality.md)**        | Define Hermes' default voice with a global SOUL.md                    |
+| 🗣️ **[Use Voice Mode with clawd](./guides/use-voice-mode-with-hermes.md)** | Hands-on setup and usage patterns for clawd voice workflows          |
+| 🎭 **[Personality & SOUL.md](./user-guide/features/personality.md)**        | Define clawd's default voice with a global SOUL.md                    |
 | 📄 **[Context Files](./user-guide/features/context-files.md)**              | Project context files that shape every conversation                   |
 | 🔒 **[Security](./user-guide/security.md)**                                 | Command approval, authorization, container isolation                  |
-| 💡 **[Tips & Best Practices](./guides/tips.md)**                            | Quick wins to get the most out of Hermes                              |
+| 💡 **[Tips & Best Practices](./guides/tips.md)**                            | Quick wins to get the most out of clawd                              |
 | 🏗️ **[Architecture](./developer-guide/architecture.md)**                    | How it works under the hood                                           |
 | ❓ **[FAQ & Troubleshooting](./reference/faq.md)**                          | Common questions and solutions                                        |
 

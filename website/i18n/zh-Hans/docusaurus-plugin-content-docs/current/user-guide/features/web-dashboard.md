@@ -6,6 +6,12 @@ description: "基于浏览器的仪表板，用于管理配置、API 密钥、�
 
 # Web Dashboard
 
+<!-- clawd-docs-note -->
+:::warning 不是 clawd 产品
+clawd 不提供官方 Desktop、官方 Web Dashboard，也不提供 `desktop`、`gui`、`webapp`、`dashboard`。本页记录的是上游 Hermes Agent。本检出的 Web 界面是 `clawd panel`。
+:::
+
+
 本页的 Python 依赖命令使用 [PM 准备的源码环境](../../reference/package-management.md#developer-workflow)。
 依赖变更后，请重新激活该 checkout 并重启 Hermes。
 

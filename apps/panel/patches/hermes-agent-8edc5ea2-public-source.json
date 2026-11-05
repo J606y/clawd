@@ -1,0 +1,11 @@
+{
+  "source_revision": "8edc5ea255aa",
+  "files": {
+    "gateway/platforms/api_server_runs.py": "459d1745759108b0b07775d04682a6b166cee72559fdffb749f5166135874132",
+    "gateway/session_ingress.py": "e8b038cbaff9eaced033051b14cf6973395b16106c23c1af1034d281bae467b8",
+    "gateway/response_filters.py": "c229a2aae6f57be1e75e40df9a2274f46fa7f3c77e1edbaea95b6cba9d280aef",
+    "gateway/session_display.py": "b081d0a16efb2f643b916113731d671441b4dd549ac68bdaf03df1c5ad7008dd",
+    "gateway/session_api_turn.py": "96f3fa016d822b0dca5e94b10e7ab21e936ad36f46b902ecd5c7058affd0f7b2",
+    "gateway/run_turn_persistence.py": "31d1d1869b5c9d9d08b8f57bd3ccde4dd9c2844c4a2f74fae991d28842363880"
+  }
+}

@@ -1,0 +1,2317 @@
+{
+  "meta": {
+    "reviewer": "final-merge-2026-11-05",
+    "model": "grok-4.7",
+    "method": "static-read-only",
+    "not_run": true,
+    "not_a_fix": true,
+    "not_runtime_pass": true,
+    "kernel_safe": false,
+    "third_party_judged_safe": false,
+    "baseline": "c314285f077e91937c995d419b9fa40af9eb4981",
+    "written_at": "2026-11-05T05:51:45.311754+08:00",
+    "read_snapshot": "2026-11-05T05:39:21+08:00",
+    "note": "不宣布内核安全。建议代码未应用。不要把本文件的 active 数与旧报告的 active/items/mapping 相加。panel_image_studio.db 不是 state.db。空 API key 检查不能跳过启动门禁称远程绕鉴权。effort 旧签名与 Response 真值误报不复活。",
+    "do_not_sum": [
+      "reviewed-findings.json active=27",
+      "remaining-transport items=10",
+      "remaining-background active=2",
+      "remaining-native-storage items=14"
+    ],
+    "drift_since_read": [],
+    "parallel_note": "设置/续跑/品牌可能仍在写其他文件。本清单只对引用文件哈希负责。hermes_state_subagents.py 不在 63 条结论里，不把其漂移升格。turn_facade.py 相对初次复核已变，但当前字节没有 commit_deferred_effort，exec-effort 按当前 session_api_turn 调用判定为 fixed。"
+  },
+  "items": [
+    {
+      "id": "exec-effort",
+      "status": "fixed",
+      "severity": "high",
+      "confidence": "确定",
+      "title": "租约回合不再调用缺准入证明的两参数 commit_deferred_effort",
+      "origins": [
+        "execution.md#1"
+      ],
+      "locations": [
+        "gateway/session_api_turn.py:618-650",
+        "gateway/session_api_turn.py:659-674",
+        "clawd_server/effort_service.py:469"
+      ],
+      "trigger": "旧快照里的两参数签名。当前字节不再有这条调用。",
+      "description": "全仓库 commit_deferred_effort 只在 session_api_turn.py:618 调用，参数是 authority.db、sid、authority、admission_held=True，并持有 keyed_turn 与 live.mutation_lock。无 authority 时 profile_admission_lock 返回 None，commit_trusted_pending_effort 返回 None，不把缺证明写成成功。当前 turn_facade.py 没有该调用；其哈希已从初次复核的 3adf4fab 变为 0c111854，新内容是空闲记忆改绑，不复活旧签名。",
+      "suggested_code": "# 不需要再改这条旧签名。不要按旧两参数快照重开。\n# 保持 commit_deferred_effort(..., authority=authority, admission_held=True)",
+      "related": [],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "clawd_server/effort_service.py": "8cd685880f82709654679de6e99dac558e7735b9c7dc85fa16c92fcc2aec2d98",
+        "gateway/session_api_turn.py": "f03d140bf5e14f341e3bd0de6b3b5e368161ba1d69aa780e250cea001896b190"
+      }
+    },
+    {
+      "id": "exec-cli-history",
+      "status": "active",
+      "severity": "medium",
+      "confidence": "确定",
+      "title": "CLI 异常用空 messages 覆盖内存历史",
+      "origins": [
+        "execution.md#2"
+      ],
+      "locations": [
+        "hermes_cli/cli_chat_turn_mixin.py:361-370",
+        "hermes_cli/cli_chat_turn_mixin.py:500-501"
+      ],
+      "trigger": "对话 CLI 的 agent 线程里 run_conversation 抛出 Exception。KeyboardInterrupt 不进这个 except。不再由 effort 两参数调用强制触发。",
+      "description": "except 把 turn.result['messages'] 设为 []。随后若 turn.result 为真，conversation_history 取 result.get('messages', 旧历史)，空列表是真值，于是用空历史覆盖内存。",
+      "suggested_code": "except Exception as exc:\n    turn.result = {..., 'messages': None, 'completed': False, 'failed': True}\n# 消费处：\nmsgs = turn.result.get('messages', None)\nif msgs is not None:\n    self.conversation_history = msgs",
+      "related": [],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "hermes_cli/cli_chat_turn_mixin.py": "aad4a245b8187ec2da7e0d5bb9a33bc9d68fb2e3a873015c3c1fa02118fdbab8"
+      }
+    },
+    {
+      "id": "exec-stop-window",
+      "status": "active",
+      "severity": "medium",
+      "confidence": "确定",
+      "title": "无 authority 时，创建 agent 期间的停止打不中执行线程",
+      "origins": [
+        "execution.md#3"
+      ],
+      "locations": [
+        "gateway/platforms/api_server_runs.py:1159-1199",
+        "gateway/platforms/api_server_runs.py:1574-1580",
+        "gateway/platforms/api_server.py:3265-3274"
+      ],
+      "trigger": "session_authority 为空。停止或断线落在已过 1159 的停止位检查、agent 尚未写入 _active_run_agents 之间。有 authority 的停止走 stop_run，不在本窗口。",
+      "description": "1159 在创建 agent 前看一次 _stopping_run_ids。创建期间到达的 stop 因 agent 尚未登记而不调用 request_hard_interrupt，创建返回后也不再读停止位。断线且 agent 为空时只 task.cancel()。",
+      "suggested_code": "agent = self._create_agent(...)\nself._active_run_agents[run_id] = agent\nif run_id in self._stopping_run_ids:\n    request_hard_interrupt(agent, 'stop during create')\n    _finish('cancelled')\n    return",
+      "related": [
+        "bg-stop"
+      ],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "gateway/platforms/api_server.py": "b95284ed570ea9f3ed4f0218af12eff91891373a32a93f60f89658b43ba839de",
+        "gateway/platforms/api_server_runs.py": "554cb28b411b323fab038d4f24dedc7e4876b7266f2044bc5f3730e528fa122b"
+      }
+    },
+    {
+      "id": "appr-fifo",
+      "status": "active",
+      "severity": "high",
+      "confidence": "确定",
+      "title": "不带 request_id 的同意按 FIFO 放行另一条待决命令",
+      "origins": [
+        "approval.md#高-FIFO"
+      ],
+      "locations": [
+        "tools/approval.py:157-166",
+        "tools/approval.py:915-919",
+        "plugins/platforms/telegram/adapter.py:4768",
+        "plugins/platforms/feishu/adapter.py:2385",
+        "plugins/platforms/qqbot/adapter.py:704",
+        "plugins/platforms/teams/adapter.py:657",
+        "plugins/platforms/matrix/adapter.py:2549",
+        "plugins/platforms/whatsapp_cloud/adapter.py:930",
+        "plugins/platforms/slack/adapter.py:5628",
+        "gateway/relay/adapter.py:2056",
+        "gateway/slash_commands.py:1218",
+        "gateway/platforms/api_server_runs.py:1431-1454",
+        "gateway/slash_access.py:38-42"
+      ],
+      "trigger": "同一会话有两条未合并的待决审批。用户点较新卡片的 once、发送 /approve，或无 authority 的旧 API 不带 request_id。斜杠门禁未配置 allow_admin_from 时 is_admin 对所有人为真。Discord 传了 request_id，不在此列。",
+      "description": "resolve_gateway_approval 无 request_id 且非 resolve_all 时 queue.pop(0)。上述按钮和 /approve 不传 request_id。旧 API 在无 session_authority 时 request_id 可缺，resolve_all 还可一次同意。grant 把除 None 和 deny 以外的选择当成同意。",
+      "suggested_code": "else:\n    return 0  # 缺 request_id 时拒绝，不要 pop(0)\n# 按钮/斜杠必须把该卡片的 request_id 传入\nresolve_gateway_approval(session_key, choice, request_id=card_request_id)",
+      "related": [],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "gateway/platforms/api_server_runs.py": "554cb28b411b323fab038d4f24dedc7e4876b7266f2044bc5f3730e528fa122b",
+        "gateway/relay/adapter.py": "0b97cedf6cf6908c13a2d3ecfbedcc06694d4877dcb2f31abc946dad4d1dd817",
+        "gateway/slash_access.py": "9b3edefcf37560d90ce65f16d8aee7d09bb02ca2c8182a6305b28d76172a699d",
+        "gateway/slash_commands.py": "2cfa1105bc963d24a67c268c7e86f9b78ffa8dcdb7e0007a86d16fa319267351",
+        "plugins/platforms/feishu/adapter.py": "3525af4876e9b9725d5752721357d2c669d858338c83b8c50d44c0c422e844fb",
+        "plugins/platforms/matrix/adapter.py": "2a48bc2713c7b6007450e26bd4e4343928e697c3ee60cf979741b4eeb9ee1693",
+        "plugins/platforms/qqbot/adapter.py": "725904c6affa34d490717b75e69f24e1f605ae38603fdfa1f2707c09901af2e3",
+        "plugins/platforms/slack/adapter.py": "0f658a0db64f81f4cfacde86c2ae618a4c4c9135fe35c10c69b163e4f9ed7299",
+        "plugins/platforms/teams/adapter.py": "0907587f25b8cee4ca72f8f82d7f589af9a2967a8e166bc3181e6511b8985bc1",
+        "plugins/platforms/telegram/adapter.py": "5e247fbbd3a2c4a66adda439717d5283c237af4ccad589004d64244316a49c2f",
+        "plugins/platforms/whatsapp_cloud/adapter.py": "2ab0ac2937efc54d6add3def830b1143100439f27e91691fa484b0f232aaa38b",
+        "tools/approval.py": "f981161d1f8a2679f74f5ac0e84c576f985c6b5cd5b50e361252abd5b1d616ad"
+      }
+    },
+    {
+      "id": "appr-tui",
+      "status": "active",
+      "severity": "medium",
+      "confidence": "可能",
+      "title": "TUI 审批接受任意非 deny，且可 all；处理器自身不核对 execution_generation",
+      "origins": [
+        "approval.md#高-任意choice",
+        "approval.md#中-TUI身份"
+      ],
+      "locations": [
+        "tui_gateway/methods_prompt.py:1340-1354",
+        "tui_gateway/server.py:718-731",
+        "tools/approval.py:855-861",
+        "tools/approval.py:915-919"
+      ],
+      "trigger": "已连接客户端对有待决项的会话发送 choice 为非 deny，或 all 为真。缺省 choice 是 deny，缺省本身不放行。外层连接是否只接受本机会话持有者，本次未读完分发器，因此不升成远程高危。",
+      "description": "approval.respond 把 params.choice 默认 deny 后原样送入 resolve_gateway_approval，all 变成 resolve_all。server on_result 同样把 choice 原样送入，all 取 result.all。grant 不限制 once/session/always。两个入口都不传 execution_generation。托管房间的代次字段在别的方法里，不保护这条审批队列。",
+      "suggested_code": "allowed = {'once', 'session', 'always', 'deny'}\nchoice = params.get('choice', 'deny')\nif choice not in allowed:\n    return _err(rid, 4006, 'invalid choice')\nif params.get('all') and not session_holder_confirmed:\n    return _err(...)\n# 若队列项带 execution_generation，不匹配则拒绝",
+      "related": [
+        "appr-fifo"
+      ],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "tools/approval.py": "f981161d1f8a2679f74f5ac0e84c576f985c6b5cd5b50e361252abd5b1d616ad",
+        "tui_gateway/methods_prompt.py": "b8baa13c15e8ddee29b40e0e2403fe0f63016bfa49dd9fd09c9f1de9e8d0e54c",
+        "tui_gateway/server.py": "a37a2bbc308a1d679c2397a87c0f03e479ea229105e1904897879f045c73892c"
+      }
+    },
+    {
+      "id": "appr-parallel",
+      "status": "active",
+      "severity": "medium",
+      "confidence": "确定",
+      "title": "写审批返回前，启动顺序已经推进",
+      "origins": [
+        "approval.md#中-并行"
+      ],
+      "locations": [
+        "agent/tool_executor.py:741-748",
+        "tools/file_tools.py:872-877"
+      ],
+      "trigger": "同一条助手消息里，需要写审批的 write_file 与另一个不依赖它的工具被放进同一执行段。",
+      "description": "_advance_start_order 在 execute 之前。SSH 等写审批在 write_file_tool 内部的 _check_approval_required_write。被挡住的写本身不在同意前落盘；同一段里后一个不重叠工具可以先开始。",
+      "suggested_code": "_advance_start_order(...)  # 挪到写审批返回且 approved 之后\nerr = _check_approval_required_write(...)\nif err:\n    return tool_error(err)\n_advance_start_order(lambda: _begin_tool_execution(...))\nreturn execute(ref.args)",
+      "related": [],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "agent/tool_executor.py": "c85e239d1d56ad415902db2371e9e28c2216f6fd72e29860cff7f97b2e05a0c2",
+        "tools/file_tools.py": "925ebccc2a70b5a1b55541242cb19ed6614a18e82df1d6bc29474dc22c4f0dee"
+      }
+    },
+    {
+      "id": "appr-auto",
+      "status": "false_positive",
+      "severity": "medium",
+      "confidence": "确定",
+      "title": "未标记默认同意分支存在，但已读产品入口到不了",
+      "origins": [
+        "approval.md#中-默认同意"
+      ],
+      "locations": [
+        "tools/approval.py:1208-1216",
+        "tools/terminal_tool.py:1114-1120",
+        "cli.py:1743",
+        "tui_gateway/server.py:963",
+        "gateway/platforms/api_server.py:3621"
+      ],
+      "trigger": "原报告的内部调用者不存在。要走到 1216，必须有产品线程既不是 CLI/网关/ask，也没有任何无人值守拒绝上下文。已读入口都先绑标记。",
+      "description": "1216 只在非 CLI、非网关、非 ask，且无人值守上下文都未拒绝时返回同意。CLI 与 TUI 设 HERMES_INTERACTIVE；API 运行绑定 platform=api_server。terminal 仍调用共享门，不另开一条默认同意。",
+      "suggested_code": "# 不按此条改产品。若要收紧死代码：1216 改为 return _blocked(...) 而不是 _approved()",
+      "related": [],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "cli.py": "de7f37805b839d632b5e96e3fe3fefef9978e62599f53476222def34243e2832",
+        "gateway/platforms/api_server.py": "b95284ed570ea9f3ed4f0218af12eff91891373a32a93f60f89658b43ba839de",
+        "tools/approval.py": "f981161d1f8a2679f74f5ac0e84c576f985c6b5cd5b50e361252abd5b1d616ad",
+        "tools/terminal_tool.py": "23954745416973b02cb92e248a6003a4cc02c91ac4b79077c191205c5fefcf7e",
+        "tui_gateway/server.py": "a37a2bbc308a1d679c2397a87c0f03e479ea229105e1904897879f045c73892c"
+      }
+    },
+    {
+      "id": "appr-timeout",
+      "status": "false_positive",
+      "severity": "low",
+      "confidence": "确定",
+      "title": "截止后、出队前的选择是锁内已提交的同意，不是过期票据",
+      "origins": [
+        "approval.md#低-超时窗口"
+      ],
+      "locations": [
+        "tools/approval.py:169-176",
+        "tools/approval_gateway_wait.py:48-76"
+      ],
+      "trigger": "原触发是超时与同意几乎同时。代码把同一把锁里已写入的 result 当回答。",
+      "description": "resolve 在审批锁里写 result 并 set event，注释写明选择不能被弹出后当成超时丢失。删除之后再 POST 找不到条目。这不是用错的过期票据。",
+      "suggested_code": "# 不按此条改产品",
+      "related": [],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "tools/approval.py": "f981161d1f8a2679f74f5ac0e84c576f985c6b5cd5b50e361252abd5b1d616ad",
+        "tools/approval_gateway_wait.py": "cb637ab95a335feec3141ecb05f27df4783c341ad53e2dcf7d794057e0f7e45c"
+      }
+    },
+    {
+      "id": "appr-grace",
+      "status": "false_positive",
+      "severity": "low",
+      "confidence": "确定",
+      "title": "3 秒宽限提交的是已完成的真实结果，不是取消哨兵",
+      "origins": [
+        "approval.md#低-3秒"
+      ],
+      "locations": [
+        "agent/tool_executor.py:952-958",
+        "agent/tool_executor.py:1540-1553"
+      ],
+      "trigger": "用户在工具已经启动后取消，且该工具在 3 秒内正常结束。这是记录已发生的结果。",
+      "description": "中断后先打中断位再等 3 秒。已完成且未取消的 future 返回真实结果。下一个未开始的调用在中断位跳过。没有把取消标记误当成成功。",
+      "suggested_code": "# 不按此条改产品",
+      "related": [],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "agent/tool_executor.py": "c85e239d1d56ad415902db2371e9e28c2216f6fd72e29860cff7f97b2e05a0c2"
+      }
+    },
+    {
+      "id": "ctx-commit-fail",
+      "status": "active",
+      "severity": "high",
+      "confidence": "确定",
+      "title": "压缩提交失败仍换提示并继续打模型，flush 基线被当成轮换清空",
+      "origins": [
+        "context.md#3.1"
+      ],
+      "locations": [
+        "agent/conversation_compression.py:3082-3137",
+        "agent/conversation_compression.py:3104-3105",
+        "agent/conversation_compression.py:3590-3591",
+        "agent/conversation_compression.py:3674",
+        "agent/conversation_compression.py:3708-3739",
+        "agent/conversation_compression.py:3434",
+        "agent/conversation_compression.py:3912-3913",
+        "agent/conversation_compression.py:4198-4239",
+        "agent/conversation_compression.py:2133-2146",
+        "agent/turn_preflight.py:147-191",
+        "agent/turn_overflow.py:154-178",
+        "tools/mcp_tool_agent.py:190-194"
+      ],
+      "trigger": "in-place 的 archive_and_compact 在提交标记前抛错，或 rotation 在切换 session_id 前失败。失败路径不设 lock/transient 标志。",
+      "description": "_rebuild_system_prompt_at_boundary 在 _commit_compaction 之前刷新工具并重建提示，变化时经 refresh_agent_mcp_tools 写 pin。失败时 compacted_in_place 保持 False，_finish 仍把它写入 _last_compression_attempt_in_place。attempt 一开始就把 _last_compression_attempt_recorded 设真，于是 conversation_history_after_compression 在 in_place 为 False 时返回 None。预检和 overflow 只在列表对象相同且 lock/transient 时推迟；失败回滚用切片赋值，对象身份不变，但没有那些标志，于是当成压缩完成，带着新建提示继续打模型。",
+      "suggested_code": "commit = _commit_compaction(...)\nif not commit.session_commit_succeeded:\n    _restore_prompt_and_tool_pin(agent, saved)\n    agent._last_compression_attempt_in_place = None\n    agent._compression_blocked_transient = 'commit_failed'\n    return messages, old_prompt\n# 只有成功后才安装 new_system_prompt / 写 pin",
+      "related": [],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "agent/conversation_compression.py": "796494d28180659f2843599420840832e1f528ecad2110b498a59f53e34e6bcb",
+        "agent/turn_overflow.py": "14d483d7043f1fc39b01f5fd15521392ef734cbbff05e9ce68a7597100f18235",
+        "agent/turn_preflight.py": "5909b32461c37fa50afd4b537f84e120f14bad22bbb9c5f0f197d9ec6bdfb0b4",
+        "tools/mcp_tool_agent.py": "cddaeb9e8e035c2982a7299c35ad288ab3187eb4848562a16c57b64559a87447"
+      }
+    },
+    {
+      "id": "ctx-positional",
+      "status": "active",
+      "severity": "medium",
+      "confidence": "确定",
+      "title": "预检不区分 provider，按位置丢掉仍在的 tool 结果并补 stub",
+      "origins": [
+        "context.md#3.2"
+      ],
+      "locations": [
+        "agent/agent_runtime_helpers.py:2911-2982",
+        "agent/agent_runtime_helpers.py:2964-2971",
+        "agent/agent_runtime_helpers.py:3106-3115"
+      ],
+      "trigger": "assistant tool_calls 与对应 tool 结果之间插入 user。所有走 sanitize_api_messages 的路线，不只 DeepSeek/Kimi。存储转录可以还在。",
+      "description": "user 行先补 stub 再清空待配对表；其后同 id 的真实 tool 行 matched 为 None，continue 掉，不进入请求副本。这是发给模型的副本，不是删库。",
+      "suggested_code": "# user 打断时不要把后续同 id 的真实 tool 行丢掉\nif role == 'tool' and matched is None:\n    parked.append(msg)  # 留到声明它的 assistant 之后再配对\n    continue",
+      "related": [],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "agent/agent_runtime_helpers.py": "36914aaf5c7ac3ed92c9f6d0d7da253a97e4268f4a054319e5f96e41d3b4b341"
+      }
+    },
+    {
+      "id": "ctx-skill-id",
+      "status": "false_positive",
+      "severity": "low",
+      "confidence": "确定",
+      "title": "当前 Codex 写入把 id 设成与结果相同的配对串",
+      "origins": [
+        "context.md#3.3"
+      ],
+      "locations": [
+        "agent/codex_responses_adapter.py:1160-1171",
+        "agent/transports/codex_event_projector.py:96-101"
+      ],
+      "trigger": "原报告“只带 call_id、查找只用 id”的触发不成立于当前写入路径。",
+      "description": "当前写入把 id 与 call_id 设成同一配对串。只按 id 查找会命中。未打开会话库。",
+      "suggested_code": "# 不按此条改产品",
+      "related": [],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "agent/codex_responses_adapter.py": "32f9899f4451b7965ceebb3919e503fedf61173a47078c8b8335872e42d1610f",
+        "agent/transports/codex_event_projector.py": "bd3b548d795067fc7b46082ba4301c747e65ed664dfb3f37c6eb9c7a9a872588"
+      }
+    },
+    {
+      "id": "inp-media",
+      "status": "active",
+      "severity": "medium",
+      "confidence": "确定",
+      "title": "媒体外发默认不严格",
+      "origins": [
+        "input-security.md#1"
+      ],
+      "locations": [
+        "hermes_cli/config_defaults.py:2207-2212"
+      ],
+      "trigger": "入站内容诱导模型写出 MEDIA: 绝对路径，且网关会把该路径当媒体发送。不是路径穿越，也不把同用户可写 home 升成任意远程高危。",
+      "description": "gateway.strict 默认 false。注释写明非严格模式只套拒绝名单。公开平台上，回复中的拒绝名单之外的绝对路径可变成外发。",
+      "suggested_code": "\"strict\": True,  # 公开网关默认只允许缓存/allow_dirs/近期文件",
+      "related": [],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "hermes_cli/config_defaults.py": "2c7f02045f582d03565dbb59972f09fc21fcac71a26adb5117d5754759ccb634"
+      }
+    },
+    {
+      "id": "inp-origin",
+      "status": "active",
+      "severity": "medium",
+      "confidence": "可能",
+      "title": "面板省略端口匹配任意 Host 端口",
+      "origins": [
+        "input-security.md#2"
+      ],
+      "locations": [
+        "clawd_server/auth.py:239-242",
+        "clawd_server/auth.py:275-280",
+        "clawd_server/server.py:277-281"
+      ],
+      "trigger": "用户已登录；浏览器打开同主机默认端口页面；面板监听非默认端口。loopback 限制利用面。不升成远程高危。",
+      "description": "http/80 与 https/443 被记成无端口。任一侧无端口则 _ports_compatible 为真。通过后的 /panel-api 注入 Bearer。",
+      "suggested_code": "def _ports_compatible(left, right, scheme):\n    if left is None:\n        left = 443 if scheme == 'https' else 80\n    if right is None:\n        right = 443 if scheme == 'https' else 80\n    return left == right",
+      "related": [],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "clawd_server/auth.py": "db2dc7f169dbe4e4da6e9c1b9f1b8858c9ca2ecee3577e515e1b2c2d4b9e96ca",
+        "clawd_server/server.py": "ea3534ab92e054fe38c79f6533b8797c86dea07facdfb09d3badc5a060dd03ab"
+      }
+    },
+    {
+      "id": "inp-auth-bool",
+      "status": "false_positive",
+      "severity": "high",
+      "confidence": "确定",
+      "title": "当前 aiohttp 的 Response 不为假，不能靠真值绕鉴权",
+      "origins": [
+        "input-security.md#3"
+      ],
+      "locations": [
+        ".venv/lib/python3.14/site-packages/aiohttp/web_response.py:651-652",
+        "gateway/platforms/api_server.py:1415-1428"
+      ],
+      "trigger": "原报告说 4xx Response 为假，从而跳过 if auth_err。当前 aiohttp 不成立。",
+      "description": "StreamResponse.__bool__ 返回 True。Response 继承它。if auth_err 对 401 为真。不复活。",
+      "suggested_code": "# 不按此条改产品。不要用 Response 真值做控制流；现有显式 None/Response 判断已够",
+      "related": [],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "gateway/platforms/api_server.py": "b95284ed570ea9f3ed4f0218af12eff91891373a32a93f60f89658b43ba839de"
+      }
+    },
+    {
+      "id": "inp-empty-key",
+      "status": "active",
+      "severity": "low",
+      "confidence": "确定",
+      "title": "默认 profile 空密钥时请求检查放行；已读生产监听都先过启动门禁",
+      "origins": [
+        "input-security.md#4"
+      ],
+      "locations": [
+        "gateway/platforms/api_server.py:1415-1428",
+        "gateway/platforms/api_server.py:3948-4005",
+        "clawd_server/server.py:174-195",
+        "gateway/run_adapters.py:194-197"
+      ],
+      "trigger": "有代码不经过 _api_key_passes_startup_guard 就把 handler 挂上监听，或启动后把默认 profile 的密钥清成空。本次已读的 connect() 与面板 _start_api 不会这样。不是已确认的远程绕鉴权。",
+      "description": "expected_key 为空且不是具名 profile 时 _check_auth 返回 None。connect() 在密钥缺失、过短或强度无法核验时拒绝监听，且在创建 Application 和加路由之前返回。面板只在 connect() 成功后记录监听地址。这是检查器里留给测试或手工接线的失败开放，不能跳过启动门禁前提升成远程绕鉴权。",
+      "suggested_code": "if not expected_key:\n    return self._auth_failed_response()  # 空密钥一律拒绝，测试用显式开关",
+      "related": [],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "clawd_server/server.py": "ea3534ab92e054fe38c79f6533b8797c86dea07facdfb09d3badc5a060dd03ab",
+        "gateway/platforms/api_server.py": "b95284ed570ea9f3ed4f0218af12eff91891373a32a93f60f89658b43ba839de",
+        "gateway/run_adapters.py": "df6c3ad0b2ffe944636192aa8d0c0719601a7aa3f5dd8830b957e6fbcbb06325"
+      }
+    },
+    {
+      "id": "inp-webhook-v1",
+      "status": "active",
+      "severity": "low",
+      "confidence": "确定",
+      "title": "遗留 V1 仍接受无时间戳的 body HMAC",
+      "origins": [
+        "input-security.md#5"
+      ],
+      "locations": [
+        "gateway/platforms/webhook.py:77-80",
+        "gateway/platforms/webhook.py:548-557",
+        "gateway/platforms/webhook.py:887-910"
+      ],
+      "trigger": "路由仍只用 X-Webhook-Signature。捕获一次有效 body 和签名后重放。没有稳定 delivery id 时内存幂等不会把它当成重复。不是未授权入口。",
+      "description": "空密钥在请求时拒绝。出现 V2 头却没有时间戳则拒绝，不退回 V1。只带 V1 时比较 body 的 HMAC-SHA256，没有时间戳。GitHub/GitLab/Svix 走更早分支。",
+      "suggested_code": "if generic_sig and not v2_sig:\n    return False  # 拒绝无时间戳的 V1；或要求 delivery id + 持久去重",
+      "related": [],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "gateway/platforms/webhook.py": "31e8fcc00d4649ad760aaeba8fe0bfda47e97dc4587622d74b8e1674285907f8"
+      }
+    },
+    {
+      "id": "inp-password",
+      "status": "active",
+      "severity": "low",
+      "confidence": "确定",
+      "title": "面板口令是固定前缀的 SHA-256；同用户读文件不升格",
+      "origins": [
+        "input-security.md#6"
+      ],
+      "locations": [
+        "clawd_server/auth.py:15-25",
+        "clawd_server/auth.py:51-72",
+        "clawd_server/server.py:264-274"
+      ],
+      "trigger": "auth.json 被复制到文件权限边界之外后离线猜测口令。同一用户读取 0o600 文件不是这个触发，也不构成超出文件读权限的提权。",
+      "description": "credential_hash 用源码常量前缀、小写用户名和口令做 SHA-256，没有每用户随机盐，也没有拉伸。比较使用 compare_digest。Cookie 值就是这个哈希。",
+      "suggested_code": "digest = hashlib.scrypt(password.encode(), salt=os.urandom(16), n=2**15, r=8, p=1)\n# cookie 存随机会话 id，不存口令哈希",
+      "related": [],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "clawd_server/auth.py": "db2dc7f169dbe4e4da6e9c1b9f1b8858c9ca2ecee3577e515e1b2c2d4b9e96ca",
+        "clawd_server/server.py": "ea3534ab92e054fe38c79f6533b8797c86dea07facdfb09d3badc5a060dd03ab"
+      }
+    },
+    {
+      "id": "inp-lazy",
+      "status": "active",
+      "severity": "low",
+      "confidence": "确定",
+      "title": "懒安装默认开启，但 sink 是锁文件钉死的 extra",
+      "origins": [
+        "input-security.md#7"
+      ],
+      "locations": [
+        "hermes_cli/config_defaults.py:1779-1782",
+        "pm/install.py:168-197",
+        "pm/install.py:434-486"
+      ],
+      "trigger": "默认配置下，已登记 extra 尚未安装，且进程能访问锁文件指向的制品源。关闭设置或 HERMES_DISABLE_LAZY_INSTALLS 则拒绝。",
+      "description": "security.allow_lazy_installs 默认 True。包名必须在登记表，版本和制品来自 lockfile，没有制品就拒绝。不把锁文件制品源判成已审计的供应链，也不把请求体包名当成 sink。",
+      "suggested_code": "\"allow_lazy_installs\": False,  # 默认关闭；需要时由操作者显式打开",
+      "related": [],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "hermes_cli/config_defaults.py": "2c7f02045f582d03565dbb59972f09fc21fcac71a26adb5117d5754759ccb634",
+        "pm/install.py": "2f48a18bb2b8c452432ddd675599bb859e7a1dcdcbadd5326b252376d1b4b1a0"
+      }
+    },
+    {
+      "id": "prov-short-string",
+      "status": "false_positive",
+      "severity": "high",
+      "confidence": "确定",
+      "title": "未闭合字符串不会被补成缩短命令并执行",
+      "origins": [
+        "provider.md#高-补括号"
+      ],
+      "locations": [
+        "agent/message_sanitization.py:199-200",
+        "agent/message_sanitization.py:225-226",
+        "agent/chat_completion_helpers.py:3269-3273",
+        "agent/turn_tool_validation.py:183-203"
+      ],
+      "trigger": "原报告以未闭合字符串结尾的缩短命令触发不成立。已闭合前缀见 prov-prefix，不要把两条算成同一条高危。",
+      "description": "未闭合字符串时重平衡返回 None，修复返回 {}。装配不把 {} 写回参数，只标截断。校验看到非法且结尾不是 }/] 就拒绝执行。不复活。",
+      "suggested_code": "# 不按未闭合字符串这条改产品",
+      "related": [
+        "prov-prefix"
+      ],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "agent/chat_completion_helpers.py": "521197b064685590a239277be83070c04dbb6ff683625dfd7b884cc587fbd98b",
+        "agent/message_sanitization.py": "154e3bf8f59214df4aa8c34cfe210222737c06aa1fb897fe6484834631be2d82",
+        "agent/turn_tool_validation.py": "cd5e412e4311bc12238f7774b084d5440c91e40710eafdeaac7c1bfa2ddb0ac4"
+      }
+    },
+    {
+      "id": "prov-prefix",
+      "status": "active",
+      "severity": "medium",
+      "confidence": "确定",
+      "title": "已闭合的 tool 参数前缀被补括号后执行",
+      "origins": [
+        "provider.md#高-补括号"
+      ],
+      "locations": [
+        "agent/chat_completion_helpers.py:3262-3273",
+        "agent/message_sanitization.py:193-227",
+        "agent/turn_tool_validation.py:167-203"
+      ],
+      "trigger": "流在 finish_reason 已给出时停在已闭合值之后，例如 {\"command\":\"ls\",\"n\":1 缺最后的 }。未闭合字符串不在本项。",
+      "description": "有 finish_reason 且 JSON 非法时会修复。修复结果不是 {} 就写回参数，has_truncated 保持假。校验只拒绝仍然非法且结尾不是 }/] 的参数。补全后的合法 JSON 会被执行。副作用取决于工具。降为中，不沿用原报告高危自报。",
+      "suggested_code": "if finish_reason is not None and repaired != arguments:\n    has_truncated_tool_args = True  # 修复过的前缀不执行\n    arguments = tc['function']['arguments']",
+      "related": [
+        "prov-short-string"
+      ],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "agent/chat_completion_helpers.py": "521197b064685590a239277be83070c04dbb6ff683625dfd7b884cc587fbd98b",
+        "agent/message_sanitization.py": "154e3bf8f59214df4aa8c34cfe210222737c06aa1fb897fe6484834631be2d82",
+        "agent/turn_tool_validation.py": "cd5e412e4311bc12238f7774b084d5440c91e40710eafdeaac7c1bfa2ddb0ac4"
+      }
+    },
+    {
+      "id": "prov-empty",
+      "status": "active",
+      "severity": "medium",
+      "confidence": "确定",
+      "title": "有结束原因且参数为空时被改成 {} 并执行",
+      "origins": [
+        "provider.md#高-空参数"
+      ],
+      "locations": [
+        "agent/chat_completion_helpers.py:3282-3285",
+        "agent/turn_tool_validation.py:167-168"
+      ],
+      "trigger": "兼容端点给出 tool 名和 finish_reason，arguments 为空。哪些网关会发出这种 chunk 未证实。",
+      "description": "空参数只在 finish_reason is None 时标截断。有结束原因时参数保持空串，校验把空串改成 {} 并继续。副作用取决于工具是否接受空对象。降为中。",
+      "suggested_code": "if not args or not args.strip():\n    if finish_reason != 'tool_calls':\n        return refuse_truncated(...)\n    tc.function.arguments = '{}'",
+      "related": [],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "agent/chat_completion_helpers.py": "521197b064685590a239277be83070c04dbb6ff683625dfd7b884cc587fbd98b",
+        "agent/turn_tool_validation.py": "cd5e412e4311bc12238f7774b084d5440c91e40710eafdeaac7c1bfa2ddb0ac4"
+      }
+    },
+    {
+      "id": "prov-redirect",
+      "status": "active",
+      "severity": "high",
+      "confidence": "确定",
+      "title": "Anthropic 兼容客户端跟随重定向并带走 X-Api-Key",
+      "origins": [
+        "provider.md#高-重定向"
+      ],
+      "locations": [
+        "agent/anthropic_adapter.py:385-397",
+        "agent/anthropic_adapter.py:446-456",
+        "agent/anthropic_adapter.py:507-520",
+        ".venv/lib/python3.14/site-packages/anthropic/_base_client.py:905-909",
+        ".venv/lib/python3.14/site-packages/anthropic/_client.py:362-366",
+        ".venv/lib/python3.14/site-packages/httpx/_client.py:546-556"
+      ],
+      "trigger": "配置的 Anthropic 兼容 base_url 返回指向另一 origin 的 301/302/307/308。不是操作者故意把 base_url 写成 127.0.0.1。未发请求。",
+      "description": "共享 kwargs 不注入 follow_redirects=False。SDK 默认客户端 follow_redirects=True。api_key 风格把密钥放在 X-Api-Key。httpx 跨源只删除 Authorization，且 HTTPS 升级连 Authorization 也不删，不删除 X-Api-Key。",
+      "suggested_code": "import httpx\nkwargs['http_client'] = httpx.Client(\n    timeout=kwargs['timeout'], follow_redirects=False)\n# 或在重定向钩子里同时丢掉 X-Api-Key / x-api-key",
+      "related": [
+        "prov-url"
+      ],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "agent/anthropic_adapter.py": "d40c5260063e222cc85424c70d77883d80d67b60bcc5fe9b136b3c2bbf1bc164"
+      }
+    },
+    {
+      "id": "prov-unknown",
+      "status": "active",
+      "severity": "low",
+      "confidence": "确定",
+      "title": "未知 provider 被改写成 chat_completions",
+      "origins": [
+        "provider.md#高-未知provider"
+      ],
+      "locations": [
+        "hermes_cli/providers.py:462-482"
+      ],
+      "trigger": "配置或插件给出未注册 provider，同时带了 base_url 和密钥。",
+      "description": "未知名字落到 chat_completions。目的地仍是操作者配置的 base_url，不是把密钥送到未配置的第三方。风险是协议不匹配时响应被按 Chat 工具调用解释。不升成密钥外泄高危。",
+      "suggested_code": "if pdef is None and provider != 'bedrock':\n    raise UnknownProvider(provider)  # 不要静默改成 chat_completions",
+      "related": [],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "hermes_cli/providers.py": "e16d4b818c1af482024bb891003bc134f2ab0b347908abbdb2386e02391d1c8e"
+      }
+    },
+    {
+      "id": "prov-drip",
+      "status": "active",
+      "severity": "medium",
+      "confidence": "确定",
+      "title": "读超时和静默看门狗都会被慢速块重置，总时限默认关闭",
+      "origins": [
+        "provider.md#高-滴流"
+      ],
+      "locations": [
+        "agent/stream_max_lifetime.py:1-37",
+        "agent/chat_completion_stream_monitor.py:208-214"
+      ],
+      "trigger": "上游或代理保持连接，并以小于当前读超时和静默阈值的间隔发送 chunk。agent.stream_max_lifetime 未设或为 0。",
+      "description": "总时限文档写明默认 0，非正数返回 0，看门狗看到 cap 为 0 直接返回。静默检测按块间隔重置。因此慢速滴流没有默认总截止。这是费用/挂起，不是密钥外泄。不沿用原报告高危自报，降为中。",
+      "suggested_code": "def resolve_stream_max_lifetime(...):\n    if configured <= 0:\n        return 1800.0  # 显式默认总截止，0 才表示操作者关闭",
+      "related": [],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "agent/chat_completion_stream_monitor.py": "1c74313db79042c0831a94b2a008074d0cd5f2b30ec51dd252fe905582c74112",
+        "agent/stream_max_lifetime.py": "40a009765a4c87ca2a485a4bb4ec9c96eff50f51ff19276b1d40ba7e76c7295c"
+      }
+    },
+    {
+      "id": "prov-redact",
+      "status": "active",
+      "severity": "medium",
+      "confidence": "确定",
+      "title": "SDK error.body 字典路径不脱敏",
+      "origins": [
+        "provider.md#高-脱敏"
+      ],
+      "locations": [
+        "agent/api_error_summary.py:217-221",
+        "agent/api_error_summary.py:248",
+        "agent/api_error_summary.py:257-259"
+      ],
+      "trigger": "代理在 error.message 中回显 Authorization 或密钥。上游是否回显未证实。",
+      "description": "response.text 路径会 redact。body 为 dict 时 221 行直接返回 message 前 300 字。248 行回落同样不脱敏。掩码保留前 8 后 4。缺调用是确定的。降为中。",
+      "suggested_code": "if msg:\n    return redact_sensitive_text(f'{prefix}{msg[:300]}')\nreturn redact_sensitive_text(f'{prefix}{raw[:500]}')",
+      "related": [],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "agent/api_error_summary.py": "52b242bc394d0081d351c7e57a7b91b11c13eef14f4fcb937ab5052da56b3ce4"
+      }
+    },
+    {
+      "id": "prov-pool",
+      "status": "active",
+      "severity": "medium",
+      "confidence": "确定",
+      "title": "连接池超过 32 后新建的传输被视图包住，close 不关内部池",
+      "origins": [
+        "provider.md#中-连接池"
+      ],
+      "locations": [
+        "agent/process_bootstrap.py:223-226",
+        "agent/process_bootstrap.py:247-267",
+        "agent/process_bootstrap.py:320-324"
+      ],
+      "trigger": "超过 32 个 (scheme, verify, proxy, codex) 槽，或大量不同 SSLContext。之后每个新客户端再构造一次未登记传输。",
+      "description": "超限时 build() 的传输不写入 _SHARED_TRANSPORTS，仍交给视图。视图 close 只把 _closed 设真，不关 _inner。close_shared_transports 只关字典里的对象。所有权缺口确定；解释器何时回收未运行。",
+      "suggested_code": "def close(self):\n    self._closed = True\n    if not self._shared:\n        self._inner.close()",
+      "related": [],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "agent/process_bootstrap.py": "baa6239634aede3eff2a1628d07070df7beeb0bf1d93fe5cbad8ee3014192499"
+      }
+    },
+    {
+      "id": "prov-cancel",
+      "status": "active",
+      "severity": "medium",
+      "confidence": "确定",
+      "title": "非流工作线程的套接字清扫是一次性的",
+      "origins": [
+        "provider.md#中-取消落空"
+      ],
+      "locations": [
+        "agent/chat_completion_helpers.py:2967-2984",
+        "agent/chat_completion_nonstream.py:104-110",
+        "agent/process_bootstrap.py:292"
+      ],
+      "trigger": "/stop 或静默杀死发生在非流工作线程的 create 尚未登记套接字时，随后连接完成并进入 read=None 的读。流式头后补中止不走这条。",
+      "description": "标志会保留。流式头后会再读标志。缺口在非流工作线程：清扫只有一次，没有等价的头后补中止；共享客户端 read=None。未发取消。",
+      "suggested_code": "# 非流工作线程在 connect 成功后、read 之前再读取消标志并 abort\nif cancelled.is_set():\n    sock.close()\n    return",
+      "related": [],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "agent/chat_completion_helpers.py": "521197b064685590a239277be83070c04dbb6ff683625dfd7b884cc587fbd98b",
+        "agent/chat_completion_nonstream.py": "34d4afad0a0c7228a0518eed4a2521ba1a340f509c83784c74abceb56f1becb7",
+        "agent/process_bootstrap.py": "baa6239634aede3eff2a1628d07070df7beeb0bf1d93fe5cbad8ee3014192499"
+      }
+    },
+    {
+      "id": "prov-url",
+      "status": "active",
+      "severity": "low",
+      "confidence": "确定",
+      "title": "构造失败会落到跟随重定向的 SDK 默认客户端；本机 URL 不算 SSRF",
+      "origins": [
+        "provider.md#中-危险URL"
+      ],
+      "locations": [
+        "agent/process_bootstrap.py:328-331",
+        ".venv/lib/python3.14/site-packages/openai/_base_client.py:869-874",
+        ".venv/lib/python3.14/site-packages/httpx/_client.py:552-556"
+      ],
+      "trigger": "keepalive 客户端构造抛错，随后端点返回 301/302/307/308。不是操作者故意把 base_url 写成 127.0.0.1。",
+      "description": "操作者把 base_url 指到本机不升格为 SSRF。计入的是另一条：build_keepalive_http_client 任何异常都返回 None，调用方不注入 http_client。OpenAI SDK 默认 follow_redirects=True。OpenAI 用 Authorization，跨源会被 httpx 删除，因此不并入 prov-redirect 的 X-Api-Key 外泄。",
+      "suggested_code": "except Exception:\n    raise  # 不要返回 None 后回落跟随重定向的默认客户端",
+      "related": [
+        "prov-redirect"
+      ],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "agent/process_bootstrap.py": "baa6239634aede3eff2a1628d07070df7beeb0bf1d93fe5cbad8ee3014192499"
+      }
+    },
+    {
+      "id": "prov-retry",
+      "status": "active",
+      "severity": "medium",
+      "confidence": "确定",
+      "title": "外层尝试包住流内 POST；Retry-After 帽在 600 秒后仍重试",
+      "origins": [
+        "provider.md#中-重试叠乘"
+      ],
+      "locations": [
+        "agent/conversation_loop.py:1576",
+        "agent/chat_completion_helpers.py:3720-3743",
+        "agent/retry_utils.py:170-182"
+      ],
+      "trigger": "连接在首字节前断开，或网关对已发出的流返回 5xx / 带 Retry-After 的可重试错误。已读重试路径没有幂等键检查。未发请求。",
+      "description": "外层次数与流内 POST 叠乘。Retry-After 被帽到 600 后仍进入下一次尝试。上游副作用未证，不改变叠乘本身成立。不与 prov-jitter 重复计成两条高危。",
+      "suggested_code": "if request_already_sent and not idempotency_key:\n    break  # 已发出的非幂等 POST 不再自动重试",
+      "related": [
+        "prov-jitter"
+      ],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "agent/chat_completion_helpers.py": "521197b064685590a239277be83070c04dbb6ff683625dfd7b884cc587fbd98b",
+        "agent/conversation_loop.py": "bc1a44a42e254c9500cee099aa0d81590534aecb0ae6986f0f5bce6f24849d49",
+        "agent/retry_utils.py": "4c643880c012dd536dca08041f1bae93b6a58477186b5cf0b4e27ec3c640014c"
+      }
+    },
+    {
+      "id": "prov-name",
+      "status": "unverified",
+      "severity": "medium",
+      "confidence": "需验证",
+      "title": "分片合并分支在，官方 SDK 类型到不了缺 index 或非字符串参数",
+      "origins": [
+        "provider.md#中-tool名"
+      ],
+      "locations": [
+        "agent/chat_completion_helpers_tool_calls.py:25-100",
+        ".venv/lib/python3.14/site-packages/openai/types/chat/chat_completion_chunk.py:49-63"
+      ],
+      "trigger": "未证实。需要绕过 SDK 模型，或网关把 name 拆成多片、省略 index、把 arguments 发成对象。没有抓包。",
+      "description": "name 是赋值不是拼接。工作区 OpenAI SDK 的 index 是必填 int，arguments 是可选 str。经该模型校验的官方 chunk 不会以缺 index 进入 feed。不能从分支存在推出已支持端点会发出这种流。",
+      "suggested_code": "# 缺抓包前不要改执行路径。若以后要收紧：index is None 或 arguments 非 str 时拒绝该 tool call",
+      "related": [],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "agent/chat_completion_helpers_tool_calls.py": "eadf07162dbf3a1506a894a7e9ac26ec9d8295ab126977a0504007644a3d7903"
+      }
+    },
+    {
+      "id": "prov-finish-error",
+      "status": "active",
+      "severity": "medium",
+      "confidence": "确定",
+      "title": "流内错误文本只在 error / error_finish 时提升，stop 会当成成功回答",
+      "origins": [
+        "provider.md#中-finish_reason"
+      ],
+      "locations": [
+        "agent/chat_completion_helpers.py:61",
+        "agent/chat_completion_helpers.py:338-345",
+        "agent/chat_completion_helpers.py:3334-3338"
+      ],
+      "trigger": "流以 HTTP 200 结束，assistant 正文是错误文本，finish_reason 不是 error 或 error_finish。",
+      "description": "门闩在 finish_reason 不是这两个值时直接返回 None。返回 None 就把正文装成 assistant 成功消息。未对具体代理抓包。门闩行为不因此降成需验证。",
+      "suggested_code": "if looks_like_provider_error(text) and finish_reason in {None, 'stop'}:\n    raise ProviderStreamError(...)  # 不要只认 error/error_finish",
+      "related": [],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "agent/chat_completion_helpers.py": "521197b064685590a239277be83070c04dbb6ff683625dfd7b884cc587fbd98b"
+      }
+    },
+    {
+      "id": "prov-jitter",
+      "status": "active",
+      "severity": "low",
+      "confidence": "确定",
+      "title": "流内退避抖动比为 0",
+      "origins": [
+        "provider.md#低-抖动"
+      ],
+      "locations": [
+        "agent/chat_completion_helpers.py:3507-3509",
+        "agent/retry_utils.py:121-134"
+      ],
+      "trigger": "多个会话同时遇到可重试的流断开，走 _retry_after_drop。",
+      "description": "jittered_backoff(..., jitter_ratio=0.0) 时等待就是 1/2/4 秒。与 prov-retry 的同一行相关，修一处即可，报告里仍按原始 ID 单列，不另计成第二条独立高危。原报告“不能把传输重试降到 0”说重了：配置 0 会被抬到 1 次尝试，不是关不掉的额外重试。",
+      "suggested_code": "jittered_backoff(attempt, jitter_ratio=0.2)",
+      "related": [
+        "prov-retry"
+      ],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "agent/chat_completion_helpers.py": "521197b064685590a239277be83070c04dbb6ff683625dfd7b884cc587fbd98b",
+        "agent/retry_utils.py": "4c643880c012dd536dca08041f1bae93b6a58477186b5cf0b4e27ec3c640014c"
+      }
+    },
+    {
+      "id": "bg-receipt",
+      "status": "active",
+      "severity": "high",
+      "confidence": "确定",
+      "title": "续跑回执写在 create_task 返回时，早于回合结束",
+      "origins": [
+        "background.md#高-回执"
+      ],
+      "locations": [
+        "gateway/clawd_continuation_admit.py:122-133",
+        "gateway/clawd_continuation_admit.py:198-199",
+        "gateway/clawd_continuation.py:319-332"
+      ],
+      "trigger": "回执写入后进程退出；或 _run_agent 返回的字典里 completed 为假。无 authority 时没有另一套账本重跑。",
+      "description": "admit 在 asyncio.create_task(_go) 后立刻返回 run_id。_apply 随后 add_receipts 并记 admitted。_go 不看 result['completed']，异常以外把 run 标成 completed。回执含义是已排队，不是回合成功。崩溃后通知已被消费。",
+      "suggested_code": "# _apply 先记 queued，不要在 admit 返回时消费通知\n# _go 只有 result.get('completed') 为真才 add_receipts\nif not (isinstance(result, dict) and result.get('completed')):\n    adapter._set_run_status(run_id, 'failed', ...)\n    return",
+      "related": [],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "gateway/clawd_continuation.py": "300f059641a218a78bf8be30fe7a1e4e162f44053b3105efe0bfc78341bbe476",
+        "gateway/clawd_continuation_admit.py": "57e699c2ce583fa8f1d024442a5da01be3d1524ce906d16e4357132ee0a35282"
+      }
+    },
+    {
+      "id": "bg-lease",
+      "status": "active",
+      "severity": "high",
+      "confidence": "确定",
+      "title": "续跑 claim 失败直接返回，不排下一次评估",
+      "origins": [
+        "background.md#高-死租约"
+      ],
+      "locations": [
+        "gateway/clawd_continuation.py:310-311",
+        "gateway/clawd_continuation.py:324-326"
+      ],
+      "trigger": "完成通知已持久化，本轮 claim 因他人持有或未过期租约失败，之后没有新事件。",
+      "description": "claim 失败时 _apply 直接 return，不 call_later。busy/draining 才会 _schedule。这一轮抢不到租约就不会自己再评估。未把 journal 内部租约秒数当已复现的线上丢失。",
+      "suggested_code": "if not self.journal.claim(...):\n    self._schedule(session_id, db, profile, delay)\n    return",
+      "related": [],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "gateway/clawd_continuation.py": "300f059641a218a78bf8be30fe7a1e4e162f44053b3105efe0bfc78341bbe476"
+      }
+    },
+    {
+      "id": "bg-pid",
+      "status": "active",
+      "severity": "high",
+      "confidence": "确定",
+      "title": "续跑把仍存在的 PID 当成可复用旧 run 并写回执",
+      "origins": [
+        "background.md#高-PID"
+      ],
+      "locations": [
+        "gateway/clawd_continuation_admit.py:136-146",
+        "gateway/clawd_continuation_admit.py:166-167",
+        "gateway/clawd_continuation_admit.py:181-185"
+      ],
+      "trigger": "续跑行停在非终态，原进程已死，内核把同一 pid 分给无关进程，随后评估走到 reused。",
+      "description": "_reusable 对别的 pid 只要求进程存在，不比 owner_started。reserve 存了 owner_started，这条路径没有用。复用成功就返回旧 run_id，调用方接着写回执，不再 _launch。",
+      "suggested_code": "def _reusable(...):\n    if owner != os.getpid() and _pid_alive(owner):\n        started = record.get('owner_started')\n        return started == live_owner_started(owner)  # 对不上就不可复用",
+      "related": [
+        "bg-receipt"
+      ],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "gateway/clawd_continuation_admit.py": "57e699c2ce583fa8f1d024442a5da01be3d1524ce906d16e4357132ee0a35282"
+      }
+    },
+    {
+      "id": "bg-stop",
+      "status": "active",
+      "severity": "high",
+      "confidence": "确定",
+      "title": "停止打不中续跑回合",
+      "origins": [
+        "background.md#高-停止"
+      ],
+      "locations": [
+        "gateway/clawd_continuation_admit.py:91-133",
+        "gateway/platforms/api_server_runs.py:1556-1580"
+      ],
+      "trigger": "对续跑 run id 调用 POST /v1/runs/{id}/stop，且走无 authority 分支或 authority 找不到对应 admission。",
+      "description": "_launch 不注册 _active_run_agents，不传 request_id。无 authority 时 stop 只有 agent 非空才 request_hard_interrupt，不取消 _active_run_tasks。身份分裂是确定的。两个 admission 是否双执行未跑，不升格。",
+      "suggested_code": "self._active_run_agents[run_id] = agent_ref\n# stop:\ntask = self._active_run_tasks.pop(run_id, None)\nif task is not None:\n    task.cancel()",
+      "related": [
+        "exec-stop-window"
+      ],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "gateway/clawd_continuation_admit.py": "57e699c2ce583fa8f1d024442a5da01be3d1524ce906d16e4357132ee0a35282",
+        "gateway/platforms/api_server_runs.py": "554cb28b411b323fab038d4f24dedc7e4876b7266f2044bc5f3730e528fa122b"
+      }
+    },
+    {
+      "id": "bg-human",
+      "status": "active",
+      "severity": "high",
+      "confidence": "确定",
+      "title": "已发射的续跑不再服从更新的人话",
+      "origins": [
+        "background.md#高-人话"
+      ],
+      "locations": [
+        "gateway/clawd_continuation.py:310-320",
+        "gateway/clawd_continuation_admit.py:95-128"
+      ],
+      "trigger": "评估已决定 admit 之后、_go 进入模型之前，插入 id 更晚的人话。",
+      "description": "claim 后同步再决策一次，然后 await admit。_go 里不再 decide，也不比较更新的人话代次。回执也不因新人话撤销。",
+      "suggested_code": "async def _go():\n    again = decide_now(session_id)\n    if again.action != 'admit':\n        adapter._set_run_status(run_id, 'cancelled', reason='newer_human')\n        return\n    ...",
+      "related": [
+        "bg-receipt"
+      ],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "gateway/clawd_continuation.py": "300f059641a218a78bf8be30fe7a1e4e162f44053b3105efe0bfc78341bbe476",
+        "gateway/clawd_continuation_admit.py": "57e699c2ce583fa8f1d024442a5da01be3d1524ce906d16e4357132ee0a35282"
+      }
+    },
+    {
+      "id": "bg-busy",
+      "status": "active",
+      "severity": "medium",
+      "confidence": "确定",
+      "title": "续跑 busy/draining 会计入尝试次数",
+      "origins": [
+        "background.md#中-并发拒绝"
+      ],
+      "locations": [
+        "gateway/clawd_continuation.py:317-327"
+      ],
+      "trigger": "网关并发顶满或 draining，续跑被连续拒绝。",
+      "description": "record_attempt 在 admit 之前。busy/draining 再记一次并 schedule。加次本身是确定的。这是尝试预算，不是成功次数门槛。",
+      "suggested_code": "if reason in {'busy', 'draining'}:\n    self._schedule(...)\n    return  # 不 record_attempt",
+      "related": [],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "gateway/clawd_continuation.py": "300f059641a218a78bf8be30fe7a1e4e162f44053b3105efe0bfc78341bbe476"
+      }
+    },
+    {
+      "id": "bg-plan",
+      "status": "false_positive",
+      "severity": "medium",
+      "confidence": "确定",
+      "title": "计划探针缺失，但没有可触发的计划待批输入",
+      "origins": [
+        "background.md#中-计划闸门"
+      ],
+      "locations": [
+        "gateway/clawd_continuation_gates.py:47-65",
+        "gateway/clawd_continuation_decision.py:209-242"
+      ],
+      "trigger": "原触发依赖侧表计划或未接线的外持有者。这两类输入在当前产品里不存在。",
+      "description": "缺 clawd_plan_approval_pending 时 plan_pending 返回 False。全仓库没有给 adapter 赋这个属性。没有可控的计划待批输入。",
+      "suggested_code": "# 不按此条改产品",
+      "related": [],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "gateway/clawd_continuation_decision.py": "9bd9fd9d65e78a7f9d9ebd240b63d10b5262c4e1c82557c0110bad53285751e1",
+        "gateway/clawd_continuation_gates.py": "6d2fa59a5c89ecf198799fb41e51fd7c3c6e671a0e23d2008ea0324ea1511ae9"
+      }
+    },
+    {
+      "id": "bg-window",
+      "status": "active",
+      "severity": "medium",
+      "confidence": "确定",
+      "title": "续跑预检用原始会话查租约，触发只看最新 300 条",
+      "origins": [
+        "background.md#中-300条"
+      ],
+      "locations": [
+        "gateway/clawd_continuation_gates.py:68-81",
+        "hermes_state_compression.py:728-750",
+        "gateway/clawd_continuation.py:268-280",
+        "gateway/clawd_continuation.py:349-351",
+        "gateway/wake.py:215-220"
+      ],
+      "trigger": "API 会话压缩后，完成通知被解析到子会话，而根租约仍被父回合持有。或完成行之后又写入超过 300 条更新的活动消息。",
+      "description": "写入方把 turn lease 放在压缩谱系根。预检查 conversation_id = 传入的 session_id，不走 _session_turn_lease_key_on_conn。投递前 resolve_resume_session_id 会把通知落到子会话尖端。get_messages(limit=300, latest=True) 是预检窗。",
+      "suggested_code": "root = db._session_turn_lease_key(session_id)\nlease_expires_at = turn_lease_expires(db, root, now)\nrows = db.get_messages(session_id, include_ancestors=True)",
+      "related": [],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "gateway/clawd_continuation.py": "300f059641a218a78bf8be30fe7a1e4e162f44053b3105efe0bfc78341bbe476",
+        "gateway/clawd_continuation_gates.py": "6d2fa59a5c89ecf198799fb41e51fd7c3c6e671a0e23d2008ea0324ea1511ae9",
+        "gateway/wake.py": "7fe985e4606b769355c942ba137e5d52037cd96d61c1a6072a2e837f782b1a32",
+        "hermes_state_compression.py": "8b6e2df32259d1d1c89a6f7215c8ba23ff7a91f69ecb83bcc9f3ff9a52863670"
+      }
+    },
+    {
+      "id": "bg-approval-key",
+      "status": "false_positive",
+      "severity": "medium",
+      "confidence": "确定",
+      "title": "审批队列键不一致，但真实门不靠这把键放行",
+      "origins": [
+        "background.md#中-审批键"
+      ],
+      "locations": [
+        "gateway/platforms/api_server.py:3253-3261",
+        "gateway/clawd_continuation_gates.py:34-44"
+      ],
+      "trigger": "原报告的空窗是通知尚未写状态。通知回调在返回前就写 waiting_for_approval。这不是一条可单独利用的绕过。",
+      "description": "API 审批队列键是 run_id，续跑用 session_id 查会落空。但 collect_gates 先看 waiting_for_approval 状态。键不一致不是放行。",
+      "suggested_code": "# 不按此条升格。若要消歧：续跑查审批时同时按 run_id 与 session_id",
+      "related": [],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "gateway/clawd_continuation_gates.py": "6d2fa59a5c89ecf198799fb41e51fd7c3c6e671a0e23d2008ea0324ea1511ae9",
+        "gateway/platforms/api_server.py": "b95284ed570ea9f3ed4f0218af12eff91891373a32a93f60f89658b43ba839de"
+      }
+    },
+    {
+      "id": "bg-swallow",
+      "status": "active",
+      "severity": "low",
+      "confidence": "确定",
+      "title": "续跑通知失败后投递仍算完成，评估失败不排重试",
+      "origins": [
+        "background.md#低-吞异常"
+      ],
+      "locations": [
+        "gateway/wake.py:231-235",
+        "gateway/clawd_continuation.py:253-264"
+      ],
+      "trigger": "投递行已写入后，续跑模块导入失败或 evaluate 抛出未内部处理的异常，且之后没有新通知、run 终态或重启。",
+      "description": "note_persisted_delivery 的异常只记日志，函数正常返回。evaluate 的宽 except 只 fail_closed，不 schedule。",
+      "suggested_code": "except Exception:\n    logger.exception(...)\n    schedule_retry(session_id)\n    raise",
+      "related": [
+        "bg-lease"
+      ],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "gateway/clawd_continuation.py": "300f059641a218a78bf8be30fe7a1e4e162f44053b3105efe0bfc78341bbe476",
+        "gateway/wake.py": "7fe985e4606b769355c942ba137e5d52037cd96d61c1a6072a2e837f782b1a32"
+      }
+    },
+    {
+      "id": "bg-claim-true",
+      "status": "false_positive",
+      "severity": "low",
+      "confidence": "确定",
+      "title": "缺行返回 True 不会让第二个产品进程拿到同一事件",
+      "origins": [
+        "background.md#低-无账本"
+      ],
+      "locations": [
+        "tools/async_delegation.py:582-597"
+      ],
+      "trigger": "原触发是超过 1000 条 pending 被删，且网关与 TUI 同时认领。剪行后回放看不到该事件。双投递不可达。",
+      "description": "行不存在时 claim 返回 True，是旧事件放行。回放只读仍存在的 pending 行。同进程没有第二条路径对同一事件再认领。",
+      "suggested_code": "# 不按此条改产品",
+      "related": [],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "tools/async_delegation.py": "a76a78ee29576b6b40d42044666b350f63d33e8b42a792b17bcb0cbd73069082"
+      }
+    },
+    {
+      "id": "bg-sidecar",
+      "status": "false_positive",
+      "severity": "low",
+      "confidence": "确定",
+      "title": "sidecar main 仍会起旧线程，但 clawd 安装链不调用它",
+      "origins": [
+        "background.md#低-sidecar"
+      ],
+      "locations": [
+        "apps/panel/sidecar/hermes_panel_sidecar.py:6168-6175",
+        "clawd_server/bind.py:130-145",
+        "clawd_server/server.py:198-208"
+      ],
+      "trigger": "有人绕过 clawd_server，直接 python hermes_panel_sidecar.py。那不是 bind/runtime_native 安装链。",
+      "description": "直接执行脚本的 main 会启动 auto-continue 线程。clawd bind 把 watcher 换成会抛错的函数。_start_continuation 只 arm_adapter。这不是 clawd 产品入口的活跃双调度。",
+      "suggested_code": "# 不按此条改产品。不要恢复 sidecar watcher",
+      "related": [],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "apps/panel/sidecar/hermes_panel_sidecar.py": "c8e2b0890e489e2f5c96183068f06a5d923ae67356f6fdfa2fba751288fd9bc8",
+        "clawd_server/bind.py": "a0cfe9432fbd526d11850105d040d0d0cf1e85f9ceabada2aa57ff04f20d101b",
+        "clawd_server/server.py": "ea3534ab92e054fe38c79f6533b8797c86dea07facdfb09d3badc5a060dd03ab"
+      }
+    },
+    {
+      "id": "nat-environ",
+      "status": "active",
+      "severity": "medium",
+      "confidence": "可能",
+      "title": "never-free environ 按完整 NAME=value 无界保留",
+      "origins": [
+        "native-safety.md#1"
+      ],
+      "locations": [
+        "hermes_bootstrap.py:373-386"
+      ],
+      "trigger": "该安装函数生效，且进程反复把同一名字设成新值。网关是否每个会话写新会话 id，本次未重读，所以触发面为可能。",
+      "description": "lines 以完整 NAME=value 为键，不淘汰。这是缓冲区留存，不是 UAF。",
+      "suggested_code": "old = lines.pop(prefix + previous, None)\n# 同一 NAME 只保留当前值的 C 缓冲",
+      "related": [],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "hermes_bootstrap.py": "f242036b2d35b92283b9a7e97c7059e537607fc4b02026f657a6d00cb4683f69"
+      }
+    },
+    {
+      "id": "nat-peek",
+      "status": "false_positive",
+      "severity": "medium",
+      "confidence": "确定",
+      "title": "未设 argtypes 时 c_void_p 实例传入的是句柄值，不是对象地址",
+      "origins": [
+        "native-safety.md#2"
+      ],
+      "locations": [
+        "tools/environments/base_output.py:450-458",
+        "artifacts/core-audit-native-reference/_ctypes.c:2321-2348",
+        "artifacts/core-audit-native-reference/cfield.c:1697"
+      ],
+      "trigger": "原报告的「对象地址当句柄」触发不成立。",
+      "description": "CPython 参考里 PyCSimpleType_paramfunc 对简单类型 memcpy 对象内部值。c_void_p 的格式 P 对应 ffi_type_pointer。因此 PeekNamedPipe 收到的是 raw_handle 的指针值，不是 Python 对象地址，也不是截断成 c_int。未运行 FFI。不替 Windows 内核背书。",
+      "suggested_code": "# 不按对象地址这条改产品。仍可补 argtypes 作为契约，但那不是已证实的句柄截断",
+      "related": [
+        "nat-console",
+        "nat-cuda"
+      ],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "tools/environments/base_output.py": "e951f16776fa76589e03ea035d8ec40543993eb85e80ea609963190781a8d0b5"
+      }
+    },
+    {
+      "id": "nat-console",
+      "status": "false_positive",
+      "severity": "medium",
+      "confidence": "确定",
+      "title": "GetConsoleMode 收到的是句柄值，不能据此断定真实控制台被当成非交互",
+      "origins": [
+        "native-safety.md#3"
+      ],
+      "locations": [
+        "tools/mcp_oauth.py:312-331"
+      ],
+      "trigger": "原报告的「传错句柄所以真实控制台恒失败」不成立。",
+      "description": "与 nat-peek 同一转换规则。失败仍会被 except 收成 False，那是异常路径，不是这次类型错误的已证实后果。方向若失败仍是少启动浏览器，不是放行。未在 Windows 执行。",
+      "suggested_code": "# 不按此条改产品",
+      "related": [
+        "nat-peek"
+      ],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "tools/mcp_oauth.py": "b25655d6a2ca717b3697f2fe98b5f817da5605c203ebdce8823da55398a8b99f"
+      }
+    },
+    {
+      "id": "nat-cuda",
+      "status": "false_positive",
+      "severity": "low",
+      "confidence": "确定",
+      "title": "未设 argtypes 时 c_int 实例传入的是设备序号整数，不是对象地址",
+      "origins": [
+        "native-safety.md#4"
+      ],
+      "locations": [
+        "hermes_cli/local_runtime/hardware.py:302-314"
+      ],
+      "trigger": "原报告的「设备号传成指针」不成立。",
+      "description": "dev 是 ctypes.c_int()。简单类型 paramfunc 拷贝内部整数。原报告据此断定驱动必然返回错误，不成立。libcuda 未审计，不把这条路径判成安全。",
+      "suggested_code": "# 不按此条改产品。不替 libcuda 背书",
+      "related": [
+        "nat-peek"
+      ],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "hermes_cli/local_runtime/hardware.py": "83ba7592a640ba6b2d1502ec7febe1006232dea26c361a1ee0ca703d3b66f923"
+      }
+    },
+    {
+      "id": "nat-job",
+      "status": "unverified",
+      "severity": "medium",
+      "confidence": "需验证",
+      "title": "GetCurrentProcess 默认 restype 截成 32 位；x64 寄存器高位未证实",
+      "origins": [
+        "native-safety.md#5"
+      ],
+      "locations": [
+        "hermes_cli/process_identity.py:800-816",
+        "hermes_platform/host/facts.py:62-63",
+        "artifacts/core-audit-native-reference/callproc.c:792-793",
+        "artifacts/core-audit-native-reference/callproc.c:1005-1006"
+      ],
+      "trigger": "缺口：Windows x64 上，ffi_type_sint 的 -1 进入 HANDLE 参数寄存器后的高 32 位。没有这份 ABI 证据，就不能判定 kill-on-close 是否静默失败。",
+      "description": "本函数的 WinDLL 没有设置 restype。facts.py 在另一个 WinDLL 实例上设置 restype，不作用于这里。restype 为 NULL 时 GetResult 读 32 位 int，伪句柄 -1 的截断是确定的。随后再按 ffi_type_sint 传入。截断确定，杀进程是否失败未证实。",
+      "suggested_code": "# 证据不足，不要当已证实故障去改行为。若以后补契约：\nkernel32.GetCurrentProcess.restype = ctypes.c_void_p\nkernel32.AssignProcessToJobObject.argtypes = [ctypes.c_void_p, ctypes.c_void_p]",
+      "related": [],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "hermes_cli/process_identity.py": "0e30d07f84e2bae9dee41fd6260e2e83b791a46b0a0042a665a6b72f25f143be",
+        "hermes_platform/host/facts.py": "52eef216017ca8e18d7365ec10a9494b2d261280cfc70d9e0b94a2cc7b363d7a"
+      }
+    },
+    {
+      "id": "nat-cf",
+      "status": "active",
+      "severity": "low",
+      "confidence": "确定",
+      "title": "CFString 创建失败后仍 CFRelease",
+      "origins": [
+        "native-safety.md#6"
+      ],
+      "locations": [
+        "hermes_platform/host/darwin_pci.py:31-39",
+        "hermes_platform/host/darwin_pci.py:59",
+        "hermes_platform/host/darwin_pci.py:73-76"
+      ],
+      "trigger": "macOS，迭代器已创建，随后 CFStringCreateWithCString 返回空。不是请求参数可控。两个键是固定 ASCII，正常输入不会失败。",
+      "description": "restype 是 c_void_p，失败得到 None。finally 对 keys 里的每个值调用 CFRelease，没有空检查。argtypes 已设，None 会变成 NULL。Apple CFRelease 文档写明 NULL 会崩溃；本次未重新打开该文档，崩溃契约沿用公开文档，不把未执行写成已崩溃。",
+      "suggested_code": "finally:\n    for key in keys.values():\n        if key:\n            cf.CFRelease(key)",
+      "related": [],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "hermes_platform/host/darwin_pci.py": "2ecbf4c68873f16f6de855794503c3ba781e3f26ea8da910a8ce5cd513f96fcb"
+      }
+    },
+    {
+      "id": "nat-pe",
+      "status": "unverified",
+      "severity": "low",
+      "confidence": "需验证",
+      "title": "固定版本信息的返回长度未使用；成功时是否保证至少 16 字节没有契约",
+      "origins": [
+        "native-safety.md#7"
+      ],
+      "locations": [
+        "hermes_platform/resolver/app.py:246-272"
+      ],
+      "trigger": "缺口：Windows 是否允许 VerQueryValueW 在根路径上以 length < 16 成功。没有这份契约，就不能升成已证实越界。",
+      "description": "length 已取出，但在 ptr+8 和 ptr+12 读 DWORD 之前没有使用。不能把越界写成已证实，也不能把 Windows 判成会拒绝短块。路径来自解析器定位到的厂商 PE，不是 HTTP 请求体。",
+      "suggested_code": "# 证据不足。若以后收紧：\nif length.value < 16:\n    return Observation(CheckState.UNAVAILABLE, detail='short fixed info')",
+      "related": [],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "hermes_platform/resolver/app.py": "ee5ff2a8d9d67534df22e722d7a7235e4c98810aeeedaf2d3948ea5d53db0063"
+      }
+    },
+    {
+      "id": "nat-close",
+      "status": "active",
+      "severity": "low",
+      "confidence": "可能",
+      "title": "更新锁用未声明宽度的 CloseHandle 关闭 c_void_p 返回的句柄整数",
+      "origins": [
+        "native-safety.md#8"
+      ],
+      "locations": [
+        "hermes_cli/update_lock.py:801-821",
+        "hermes_cli/update_lock.py:818-821",
+        "/usr/lib/python3.13/ctypes/wintypes.py:60",
+        "artifacts/core-audit-native-reference/callproc.c:708-719",
+        "artifacts/core-audit-native-reference/cfield.c:1441"
+      ],
+      "trigger": "Windows，CreateFileW 经 c_void_p 返回的 Python int 放不进 unsigned long，随后 _windows_close。本次未在 Windows 上取得这样的句柄。",
+      "description": "CreateFileW 的 restype 是 wintypes.HANDLE，宿主 3.13 标准库把 HANDLE 定义为 c_void_p。关闭时新建另一个 WinDLL，不继承 argtypes。无 argtypes 的 Python int 走 ffi_type_sint，先 PyLong_AsUnsignedLong 再 PyLong_AsLong。venv 3.14 的 wintypes 副本本次没在树内找到，宽度规则以已读的 CPython 转换和宿主定义为准。",
+      "suggested_code": "kernel32.CloseHandle.argtypes = [ctypes.c_void_p]\nkernel32.CloseHandle.restype = ctypes.c_int\nkernel32.CloseHandle(handle)",
+      "related": [],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "hermes_cli/update_lock.py": "2e02db3e627de248b88d912c1f9421a40a738899ebdef9d93998ce8d09e01a8d"
+      }
+    },
+    {
+      "id": "stor-s1",
+      "status": "active",
+      "severity": "high",
+      "confidence": "确定",
+      "title": "按 session_id 找不到 owner 时写入环境库",
+      "origins": [
+        "storage.md#S1"
+      ],
+      "locations": [
+        "gateway/session_persistence.py:227-246",
+        "gateway/session_persistence.py:202-209"
+      ],
+      "trigger": "多 profile 进程用会话 id 读写，该 id 尚未进入 _entries，hint 也没有，且不是 multiplex 下可解析的 routing_home。",
+      "description": "_db_for_session_id 用索引或 hint 找 key，找不到就 _db_for_key(None)。非 multiplex 时回到 self._db。按 key 的具名 profile 路径在 home 失败时拒绝回落，按 id 没有这条拒绝。",
+      "suggested_code": "def _db_for_session_id(self, session_id):\n    key = self._owner_key_for_session_id(session_id)\n    if key is None:\n        return None  # 未知 id 拒绝，不回落环境库\n    return self._db_for_key(key)",
+      "related": [
+        "stor-s2"
+      ],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "gateway/session_persistence.py": "92ab8f19425afe80e99e444b9a0475707049528697572cd8513106318bd3f08e"
+      }
+    },
+    {
+      "id": "stor-s2",
+      "status": "active",
+      "severity": "medium",
+      "confidence": "可能",
+      "title": "同 session_id 的进程索引不带 profile",
+      "origins": [
+        "storage.md#S2"
+      ],
+      "locations": [
+        "gateway/session_persistence.py:233-236"
+      ],
+      "trigger": "一个进程的索引同时放多个 profile，且 id 相撞或两条路由指向同一 id。碰撞频率未证实。没有碰撞时 S1 仍独立成立。",
+      "description": "扫描 _entries 返回第一个 session_id 相等的 key。索引键不含 profile。",
+      "suggested_code": "if entry.session_id == session_id and entry.profile == wanted:\n    return entry.session_key",
+      "related": [
+        "stor-s1"
+      ],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "gateway/session_persistence.py": "92ab8f19425afe80e99e444b9a0475707049528697572cd8513106318bd3f08e"
+      }
+    },
+    {
+      "id": "stor-s3",
+      "status": "active",
+      "severity": "high",
+      "confidence": "确定",
+      "title": "重写在没有库时返回成功",
+      "origins": [
+        "storage.md#S3"
+      ],
+      "locations": [
+        "gateway/session_transcript.py:540-551"
+      ],
+      "trigger": "rewrite_transcript 的 _db_for_session_id 得到空。",
+      "description": "文档字符串写明没有 DB 也返回 True。真实异常返回 False。调用方会把没写当成已替换。",
+      "suggested_code": "if not db:\n    return False",
+      "related": [
+        "stor-s1"
+      ],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "gateway/session_transcript.py": "b1e427996751310287ac56c99f2265122f26c001acee2cd2b5198519c402f9e2"
+      }
+    },
+    {
+      "id": "stor-s4",
+      "status": "active",
+      "severity": "medium",
+      "confidence": "确定",
+      "title": "/branch 吞掉复制失败后仍切换，条数来自内存",
+      "origins": [
+        "storage.md#S4"
+      ],
+      "locations": [
+        "gateway/slash_commands_session.py:1263-1281"
+      ],
+      "trigger": "复制中途忙、外键、满盘或块失败。",
+      "description": "create_session 已提交。append_messages_batch 被 suppress(Exception) 包住。随后 switch_session。回复条数来自内存 history，不来自数据库。",
+      "suggested_code": "copied = await self._session_db.append_messages_batch(...)\nif not copied:\n    return t('gateway.branch.copy_failed', new=new_session_id)",
+      "related": [
+        "stor-s7"
+      ],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "gateway/slash_commands_session.py": "2d207bda33466ad9c80e2b62df5f4697dababeeb068ecd18f3da52836d5e04dd"
+      }
+    },
+    {
+      "id": "stor-s5",
+      "status": "active",
+      "severity": "medium",
+      "confidence": "确定",
+      "title": "state_meta 盖章失败后替换检测保持关闭",
+      "origins": [
+        "storage.md#S5"
+      ],
+      "locations": [
+        "hermes_state.py:1211-1220"
+      ],
+      "trigger": "打开时 state_meta 或 application_id 遇到锁、满盘或 I/O 错误，且错误发生在写入 _db_file_application_id 之前。",
+      "description": "sqlite3.Error 只 debug 后返回。记录值若仍为 0，替换检测按 0 放行。同 inode 覆盖是否已经写坏文件，未运行，不升成已发生损坏。",
+      "suggested_code": "except sqlite3.Error as exc:\n    self._db_file_application_id = None  # 未知，不要当 0 放行\n    raise",
+      "related": [],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "hermes_state.py": "d8f229db6de935a4892a3aaef038b396036c1e661f38fe169161864884a32fed"
+      }
+    },
+    {
+      "id": "stor-s6",
+      "status": "active",
+      "severity": "medium",
+      "confidence": "确定",
+      "title": "close 失败后仍清空代际身份",
+      "origins": [
+        "storage.md#S6"
+      ],
+      "locations": [
+        "hermes_state.py:1580-1585"
+      ],
+      "trigger": "Connection.close() 抛错。retire_without_close 分支不清身份，不在本项。",
+      "description": "先把 _conn 置空，再安静关闭，然后无条件清空 _db_sidecar_identity。注释写只有干净关闭才结束代际，代码没有这条判断。关闭失败后描述符是否仍占旧 WAL，未运行。",
+      "suggested_code": "ok = self._close_connection_quietly(conn)\nif ok:\n    self._db_sidecar_identity = {}",
+      "related": [],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "hermes_state.py": "d8f229db6de935a4892a3aaef038b396036c1e661f38fe169161864884a32fed"
+      }
+    },
+    {
+      "id": "stor-s7",
+      "status": "active",
+      "severity": "medium",
+      "confidence": "确定",
+      "title": "/branch 按 500 行分块提交",
+      "origins": [
+        "storage.md#S7"
+      ],
+      "locations": [
+        "gateway/slash_commands_session.py:1263-1269"
+      ],
+      "trigger": "历史超过 500 行，进程在下一块前提交前崩溃或后一块失败。",
+      "description": "调用点写明 chunk_rows=500，注释承认分块事务。块与块之间没有同一个事务。",
+      "suggested_code": "await append_messages_batch(..., chunk_rows=None)  # 同一事务，或失败则删除新建会话",
+      "related": [
+        "stor-s4"
+      ],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "gateway/slash_commands_session.py": "2d207bda33466ad9c80e2b62df5f4697dababeeb068ecd18f3da52836d5e04dd"
+      }
+    },
+    {
+      "id": "stor-s8",
+      "status": "active",
+      "severity": "medium",
+      "confidence": "确定",
+      "title": "路由切换先提交索引，结束或重开会话失败只打 debug 仍返回成功",
+      "origins": [
+        "storage.md#S8"
+      ],
+      "locations": [
+        "gateway/session.py:1204-1214",
+        "gateway/session.py:1317-1348",
+        "gateway/session_recovery.py:291-321"
+      ],
+      "trigger": "索引提交成功后，end_session 或 reopen_session 抛错，或这两步之前进程退出。/branch 与 /resume 都走 switch_session。",
+      "description": "switch_session 在锁内 _replace_route_locked → _save。锁外才 end/reopen。两者都接住 Exception，只打 debug。函数仍返回 new_entry。",
+      "suggested_code": "if not self._promote_session_reset(...):\n    self._restore_route(session_key, old_entry)\n    return None",
+      "related": [
+        "stor-s4"
+      ],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "gateway/session.py": "ea2e48b1313fcb24054dccbbdc631321c7cad5526097588b65d20ab86346a870",
+        "gateway/session_recovery.py": "6fa7af72184b49bb4623bcfc487897bbe586ecd36fd09c9906261b83b87ef385"
+      }
+    },
+    {
+      "id": "stor-s9",
+      "status": "active",
+      "severity": "medium",
+      "confidence": "确定",
+      "title": "rollback 异常被丢弃；3.14.9 的 executescript 会先提交仍开着的事务",
+      "origins": [
+        "storage.md#S9"
+      ],
+      "locations": [
+        "hermes_state.py:1047-1057",
+        "artifacts/core-audit-native-reference/cursor.c:1046-1055"
+      ],
+      "trigger": "写事务中 rollback() 再抛错，连接仍处于非自动提交，之后同一连接跑 retry_deferred_fts_recovery。3.11 的 executescript 源码本次没下载，不把 3.11 写成已核对。",
+      "description": "rollback 的异常被 pass 掉，连接不销毁，原异常继续抛出。CPython v3.14.9 参考在 LEGACY 且非自动提交时，executescript 先发 COMMIT。未运行失败回滚。",
+      "suggested_code": "except BaseException:\n    try:\n        self._conn.rollback()\n    except Exception:\n        self._discard_connection()\n    raise",
+      "related": [],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "hermes_state.py": "d8f229db6de935a4892a3aaef038b396036c1e661f38fe169161864884a32fed"
+      }
+    },
+    {
+      "id": "stor-a1",
+      "status": "active",
+      "severity": "low",
+      "confidence": "确定",
+      "title": "生图库校验 fd 关闭后按固定路径重开；不是 state.db",
+      "origins": [
+        "storage.md#A1"
+      ],
+      "locations": [
+        "apps/panel/sidecar/image_studio.py:563-591"
+      ],
+      "trigger": "inode 比较通过并 close(fd) 之后、sqlite3.connect 之前，有人把该 home 里的 panel_image_studio.db 换成指向其它 SQLite 文件的符号链接。同用户原已可写不是提权。",
+      "description": "库是当前 home 下的 panel_image_studio.db，表 generations，不是会话 state.db。请求不能选路径。BEGIN IMMEDIATE 在 connect 之后，盖不住关闭 fd 到 connect 的窗口。",
+      "suggested_code": "conn = sqlite3.connect(f'/proc/self/fd/{fd}')  # 不关闭后再按路径打开\n# 或 os.link + O_NOFOLLOW 后把 fd 交给 sqlite",
+      "related": [],
+      "not_a_fix": true,
+      "not_runtime_pass": true,
+      "needs_final_recheck": false,
+      "file_hashes": {
+        "apps/panel/sidecar/image_studio.py": "8d658411e827ee2adee269d88760db8d3743c6ee6504c554c93d0d89389e439d"
+      }
+    }
+  ],
+  "mapping": [
+    {
+      "origin": "approval.md#中-TUI身份",
+      "ids": [
+        "appr-tui"
+      ],
+      "status": "active",
+      "statuses": {
+        "appr-tui": "active"
+      }
+    },
+    {
+      "origin": "approval.md#中-并行",
+      "ids": [
+        "appr-parallel"
+      ],
+      "status": "active",
+      "statuses": {
+        "appr-parallel": "active"
+      }
+    },
+    {
+      "origin": "approval.md#中-默认同意",
+      "ids": [
+        "appr-auto"
+      ],
+      "status": "false_positive",
+      "statuses": {
+        "appr-auto": "false_positive"
+      }
+    },
+    {
+      "origin": "approval.md#低-3秒",
+      "ids": [
+        "appr-grace"
+      ],
+      "status": "false_positive",
+      "statuses": {
+        "appr-grace": "false_positive"
+      }
+    },
+    {
+      "origin": "approval.md#低-超时窗口",
+      "ids": [
+        "appr-timeout"
+      ],
+      "status": "false_positive",
+      "statuses": {
+        "appr-timeout": "false_positive"
+      }
+    },
+    {
+      "origin": "approval.md#高-FIFO",
+      "ids": [
+        "appr-fifo"
+      ],
+      "status": "active",
+      "statuses": {
+        "appr-fifo": "active"
+      }
+    },
+    {
+      "origin": "approval.md#高-任意choice",
+      "ids": [
+        "appr-tui"
+      ],
+      "status": "active",
+      "statuses": {
+        "appr-tui": "active"
+      }
+    },
+    {
+      "origin": "background.md#中-300条",
+      "ids": [
+        "bg-window"
+      ],
+      "status": "active",
+      "statuses": {
+        "bg-window": "active"
+      }
+    },
+    {
+      "origin": "background.md#中-审批键",
+      "ids": [
+        "bg-approval-key"
+      ],
+      "status": "false_positive",
+      "statuses": {
+        "bg-approval-key": "false_positive"
+      }
+    },
+    {
+      "origin": "background.md#中-并发拒绝",
+      "ids": [
+        "bg-busy"
+      ],
+      "status": "active",
+      "statuses": {
+        "bg-busy": "active"
+      }
+    },
+    {
+      "origin": "background.md#中-计划闸门",
+      "ids": [
+        "bg-plan"
+      ],
+      "status": "false_positive",
+      "statuses": {
+        "bg-plan": "false_positive"
+      }
+    },
+    {
+      "origin": "background.md#低-sidecar",
+      "ids": [
+        "bg-sidecar"
+      ],
+      "status": "false_positive",
+      "statuses": {
+        "bg-sidecar": "false_positive"
+      }
+    },
+    {
+      "origin": "background.md#低-吞异常",
+      "ids": [
+        "bg-swallow"
+      ],
+      "status": "active",
+      "statuses": {
+        "bg-swallow": "active"
+      }
+    },
+    {
+      "origin": "background.md#低-无账本",
+      "ids": [
+        "bg-claim-true"
+      ],
+      "status": "false_positive",
+      "statuses": {
+        "bg-claim-true": "false_positive"
+      }
+    },
+    {
+      "origin": "background.md#高-PID",
+      "ids": [
+        "bg-pid"
+      ],
+      "status": "active",
+      "statuses": {
+        "bg-pid": "active"
+      }
+    },
+    {
+      "origin": "background.md#高-人话",
+      "ids": [
+        "bg-human"
+      ],
+      "status": "active",
+      "statuses": {
+        "bg-human": "active"
+      }
+    },
+    {
+      "origin": "background.md#高-停止",
+      "ids": [
+        "bg-stop"
+      ],
+      "status": "active",
+      "statuses": {
+        "bg-stop": "active"
+      }
+    },
+    {
+      "origin": "background.md#高-回执",
+      "ids": [
+        "bg-receipt"
+      ],
+      "status": "active",
+      "statuses": {
+        "bg-receipt": "active"
+      }
+    },
+    {
+      "origin": "background.md#高-死租约",
+      "ids": [
+        "bg-lease"
+      ],
+      "status": "active",
+      "statuses": {
+        "bg-lease": "active"
+      }
+    },
+    {
+      "origin": "context.md#3.1",
+      "ids": [
+        "ctx-commit-fail"
+      ],
+      "status": "active",
+      "statuses": {
+        "ctx-commit-fail": "active"
+      }
+    },
+    {
+      "origin": "context.md#3.2",
+      "ids": [
+        "ctx-positional"
+      ],
+      "status": "active",
+      "statuses": {
+        "ctx-positional": "active"
+      }
+    },
+    {
+      "origin": "context.md#3.3",
+      "ids": [
+        "ctx-skill-id"
+      ],
+      "status": "false_positive",
+      "statuses": {
+        "ctx-skill-id": "false_positive"
+      }
+    },
+    {
+      "origin": "execution.md#1",
+      "ids": [
+        "exec-effort"
+      ],
+      "status": "fixed",
+      "statuses": {
+        "exec-effort": "fixed"
+      }
+    },
+    {
+      "origin": "execution.md#2",
+      "ids": [
+        "exec-cli-history"
+      ],
+      "status": "active",
+      "statuses": {
+        "exec-cli-history": "active"
+      }
+    },
+    {
+      "origin": "execution.md#3",
+      "ids": [
+        "exec-stop-window"
+      ],
+      "status": "active",
+      "statuses": {
+        "exec-stop-window": "active"
+      }
+    },
+    {
+      "origin": "input-security.md#1",
+      "ids": [
+        "inp-media"
+      ],
+      "status": "active",
+      "statuses": {
+        "inp-media": "active"
+      }
+    },
+    {
+      "origin": "input-security.md#2",
+      "ids": [
+        "inp-origin"
+      ],
+      "status": "active",
+      "statuses": {
+        "inp-origin": "active"
+      }
+    },
+    {
+      "origin": "input-security.md#3",
+      "ids": [
+        "inp-auth-bool"
+      ],
+      "status": "false_positive",
+      "statuses": {
+        "inp-auth-bool": "false_positive"
+      }
+    },
+    {
+      "origin": "input-security.md#4",
+      "ids": [
+        "inp-empty-key"
+      ],
+      "status": "active",
+      "statuses": {
+        "inp-empty-key": "active"
+      }
+    },
+    {
+      "origin": "input-security.md#5",
+      "ids": [
+        "inp-webhook-v1"
+      ],
+      "status": "active",
+      "statuses": {
+        "inp-webhook-v1": "active"
+      }
+    },
+    {
+      "origin": "input-security.md#6",
+      "ids": [
+        "inp-password"
+      ],
+      "status": "active",
+      "statuses": {
+        "inp-password": "active"
+      }
+    },
+    {
+      "origin": "input-security.md#7",
+      "ids": [
+        "inp-lazy"
+      ],
+      "status": "active",
+      "statuses": {
+        "inp-lazy": "active"
+      }
+    },
+    {
+      "origin": "native-safety.md#1",
+      "ids": [
+        "nat-environ"
+      ],
+      "status": "active",
+      "statuses": {
+        "nat-environ": "active"
+      }
+    },
+    {
+      "origin": "native-safety.md#2",
+      "ids": [
+        "nat-peek"
+      ],
+      "status": "false_positive",
+      "statuses": {
+        "nat-peek": "false_positive"
+      }
+    },
+    {
+      "origin": "native-safety.md#3",
+      "ids": [
+        "nat-console"
+      ],
+      "status": "false_positive",
+      "statuses": {
+        "nat-console": "false_positive"
+      }
+    },
+    {
+      "origin": "native-safety.md#4",
+      "ids": [
+        "nat-cuda"
+      ],
+      "status": "false_positive",
+      "statuses": {
+        "nat-cuda": "false_positive"
+      }
+    },
+    {
+      "origin": "native-safety.md#5",
+      "ids": [
+        "nat-job"
+      ],
+      "status": "unverified",
+      "statuses": {
+        "nat-job": "unverified"
+      }
+    },
+    {
+      "origin": "native-safety.md#6",
+      "ids": [
+        "nat-cf"
+      ],
+      "status": "active",
+      "statuses": {
+        "nat-cf": "active"
+      }
+    },
+    {
+      "origin": "native-safety.md#7",
+      "ids": [
+        "nat-pe"
+      ],
+      "status": "unverified",
+      "statuses": {
+        "nat-pe": "unverified"
+      }
+    },
+    {
+      "origin": "native-safety.md#8",
+      "ids": [
+        "nat-close"
+      ],
+      "status": "active",
+      "statuses": {
+        "nat-close": "active"
+      }
+    },
+    {
+      "origin": "provider.md#中-finish_reason",
+      "ids": [
+        "prov-finish-error"
+      ],
+      "status": "active",
+      "statuses": {
+        "prov-finish-error": "active"
+      }
+    },
+    {
+      "origin": "provider.md#中-tool名",
+      "ids": [
+        "prov-name"
+      ],
+      "status": "unverified",
+      "statuses": {
+        "prov-name": "unverified"
+      }
+    },
+    {
+      "origin": "provider.md#中-危险URL",
+      "ids": [
+        "prov-url"
+      ],
+      "status": "active",
+      "statuses": {
+        "prov-url": "active"
+      }
+    },
+    {
+      "origin": "provider.md#中-取消落空",
+      "ids": [
+        "prov-cancel"
+      ],
+      "status": "active",
+      "statuses": {
+        "prov-cancel": "active"
+      }
+    },
+    {
+      "origin": "provider.md#中-连接池",
+      "ids": [
+        "prov-pool"
+      ],
+      "status": "active",
+      "statuses": {
+        "prov-pool": "active"
+      }
+    },
+    {
+      "origin": "provider.md#中-重试叠乘",
+      "ids": [
+        "prov-retry"
+      ],
+      "status": "active",
+      "statuses": {
+        "prov-retry": "active"
+      }
+    },
+    {
+      "origin": "provider.md#低-抖动",
+      "ids": [
+        "prov-jitter"
+      ],
+      "status": "active",
+      "statuses": {
+        "prov-jitter": "active"
+      }
+    },
+    {
+      "origin": "provider.md#高-未知provider",
+      "ids": [
+        "prov-unknown"
+      ],
+      "status": "active",
+      "statuses": {
+        "prov-unknown": "active"
+      }
+    },
+    {
+      "origin": "provider.md#高-滴流",
+      "ids": [
+        "prov-drip"
+      ],
+      "status": "active",
+      "statuses": {
+        "prov-drip": "active"
+      }
+    },
+    {
+      "origin": "provider.md#高-空参数",
+      "ids": [
+        "prov-empty"
+      ],
+      "status": "active",
+      "statuses": {
+        "prov-empty": "active"
+      }
+    },
+    {
+      "origin": "provider.md#高-脱敏",
+      "ids": [
+        "prov-redact"
+      ],
+      "status": "active",
+      "statuses": {
+        "prov-redact": "active"
+      }
+    },
+    {
+      "origin": "provider.md#高-补括号",
+      "ids": [
+        "prov-short-string",
+        "prov-prefix"
+      ],
+      "status": "split",
+      "statuses": {
+        "prov-short-string": "false_positive",
+        "prov-prefix": "active"
+      }
+    },
+    {
+      "origin": "provider.md#高-重定向",
+      "ids": [
+        "prov-redirect"
+      ],
+      "status": "active",
+      "statuses": {
+        "prov-redirect": "active"
+      }
+    },
+    {
+      "origin": "storage.md#A1",
+      "ids": [
+        "stor-a1"
+      ],
+      "status": "active",
+      "statuses": {
+        "stor-a1": "active"
+      }
+    },
+    {
+      "origin": "storage.md#S1",
+      "ids": [
+        "stor-s1"
+      ],
+      "status": "active",
+      "statuses": {
+        "stor-s1": "active"
+      }
+    },
+    {
+      "origin": "storage.md#S2",
+      "ids": [
+        "stor-s2"
+      ],
+      "status": "active",
+      "statuses": {
+        "stor-s2": "active"
+      }
+    },
+    {
+      "origin": "storage.md#S3",
+      "ids": [
+        "stor-s3"
+      ],
+      "status": "active",
+      "statuses": {
+        "stor-s3": "active"
+      }
+    },
+    {
+      "origin": "storage.md#S4",
+      "ids": [
+        "stor-s4"
+      ],
+      "status": "active",
+      "statuses": {
+        "stor-s4": "active"
+      }
+    },
+    {
+      "origin": "storage.md#S5",
+      "ids": [
+        "stor-s5"
+      ],
+      "status": "active",
+      "statuses": {
+        "stor-s5": "active"
+      }
+    },
+    {
+      "origin": "storage.md#S6",
+      "ids": [
+        "stor-s6"
+      ],
+      "status": "active",
+      "statuses": {
+        "stor-s6": "active"
+      }
+    },
+    {
+      "origin": "storage.md#S7",
+      "ids": [
+        "stor-s7"
+      ],
+      "status": "active",
+      "statuses": {
+        "stor-s7": "active"
+      }
+    },
+    {
+      "origin": "storage.md#S8",
+      "ids": [
+        "stor-s8"
+      ],
+      "status": "active",
+      "statuses": {
+        "stor-s8": "active"
+      }
+    },
+    {
+      "origin": "storage.md#S9",
+      "ids": [
+        "stor-s9"
+      ],
+      "status": "active",
+      "statuses": {
+        "stor-s9": "active"
+      }
+    }
+  ]
+}

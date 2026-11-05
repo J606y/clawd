@@ -64,6 +64,25 @@ CREATE TABLE IF NOT EXISTS discovered_repos (
     label         TEXT,
     last_seen     INTEGER NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS project_sessions (
+    session_id    TEXT PRIMARY KEY,
+    project_id    TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    bound_at      INTEGER NOT NULL,
+    write_token   TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_project_sessions_project_id
+    ON project_sessions(project_id);
+
+-- Tokens already used by a binding write. Kept after unbind so the same token
+-- cannot recreate the row it identified. Not a timestamp.
+CREATE TABLE IF NOT EXISTS project_binding_tokens (
+    write_token TEXT PRIMARY KEY,
+    session_id  TEXT NOT NULL,
+    project_id  TEXT NOT NULL,
+    created_at  INTEGER NOT NULL
+);
 """
 
 # Lowercase alphanumerics, hyphens, underscores; 1-64 chars; no leading separator. Strict enough to
@@ -128,6 +147,7 @@ def connect(db_path: Optional[Path] = None) -> sqlite3.Connection:
         for col in _OPTIONAL_PROJECT_COLUMNS:
             if col not in cols:
                 _add_column_if_missing(conn, "projects", col, f"{col} TEXT")
+        _ensure_binding_token_schema(conn)
         _INITIALIZED_PATHS.add(resolved)
 
     return open_db(path, db_label="projects.db", foreign_keys=True, initialize=_initialize)
@@ -483,3 +503,223 @@ def branch_name_for(project: Project, task_id: str, *, title: str = "") -> str:
     base = f"{project.slug or _slugify(project.name)}/{task_id}"
     tslug = _BRANCH_SAFE_RE.sub("-", str(title).strip().lower()).strip("-")[:40].strip("-") if title else ""
     return f"{base}-{tslug}" if tslug else base
+
+
+# --- Session-Project Binding (project_sessions) -------------------------------
+
+# Generated bind revision. ``wt_`` + 16 bytes hex, never a unix timestamp.
+_WRITE_TOKEN_RE = re.compile(r"^wt_[0-9a-f]{32}$")
+
+
+@dataclass(frozen=True)
+class SessionBinding:
+    """Current projects.db row. ``write_token`` is None on legacy rows."""
+
+    project_id: str
+    bound_at: int
+    write_token: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class SessionBindingWrite:
+    """Result of one binding statement. Truthiness follows ``applied``."""
+
+    applied: bool
+    write_token: Optional[str] = None
+
+    def __bool__(self) -> bool:
+        return self.applied
+
+
+def new_write_token() -> str:
+    """Mint a non-reusable bind revision. Not a timestamp."""
+    return "wt_" + secrets.token_hex(16)
+
+
+def _normalize_write_token(token: Optional[str]) -> str:
+    text = str(token or "").strip()
+    if not _WRITE_TOKEN_RE.fullmatch(text):
+        raise ValueError("write_token must be a generated wt_ token, not a timestamp")
+    return text
+
+
+def _ensure_binding_token_schema(conn: sqlite3.Connection) -> None:
+    """Additive upgrade. Legacy rows keep a NULL write_token; that is not proof."""
+    cols = {row["name"] for row in conn.execute("PRAGMA table_info(project_sessions)")}
+    if "write_token" not in cols:
+        _add_column_if_missing(conn, "project_sessions", "write_token", "write_token TEXT")
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS project_binding_tokens ("
+        "write_token TEXT PRIMARY KEY, session_id TEXT NOT NULL, "
+        "project_id TEXT NOT NULL, created_at INTEGER NOT NULL)"
+    )
+    conn.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_project_sessions_write_token "
+        "ON project_sessions(write_token) WHERE write_token IS NOT NULL"
+    )
+
+
+def _session_cols(conn: sqlite3.Connection) -> set[str]:
+    return {row["name"] for row in conn.execute("PRAGMA table_info(project_sessions)")}
+
+
+def get_session_binding(conn: sqlite3.Connection, session_id: str) -> Optional[SessionBinding]:
+    """Return project, bound_at, and write_token. None if the session is unbound."""
+    sid = str(session_id or "").strip()
+    if not sid:
+        return None
+    _ensure_binding_token_schema(conn)
+    if "write_token" not in _session_cols(conn):
+        raise ValueError("project_sessions.write_token is missing; refusing to report the token as absent")
+    row = conn.execute(
+        "SELECT project_id, bound_at, write_token FROM project_sessions WHERE session_id = ?",
+        (sid,),
+    ).fetchone()
+    if row is None:
+        return None
+    raw = row["write_token"]
+    return SessionBinding(
+        project_id=str(row["project_id"]) if row["project_id"] else "",
+        bound_at=int(row["bound_at"]) if row["bound_at"] is not None else 0,
+        write_token=str(raw) if raw else None,
+    )
+
+
+def get_session_write_token(conn: sqlite3.Connection, session_id: str) -> Optional[str]:
+    """Reserved reader: ``get_session_write_token(conn, session_id)``.
+
+    ``None`` means this row has no token (unbound, or a legacy NULL). It does
+    not mean the token was checked and found rollbackable.
+    """
+    binding = get_session_binding(conn, session_id)
+    if binding is None:
+        return None
+    return binding.write_token
+
+
+def _token_owner(conn: sqlite3.Connection, token: str) -> Optional[sqlite3.Row]:
+    return conn.execute(
+        "SELECT session_id, project_id FROM project_binding_tokens WHERE write_token = ?",
+        (token,),
+    ).fetchone()
+
+
+def _remember_token(conn: sqlite3.Connection, token: str, session_id: str, project_id: str, now: int) -> None:
+    owner = _token_owner(conn, token)
+    if owner is None:
+        conn.execute(
+            "INSERT INTO project_binding_tokens (write_token, session_id, project_id, created_at) VALUES (?, ?, ?, ?)",
+            (token, session_id, project_id, now),
+        )
+        return
+    if owner["session_id"] != session_id or owner["project_id"] != project_id:
+        raise ValueError("write_token is not reusable")
+
+
+def _release_if(
+    conn: sqlite3.Connection,
+    session_id: str,
+    expected_project_id: str,
+    expected_write_token: str,
+) -> SessionBindingWrite:
+    """One conditional DELETE. No preceding read authorizes a later unconditional write."""
+    token = _normalize_write_token(expected_write_token)
+    pid = str(expected_project_id or "").strip()
+    if not pid:
+        raise ValueError("conditional release requires the expected project_id")
+    cur = conn.execute(
+        "DELETE FROM project_sessions WHERE session_id = ? AND project_id = ? AND write_token = ?",
+        (session_id, pid, token),
+    )
+    if cur.rowcount > 0:
+        return SessionBindingWrite(applied=True, write_token=token)
+    return SessionBindingWrite(applied=False, write_token=None)
+
+
+def bind_session_project(
+    conn: sqlite3.Connection,
+    session_id: str,
+    project_id: Optional[str] = None,
+    *,
+    write_token: Optional[str] = None,
+    expected_write_token: Optional[str] = None,
+) -> SessionBindingWrite:
+    """Bind, unconditional unbind, or conditional release.
+
+    Compatible with ``bind_session_project(conn, session_id, project_id)``.
+    ``write_token`` and ``expected_write_token`` are optional keyword-only
+    arguments so existing callers keep their positional signature.
+
+    * ``write_token`` set, ``expected_write_token`` omitted: persist that token
+      in the same transaction as the project row. The same session+project+token
+      is an idempotent no-op and does not mint another binding.
+    * both omitted and ``project_id`` set: a real bind. This function mints a
+      new token in that same transaction, including a rebind of the same project.
+    * ``expected_write_token`` set and ``write_token`` omitted: conditional
+      release. ``project_id`` is the expected project, not a new target.
+      The DELETE matches session_id, project_id, and write_token together.
+      A missing or NULL stored token does not match. No row is deleted on mismatch.
+    * both tokens set, or a conditional release without a project: refuse, no write.
+    * both omitted and ``project_id`` empty: unconditional unbind for existing callers.
+    """
+    sid = str(session_id or "").strip()
+    if not sid:
+        raise ValueError("session_id must not be empty")
+    _ensure_binding_token_schema(conn)
+    supplied_token = write_token is not None
+    supplied_expected = expected_write_token is not None
+    if supplied_token and supplied_expected:
+        raise ValueError("write_token and expected_write_token are mutually exclusive")
+    with write_txn(conn):
+        if supplied_expected:
+            return _release_if(conn, sid, str(project_id or ""), str(expected_write_token))
+        if project_id is None or not str(project_id).strip():
+            cur = conn.execute("DELETE FROM project_sessions WHERE session_id = ?", (sid,))
+            return SessionBindingWrite(applied=cur.rowcount > 0, write_token=None)
+        pid = str(project_id).strip()
+        if get_project(conn, pid) is None:
+            raise ValueError(f"no such project: {pid}")
+        token = _normalize_write_token(write_token) if supplied_token else new_write_token()
+        existing = conn.execute(
+            "SELECT project_id, write_token, bound_at FROM project_sessions WHERE session_id = ?",
+            (sid,),
+        ).fetchone()
+        if (
+            existing is not None
+            and existing["write_token"] == token
+            and existing["project_id"] == pid
+        ):
+            _remember_token(conn, token, sid, pid, int(existing["bound_at"]))
+            return SessionBindingWrite(applied=True, write_token=token)
+        owner = _token_owner(conn, token)
+        if owner is not None:
+            raise ValueError("write_token is not reusable")
+        now = _now()
+        conn.execute(
+            "INSERT INTO project_sessions (session_id, project_id, bound_at, write_token) "
+            "VALUES (?, ?, ?, ?) "
+            "ON CONFLICT(session_id) DO UPDATE SET "
+            "project_id = excluded.project_id, bound_at = excluded.bound_at, write_token = excluded.write_token",
+            (sid, pid, now, token),
+        )
+        _remember_token(conn, token, sid, pid, now)
+    return SessionBindingWrite(applied=True, write_token=token)
+
+
+def get_session_project_id(conn: sqlite3.Connection, session_id: str) -> Optional[str]:
+    """Return the project_id bound to session_id, or None."""
+    sid = str(session_id or "").strip()
+    if not sid:
+        return None
+    row = conn.execute("SELECT project_id FROM project_sessions WHERE session_id = ?", (sid,)).fetchone()
+    return row["project_id"] if row else None
+
+
+def list_project_sessions(conn: sqlite3.Connection, project_id: str) -> list[str]:
+    """Return all session_ids bound to project_id in order of binding."""
+    pid = str(project_id or "").strip()
+    if not pid:
+        return []
+    rows = conn.execute("SELECT session_id FROM project_sessions WHERE project_id = ? ORDER BY bound_at ASC", (pid,)).fetchall()
+    return [r["session_id"] for r in rows]
+

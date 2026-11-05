@@ -237,6 +237,26 @@ echo "▶ pre-compiling bytecode cache"
 "$PYTHON" -m compileall -q -j 0 -- $(git ls-files '*.py') >/dev/null 2>&1 || true
 
 echo "▶ launching test runner"
+# Join space-separated path options before the runner split. Do not consume the
+# suite root: ``--basetemp <path> tests`` must keep ``tests`` positional.
+FORWARD_ARGS=()
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --basetemp|--confcutdir|--rootdir|--junitxml|--junit-xml|--log-file|--ignore)
+      if [ $# -ge 2 ] && [ "${2#-}" = "$2" ] && [ "$2" != "tests" ] && [ "$2" != "tests/" ]; then
+        FORWARD_ARGS+=("$1=$2")
+        shift 2
+        continue
+      fi
+      FORWARD_ARGS+=("$1")
+      shift
+      ;;
+    *)
+      FORWARD_ARGS+=("$1")
+      shift
+      ;;
+  esac
+done
 exec env -i \
   PATH="$PATH" \
   HOME="$HOME" \
@@ -252,4 +272,4 @@ exec env -i \
   ${HERMES_RUN_E2E:+HERMES_RUN_E2E="$HERMES_RUN_E2E"} \
   ${EXTRA_PYTHONPATH:+PYTHONPATH="$EXTRA_PYTHONPATH"} \
   ${EXTRA_PYTEST_PLUGINS:+PYTEST_PLUGINS="$EXTRA_PYTEST_PLUGINS"} \
-  "$PYTHON" "$SCRIPT_DIR/run_tests_parallel.py" "$@"
+  "$PYTHON" "$SCRIPT_DIR/run_tests_parallel.py" "${FORWARD_ARGS[@]}"

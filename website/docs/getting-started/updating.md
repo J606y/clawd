@@ -6,6 +6,12 @@ description: "How to update Hermes Agent to the latest version or uninstall it"
 
 # Updating & Uninstalling
 
+<!-- clawd-docs-note -->
+:::warning Not the clawd updater
+`clawd` refuses `update`. Commands written `hermes update` on this page are upstream Hermes Agent behavior. They are not a clawd updater, and that path can overwrite an existing Hermes install.
+:::
+
+
 ## Updating
 
 Choose the update method for the installation that is running:

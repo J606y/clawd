@@ -1,16 +1,16 @@
 ---
 sidebar_position: 1
-title: "Hermes Agent Quickstart"
-description: "Your first conversation with Hermes Agent — from install to chatting in under 5 minutes"
+title: "clawd Quickstart"
+description: "Your first conversation with clawd — from install to chatting in under 5 minutes"
 ---
 
-# Hermes Agent Quickstart
+# clawd Quickstart
 
 Python dependency commands on this page use a
 [PM-prepared source checkout](../reference/package-management.md#developer-workflow).
-After a dependency change, reactivate the checkout and restart Hermes.
+After a dependency change, reactivate the checkout and restart clawd.
 
-This guide gets you from zero to a working Hermes setup that survives real use. Install, choose a provider, verify a working chat, and know exactly what to do when something breaks.
+This guide gets you from zero to a working clawd setup that survives real use. Install, choose a provider, verify a working chat, and know exactly what to do when something breaks.
 
 ## Prefer to watch?
 
@@ -31,7 +31,7 @@ This guide gets you from zero to a working Hermes setup that survives real use. 
 
 - Brand new and want the shortest path to a working setup
 - Switching providers and don't want to lose time to config mistakes
-- Setting up Hermes for a team, bot, or always-on workflow
+- Setting up clawd for a team, bot, or always-on workflow
 - Tired of "it installed, but it still does nothing"
 
 ## The fastest path
@@ -40,21 +40,28 @@ Pick the row that matches your goal:
 
 | Goal | Do this first | Then do this |
 |---|---|---|
-| I just want Hermes working on my machine | `hermes setup` | Run a real chat and verify it responds |
-| I already know my provider | `hermes model` | Save the config, then start chatting |
-| I want a bot or always-on setup | `hermes gateway setup` after CLI works | Connect Telegram, Discord, Slack, or another platform |
-| I want a local or self-hosted model | `hermes model` → custom endpoint | Verify the endpoint, model name, and context length |
-| I want multi-provider fallback | `hermes model` first | Add routing and fallback only after the base chat works |
+| I just want clawd working on my machine | `clawd setup` | Run a real chat and verify it responds |
+| I already know my provider | `clawd model` | Save the config, then start chatting |
+| I want a bot or always-on setup | `clawd gateway setup` after CLI works | Connect Telegram, Discord, Slack, or another platform |
+| I want a local or self-hosted model | `clawd model` → custom endpoint | Verify the endpoint, model name, and context length |
+| I want multi-provider fallback | `clawd model` first | Add routing and fallback only after the base chat works |
 
-**Rule of thumb:** if Hermes cannot complete a normal chat, do not add more features yet. Get one clean conversation working first, then layer on gateway, cron, skills, voice, or routing.
+**Rule of thumb:** if clawd cannot complete a normal chat, do not add more features yet. Get one clean conversation working first, then layer on gateway, cron, skills, voice, or routing.
 
 ---
 
-## 1. Install Hermes Agent
+## 1. Upstream installers
 ### With the Hermes Desktop installer on macOS or Windows (recommended)
-To easily install the command-line and desktop applications, [download the Hermes Desktop installer](https://hermes-agent.nousresearch.com/) from our website and run it.
+
+<!-- clawd-docs-note -->
+:::warning Not this checkout
+The installers, packages, and download links on this page are upstream Hermes Agent. They do not install clawd. This checkout does not publish an installer URL. From this checkout, run `./clawd`. Setup spelling is `clawd setup`. `clawd` refuses `update`, `desktop`, `dashboard`, `gui`, and `webapp`. The web UI here is `clawd panel`.
+:::
+
+To easily install the command-line and desktop applications, [download the Hermes Desktop installer](https://hermes-agent.nousresearch.com/) from the upstream site and run it.
 
 ### Without Hermes Desktop:
+
 For a command-line only install without Hermes Desktop, run:
 
 For aarch64 Android devices, use the separate [Termux APT guide](./termux.md).
@@ -81,41 +88,41 @@ For detailed installation options, prerequisites, and troubleshooting, see the [
 
 ## 2. Choose a Provider
 
-The single most important setup step. Use `hermes model` to walk through the choice interactively:
+The single most important setup step. Use `clawd model` to walk through the choice interactively:
 
 ```bash
-hermes model
+clawd model
 ```
 
 :::tip Easiest path: Nous Portal
 One subscription covers 300+ models plus the [Tool Gateway](../user-guide/features/tool-gateway.md) (web search, image generation, TTS, cloud browser). On a fresh install:
 
 ```bash
-hermes setup --portal
+clawd setup --portal
 ```
 
 That logs you in, sets Nous as your provider, and turns on the Tool Gateway in one command.
 :::
 
 :::info Setup modes
-Coming from OpenClaw, Claude Code, Codex CLI or Cursor? When a fresh `hermes setup` finds one of them on your computer it first offers to import your setup (it installs the `agent-importers` plugin for that; see [Import from Other Agents](../user-guide/import-from-other-agents.md)).
+Coming from OpenClaw, Claude Code, Codex CLI or Cursor? When a fresh `clawd setup` finds one of them on your computer it first offers to import your setup (it installs the `agent-importers` plugin for that; see [Import from Other Agents](../user-guide/import-from-other-agents.md)).
 
-On a fresh install, `hermes setup` offers three modes:
+On a fresh install, `clawd setup` offers three modes:
 
 - **Quick Setup (Nous Portal)** — OAuth login, no API keys to manage; sets up a model plus the Tool Gateway tools, billed to your [Nous Portal subscription](../integrations/nous-portal.md). The recommended fast path.
 - **Full Setup** — walk through every provider, tool, and option yourself (bring your own keys).
 - **Blank Slate** — everything starts **off** except the bare minimum needed to run an agent: **provider & model, the File Operations toolset, and the Terminal toolset**. No web, browser, code execution, vision, memory, delegation, cron, skills, plugins, or MCP servers — and compression, checkpoints, smart routing, and memory capture are all disabled. After the minimal baseline is applied, you choose one of two paths: **start with everything disabled** (finish now with the minimal agent), or **walk through all configurations** (opt in to tools, skills, plugins, MCP, and messaging). Pick this when you want a minimal, fully-controlled agent and intend to enable only exactly what you need.
 
-Blank Slate writes an explicit `platform_toolsets.cli` list plus `agent.disabled_toolsets`, so nothing you didn't choose ever loads — not even after `hermes update`. Re-enable anything later with `hermes tools`, seed skills with `hermes skills opt-in --sync`, or tune settings with `hermes setup agent`.
+Blank Slate writes an explicit `platform_toolsets.cli` list plus `agent.disabled_toolsets`, so nothing you didn't choose ever loads — not even after `hermes update`. Re-enable anything later with `clawd tools`, seed skills with `clawd skills opt-in --sync`, or tune settings with `clawd setup agent`.
 :::
 
 Good defaults:
 
 | Provider | What it is | How to set up |
 |----------|-----------|---------------|
-| **Nous Portal** | Subscription-based, zero-config | OAuth login via `hermes model` |
-| **OpenAI Codex** | ChatGPT or Codex subscription, uses Codex models | Device code auth via `hermes model` → **ChatGPT or Codex Subscription** |
-| **Anthropic** | Claude models directly — Max plan + extra usage credits (OAuth), or API key for pay-per-token | `hermes model` → OAuth login (requires Max + extra credits), or an Anthropic API key |
+| **Nous Portal** | Subscription-based, zero-config | OAuth login via `clawd model` |
+| **OpenAI Codex** | ChatGPT or Codex subscription, uses Codex models | Device code auth via `clawd model` → **ChatGPT or Codex Subscription** |
+| **Anthropic** | Claude models directly — Max plan + extra usage credits (OAuth), or API key for pay-per-token | `clawd model` → OAuth login (requires Max + extra credits), or an Anthropic API key |
 | **OpenRouter** | Multi-provider routing across many models | Enter your API key |
 | **Fireworks AI** | Direct OpenAI-compatible model API | Set `FIREWORKS_API_KEY` |
 | **Z.AI** | GLM / Zhipu-hosted models | Set `GLM_API_KEY` / `ZAI_API_KEY` (also accepts `Z_AI_API_KEY`) |
@@ -124,7 +131,7 @@ Good defaults:
 | **Arcee AI** | Trinity models | Set `ARCEEAI_API_KEY` |
 | **GMI Cloud** | Multi-model direct API | Set `GMI_API_KEY` |
 | **Actual Computer** | Your own hardware as a private inference cluster — hosted relay or local daemon | Set `ACTUAL_API_KEY` (relay) or `ACTUAL_BASE_URL=http://127.0.0.1:8080` (local, no key) |
-| **MiniMax (OAuth)** | MiniMax frontier model via browser OAuth — no API key needed (model name in `hermes_cli/models.py` may change between releases) | `hermes model` → MiniMax (OAuth) |
+| **MiniMax (OAuth)** | MiniMax frontier model via browser OAuth — no API key needed (model name in `hermes_cli/models.py` may change between releases) | `clawd model` → MiniMax (OAuth) |
 | **MiniMax** | International MiniMax endpoint | Set `MINIMAX_API_KEY` |
 | **MiniMax China** | China-region MiniMax endpoint | Set `MINIMAX_CN_API_KEY` |
 | **Alibaba Cloud** | Qwen models via DashScope | Set `DASHSCOPE_API_KEY` (Qwen Coding Plan also accepts `ALIBABA_CODING_PLAN_API_KEY`) |
@@ -133,7 +140,7 @@ Good defaults:
 | **Azure Foundry** | Azure AI Foundry-hosted models | Set `AZURE_FOUNDRY_API_KEY` + `AZURE_FOUNDRY_BASE_URL` |
 | **Google AI Studio** | Gemini models via direct API | Set `GOOGLE_API_KEY` / `GEMINI_API_KEY` |
 | **xAI** | Grok models via direct API | Set `XAI_API_KEY` |
-| **xAI Grok OAuth** | SuperGrok / Premium+ subscription, no API key needed | `hermes model` → xAI Grok OAuth |
+| **xAI Grok OAuth** | SuperGrok / Premium+ subscription, no API key needed | `clawd model` → xAI Grok OAuth |
 | **NovitaAI** | Multi-model API gateway | Set `NOVITA_API_KEY` |
 | **Ramp Router** | Responses-native LLM gateway routing across OpenAI/Anthropic/xAI/... | Set `RAMP_ROUTER_API_KEY` |
 | **Nebius Token Factory** | Open models on Nebius AI cloud | Set `NEBIUS_API_KEY` |
@@ -143,7 +150,7 @@ Good defaults:
 | **Tencent TokenPlan** | Tencent Hy models via Anthropic-style endpoint | Set `TOKENPLAN_API_KEY` |
 | **Ollama Cloud** | Managed Ollama-hosted models | Set `OLLAMA_API_KEY` |
 | **LM Studio** | Local desktop app exposing an OpenAI-compatible API | Set `LM_API_KEY` (and `LM_BASE_URL` if non-default) |
-| **Qwen OAuth** | Qwen Portal browser OAuth — no API key needed | `hermes model` → Qwen OAuth |
+| **Qwen OAuth** | Qwen Portal browser OAuth — no API key needed | `clawd model` → Qwen OAuth |
 | **Kilo Code** | KiloCode-hosted models | Set `KILOCODE_API_KEY` |
 | **OpenCode Zen** | Pay-as-you-go access to curated models | Set `OPENCODE_ZEN_API_KEY` |
 | **OpenCode Go** | $10/month subscription for open models | Set `OPENCODE_GO_API_KEY` |
@@ -155,26 +162,26 @@ Good defaults:
 For most first-time users: choose a provider, accept the defaults unless you know why you're changing them. The full provider catalog with env vars and setup steps lives on the [Providers](../integrations/providers.md) page.
 
 :::caution Minimum context: 64K tokens
-Hermes Agent requires a model with at least **64,000 tokens** of context. Models with smaller windows cannot maintain enough working memory for multi-step tool-calling workflows and will be rejected at startup. Most hosted models (Claude, GPT, Gemini, Qwen, DeepSeek) meet this easily. If you're running a local model, set its context size to at least 64K (e.g. `--ctx-size 65536` for llama.cpp or `-c 65536` for Ollama).
+clawd requires a model with at least **64,000 tokens** of context. Models with smaller windows cannot maintain enough working memory for multi-step tool-calling workflows and will be rejected at startup. Most hosted models (Claude, GPT, Gemini, Qwen, DeepSeek) meet this easily. If you're running a local model, set its context size to at least 64K (e.g. `--ctx-size 65536` for llama.cpp or `-c 65536` for Ollama).
 :::
 
 :::tip
-You can switch providers at any time with `hermes model` — no lock-in. For a full list of all supported providers and setup details, see [AI Providers](../integrations/providers.md).
+You can switch providers at any time with `clawd model` — no lock-in. For a full list of all supported providers and setup details, see [AI Providers](../integrations/providers.md).
 :::
 
 ### How settings are stored
 
-Hermes separates secrets from normal config:
+clawd separates secrets from normal config:
 
-- **Secrets and tokens** → `~/.hermes/.env`
-- **Non-secret settings** → `~/.hermes/config.yaml`
+- **Secrets and tokens** → `~/.clawd/.env`
+- **Non-secret settings** → `~/.clawd/config.yaml`
 
 The easiest way to set values correctly is through the CLI:
 
 ```bash
-hermes config set model anthropic/claude-opus-4.6
-hermes config set terminal.backend docker
-hermes config set OPENROUTER_API_KEY sk-or-...
+clawd config set model anthropic/claude-opus-4.6
+clawd config set terminal.backend docker
+clawd config set OPENROUTER_API_KEY sk-or-...
 ```
 
 The right value goes to the right file automatically.
@@ -182,14 +189,14 @@ The right value goes to the right file automatically.
 ## 3. Run Your First Chat
 
 ```bash
-hermes            # classic CLI
-hermes --tui      # modern TUI (recommended)
+clawd            # classic CLI
+clawd --tui      # modern TUI (recommended)
 ```
 
 You'll see a welcome banner with your model, available tools, and skills. Use a prompt that's specific and easy to verify:
 
 :::tip Pick your interface
-Hermes ships with two terminal interfaces: the classic `prompt_toolkit` CLI and a newer [TUI](../user-guide/tui.md) with modal overlays, mouse selection, and non-blocking input. Both share the same sessions, slash commands, and config — try each with `hermes` vs `hermes --tui`.
+clawd ships with two terminal interfaces: the classic `prompt_toolkit` CLI and a newer [TUI](../user-guide/tui.md) with modal overlays, mouse selection, and non-blocking input. Both share the same sessions, slash commands, and config — try each with `clawd` vs `clawd --tui`.
 :::
 
 ```
@@ -207,7 +214,7 @@ Help me set up a clean GitHub PR workflow for this codebase.
 **What success looks like:**
 
 - The banner shows your chosen model/provider
-- Hermes replies without error
+- clawd replies without error
 - It can use a tool if needed (terminal, file read, web search)
 - The conversation continues normally for more than one turn
 
@@ -218,8 +225,8 @@ If that works, you're past the hardest part.
 Before moving on, make sure resume works:
 
 ```bash
-hermes --continue    # Resume the most recent session
-hermes -c            # Short form
+clawd --continue    # Resume the most recent session
+clawd -c            # Short form
 ```
 
 That should bring you back to the session you just had. If it doesn't, check whether you're in the same profile and whether the session actually saved. This matters later when you're juggling multiple setups or machines.
@@ -261,15 +268,15 @@ Only after the base chat works. Pick what you need:
 ### Bot or shared assistant
 
 ```bash
-hermes gateway setup    # Interactive platform configuration
+clawd gateway setup    # Interactive platform configuration
 ```
 
 Connect [Telegram](../user-guide/messaging/telegram.md), [Discord](../user-guide/messaging/discord.md), [Slack](../user-guide/messaging/slack.md), [WhatsApp](../user-guide/messaging/whatsapp.md), [Signal](../user-guide/messaging/signal.md), [Email](../user-guide/messaging/email.md), [Home Assistant](../user-guide/messaging/homeassistant.md) (plugin), or [Microsoft Teams](../user-guide/messaging/teams.md).
 
 ### Automation and tools
 
-- `hermes tools` — tune tool access per platform
-- `hermes skills` — browse and install reusable workflows
+- `clawd tools` — tune tool access per platform
+- `clawd skills` — browse and install reusable workflows
 - Cron — only after your bot or CLI setup is stable
 
 ### Sandboxed terminal
@@ -277,40 +284,40 @@ Connect [Telegram](../user-guide/messaging/telegram.md), [Discord](../user-guide
 For safety, run the agent in a Docker container or on a remote server:
 
 ```bash
-hermes config set terminal.backend docker    # Docker isolation
-hermes config set terminal.backend ssh       # Remote server
+clawd config set terminal.backend docker    # Docker isolation
+clawd config set terminal.backend ssh       # Remote server
 ```
 
-For Docker sandboxes, you can also enable the **egress credential-injection proxy** so the sandbox never sees your real API keys — only opaque proxy tokens that work exclusively from behind a local TLS-intercepting daemon. See [Egress proxy](../user-guide/egress/iron-proxy.md). Setup is `hermes egress setup && hermes egress start`; `hermes setup terminal` also points Docker users at it. Modal, SSH, Daytona, and Singularity are not wired yet.
+For Docker sandboxes, you can also enable the **egress credential-injection proxy** so the sandbox never sees your real API keys — only opaque proxy tokens that work exclusively from behind a local TLS-intercepting daemon. See [Egress proxy](../user-guide/egress/iron-proxy.md). Setup is `clawd egress setup && clawd egress start`; `clawd setup terminal` also points Docker users at it. Modal, SSH, Daytona, and Singularity are not wired yet.
 
 ### Voice mode
 
-Run `hermes tools` and configure the Voice providers. Then enable `/voice on`
+Run `clawd tools` and configure the Voice providers. Then enable `/voice on`
 in the CLI and press `Ctrl+B` to record. PM handles missing supported
 requirements; a dependency change can require a restart. Local Faster-Whisper
 is not available on every architecture. See [Voice Mode](../user-guide/features/voice-mode.md).
 
 ### Skills
 
-Skills are on-demand instruction documents that teach Hermes how to do a specific task — deploy to Kubernetes, open a GitHub PR, fine-tune a model, search for GIFs. Each is a `SKILL.md` file with a name, a description, and a step-by-step procedure. The agent reads the short descriptions for free and only loads a skill's full content when a task actually calls for it, so adding skills doesn't bloat every request.
+Skills are on-demand instruction documents that teach clawd how to do a specific task — deploy to Kubernetes, open a GitHub PR, fine-tune a model, search for GIFs. Each is a `SKILL.md` file with a name, a description, and a step-by-step procedure. The agent reads the short descriptions for free and only loads a skill's full content when a task actually calls for it, so adding skills doesn't bloat every request.
 
-Hermes ships with a catalog of bundled skills already installed in `~/.hermes/skills/`. You can add more from the Skills Hub, or write your own.
+clawd ships with a catalog of bundled skills already installed in `~/.clawd/skills/`. You can add more from the Skills Hub, or write your own.
 
 **Browse and install from the hub:**
 
 ```bash
-hermes skills browse                      # list everything available
-hermes skills search kubernetes           # find skills by keyword
-hermes skills install openai/skills/k8s   # install one (runs a security scan first)
+clawd skills browse                      # list everything available
+clawd skills search kubernetes           # find skills by keyword
+clawd skills install openai/skills/k8s   # install one (runs a security scan first)
 ```
 
-The install argument is a `source/path` slug from the hub — `openai/skills/k8s` means the `k8s` skill from OpenAI's catalog. `hermes skills browse` shows the exact slugs to use.
+The install argument is a `source/path` slug from the hub — `openai/skills/k8s` means the `k8s` skill from OpenAI's catalog. `clawd skills browse` shows the exact slugs to use.
 
 **Use a skill** — every installed skill becomes a slash command automatically:
 
 ```bash
 /k8s deploy the staging manifest          # run the skill with a request
-/k8s                                       # load it and let Hermes ask what you need
+/k8s                                       # load it and let clawd ask what you need
 ```
 
 This works in the CLI and in any connected messaging platform. You don't have to install everything up front — the agent picks the right bundled skill on its own during normal conversation when a task matches one.
@@ -320,7 +327,7 @@ See [Skills System](../user-guide/features/skills.md) for writing your own, exte
 ### MCP servers
 
 ```yaml
-# Add to ~/.hermes/config.yaml
+# Add to ~/.clawd/config.yaml
 mcp_servers:
   github:
     command: npx
@@ -334,7 +341,7 @@ mcp_servers:
 ACP support ships with the standard `[all]` extras, so the curl installer already includes it. Just run:
 
 ```bash
-hermes acp
+clawd acp
 ```
 
 (If you installed without `[all]`, run `cd ~/.hermes/hermes-agent && python -c "import pm; pm.sync_venv(['acp'], explicit=True)"` first.)
@@ -349,23 +356,23 @@ These are the problems that waste the most time:
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| Hermes opens but gives empty or broken replies | Provider auth or model selection is wrong | Run `hermes model` again and confirm provider, model, and auth |
+| clawd opens but gives empty or broken replies | Provider auth or model selection is wrong | Run `clawd model` again and confirm provider, model, and auth |
 | Custom endpoint "works" but returns garbage | Wrong base URL, model name, or not actually OpenAI-compatible | Verify the endpoint in a separate client first |
-| Gateway starts but nobody can message it | Bot token, allowlist, or platform setup is incomplete | Re-run `hermes gateway setup` and check `hermes gateway status` |
-| `hermes --continue` can't find old session | Switched profiles or session never saved | Check `hermes sessions list` and confirm you're in the right profile |
+| Gateway starts but nobody can message it | Bot token, allowlist, or platform setup is incomplete | Re-run `clawd gateway setup` and check `clawd gateway status` |
+| `clawd --continue` can't find old session | Switched profiles or session never saved | Check `clawd sessions list` and confirm you're in the right profile |
 | Model unavailable or odd fallback behavior | Provider routing or fallback settings are too aggressive | Keep routing off until the base provider is stable |
-| `hermes doctor` flags config problems | Config values are missing or stale | Fix the config, retest a plain chat before adding features |
+| `clawd doctor` flags config problems | Config values are missing or stale | Fix the config, retest a plain chat before adding features |
 
 ## Recovery Toolkit
 
 When something feels off, use this order:
 
-1. `hermes doctor`
-2. `hermes model`
-3. `hermes setup`
-4. `hermes sessions list`
-5. `hermes --continue`
-6. `hermes gateway status`
+1. `clawd doctor`
+2. `clawd model`
+3. `clawd setup`
+4. `clawd sessions list`
+5. `clawd --continue`
+6. `clawd gateway status`
 
 That sequence gets you from "broken vibes" back to a known state fast.
 
@@ -375,18 +382,18 @@ That sequence gets you from "broken vibes" back to a known state fast.
 
 | Command | Description |
 |---------|-------------|
-| `hermes` | Start chatting |
-| `hermes model` | Choose your LLM provider and model |
-| `hermes tools` | Configure which tools are enabled per platform |
-| `hermes setup` | Full setup wizard (configures everything at once) |
-| `hermes doctor` | Diagnose issues |
+| `clawd` | Start chatting |
+| `clawd model` | Choose your LLM provider and model |
+| `clawd tools` | Configure which tools are enabled per platform |
+| `clawd setup` | Full setup wizard (configures everything at once) |
+| `clawd doctor` | Diagnose issues |
 | `hermes update` | Update to latest version |
-| `hermes gateway` | Start the messaging gateway |
-| `hermes --continue` | Resume last session |
+| `clawd gateway` | Start the messaging gateway |
+| `clawd --continue` | Resume last session |
 
 ## Next Steps
 
-- **[User Stories](../user-stories.mdx)**: real setups from the community, a good place to start if you're not sure what to hand Hermes first
+- **[User Stories](../user-stories.mdx)**: real setups from the community, a good place to start if you're not sure what to hand clawd first
 - **[CLI Guide](../user-guide/cli.md)** — Master the terminal interface
 - **[Configuration](../user-guide/configuration.md)** — Customize your setup
 - **[Messaging Gateway](../user-guide/messaging/index.md)** — Connect Telegram, Discord, Slack, WhatsApp, Signal, Email, Home Assistant, Teams, and more
@@ -394,4 +401,4 @@ That sequence gets you from "broken vibes" back to a known state fast.
 - **[AI Providers](../integrations/providers.md)** — Full provider list and setup details
 - **[Skills System](../user-guide/features/skills.md)** — Reusable workflows and knowledge
 - **[Tips & Best Practices](../guides/tips.md)** — Power user tips
-- **[Moving to another machine](../reference/faq.md#exporting-hermes-to-another-machine)** — `hermes backup` migrates your whole setup (or [a single profile](../reference/faq.md#moving-a-single-profile-to-another-machine)); no need to rebuild from scratch
+- **[Moving to another machine](../reference/faq.md#exporting-hermes-to-another-machine)** — `clawd backup` migrates your whole setup (or [a single profile](../reference/faq.md#moving-a-single-profile-to-another-machine)); no need to rebuild from scratch

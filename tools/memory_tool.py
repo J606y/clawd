@@ -247,8 +247,34 @@ def _invalid(message: str) -> tuple[str, str]:
     return "rejected", tool_error(message, success=False)
 
 
+def _readonly_memory_block(store: Any) -> str | None:
+    """Refuse a read-only store before approval staging or disk. Not the subagent turn gate."""
+    from clawd_projects.memory_authorization import memory_store_write_block
+
+    blocked = memory_store_write_block(store)
+    if blocked is None:
+        return None
+    return json.dumps(blocked, ensure_ascii=False)
+
+
+def _memory_schema_refresh_blocked(agent: Any) -> bool:
+    from clawd_projects.memory_authorization import memory_schema_refresh_blocked
+
+    return memory_schema_refresh_blocked(agent)
+
+
+def _seal_memory_schema(agent: Any) -> None:
+    from clawd_projects.memory_authorization import seal_memory_schema
+
+    seal_memory_schema(agent)
+
+
 def _memory_tool(action, target, content, old_text, new_text, operations, store) -> tuple[str, str]:
     """``(outcome, result_json)``: ``rejected`` when refused or held before touching the store."""
+    blocked = _readonly_memory_block(store)
+    if blocked is not None:
+        FAILURE_CLASS.set("gate_refused")
+        return "rejected", blocked
     # An omitted optional string can arrive as "" (#90468): let the new_text alias fill it.
     if not content and new_text:
         content = new_text
@@ -318,6 +344,49 @@ def check_memory_requirements() -> bool:
     return flags[0] or flags[1]
 
 
+def apply_memory_schema_to_agent(agent: Any) -> None:
+    """Copy the session memory tool schema so its enum matches the live store.
+
+    The registry schema stays ``memory``/``user``. A project store also accepts
+    ``project`` and ``global_memory``; those must not be advertised on a normal store.
+    A sealed schema is not rebuilt while a turn id is set.
+    """
+    if _memory_schema_refresh_blocked(agent):
+        return
+    store = getattr(agent, "_memory_store", None)
+    tools = getattr(agent, "tools", None)
+    if store is None or not isinstance(tools, list):
+        return
+    accepted = list(getattr(store, "accepted_targets", lambda: ())())
+    if not accepted:
+        return
+    for index, tool in enumerate(tools):
+        function = (tool or {}).get("function") if isinstance(tool, dict) else None
+        if not isinstance(function, dict) or function.get("name") != "memory":
+            continue
+        cloned = copy.deepcopy(tool)
+        target_schema = cloned["function"]["parameters"]["properties"]["target"]
+        target_schema["enum"] = accepted
+        if "project" in accepted or "global_memory" in accepted:
+            target_schema["description"] = (
+                "Which store: 'memory'/'project' = this project's notes (not promoted to global), "
+                "'global_memory' = explicit global notes, 'user' = user profile."
+            )
+            description = cloned["function"].get("description") or ""
+            marker = "TARGETS: 'user' = who the user is (name, role, preferences, style). 'memory' = your "
+            replacement = (
+                "TARGETS: 'memory' and 'project' = notes for THIS project only (never promoted to global). "
+                "'global_memory' = explicit global notes. 'user' = who the user is (global profile). "
+            )
+            if marker in description:
+                head, _, tail = description.partition(marker)
+                rest = tail.split("\n\n", 1)[1] if "\n\n" in tail else ""
+                cloned["function"]["description"] = head + replacement + ("\n\n" + rest if rest else "")
+        tools[index] = cloned
+        _seal_memory_schema(agent)
+        return
+
+
 def _memory_target_error(
     store: MemoryStore, target: str | None, operations: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any] | None:
@@ -328,11 +397,14 @@ def _memory_target_error(
             "Missing required target. Retry with target='memory' or target='user' at the top level. "
             "For a batch, remove target from every operation; use separate calls for different stores. "
             "Nothing was written or staged.")}
-    if not isinstance(target, str) or target not in {"memory", "user"}:
+    accepted = tuple(getattr(store, "accepted_targets", lambda: ("memory", "user"))())
+    if not isinstance(target, str) or target not in accepted:
         from tools.registry import _bound_error_text
         FAILURE_CLASS.set("invalid_args")
+        listed = ", ".join(repr(item) for item in accepted) or "none"
         return {"success": False,
-                "error": _bound_error_text(f"Invalid memory target '{target}'. Use 'memory' or 'user'.")}
+                "error": _bound_error_text(
+                    f"Invalid memory target '{target}'. Use one of: {listed}.")}
     if isinstance(operations, list):
         for index, op in enumerate(operations, 1):
             # A nested target equal to the call's (or null) is redundant, not wrong; only a
@@ -354,7 +426,12 @@ def apply_memory_pending(payload: dict[str, Any], store: MemoryStore) -> dict[st
     """Replay a staged write against the store, bypassing the gate (/memory approve). A
     replace/remove applies to exactly its pinned ``matched_entry`` or is refused; a record
     staged before pinning has no verifiable target, so it is refused rather than replayed by
-    old_text (which could hit a newer entry the approver never saw)."""
+    old_text (which could hit a newer entry the approver never saw). A read-only store is
+    refused before replay; this does not skip that check.
+    """
+    blocked = _readonly_memory_block(store)
+    if blocked is not None:
+        return json.loads(blocked)
     action, target = payload.get("action"), payload.get("target")
     target_error = _memory_target_error(store, target, payload.get("operations"))
     if target_error is not None:

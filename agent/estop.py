@@ -116,7 +116,7 @@ def paused_reply() -> Optional[str]:
     if state is None:
         return None
     tag = f" ({state['reason']})" if state.get("reason") else ""
-    return f"⏸️ Hermes is paused{tag}. New work is on hold; run `hermes resume` to pick things back up."
+    return f"⏸️ clawd is paused{tag}. New work is on hold; run `clawd resume` to pick things back up."
 
 
 def check_paused(component: str, logger: logging.Logger) -> bool:
@@ -132,7 +132,7 @@ def check_paused(component: str, logger: logging.Logger) -> bool:
         reason = (get_state() or {}).get("reason")
         suffix = f" (reason: {reason})" if reason else ""
         logger.info(
-            "%s dispatch paused by global emergency stop%s — remove with `hermes resume` (%s)",
+            "%s dispatch paused by global emergency stop%s — remove with `clawd resume` (%s)",
             component, suffix, sentinel_path(),
         )
     return True

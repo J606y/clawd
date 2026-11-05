@@ -1,0 +1,285 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>task popup mutex</title>
+  <style>
+    html, body { margin: 0; height: 100%; background: #111; }
+    #chat-slot { display: contents; }
+    #chat-slot[hidden] { display: none !important; }
+    #page { height: 100%; display: flex; flex-direction: column; }
+    #log { flex: 1; min-height: 0; overflow: auto; }
+    #composer { flex: none; }
+    #input { height: 52px; }
+  </style>
+</head>
+<body>
+  <div id="chat-slot" class="chat-slot">
+  <div class="hp-chat" id="page">
+    <div id="log"></div>
+    <div class="composer" id="composer">
+      <div id="panels"></div>
+      <div id="input">输入框</div>
+    </div>
+  </div>
+  </div>
+  <script type="module">
+    import { createElement, useEffect, useState } from "react";
+    import { createRoot } from "react-dom/client";
+    import { flushSync } from "react-dom";
+    import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+    import { ChatStyles } from "/src/react/pages/chat/chat-styles.tsx";
+    import { ComposerPanels } from "/src/react/pages/chat/composer-panels.tsx";
+    import { BrowserTask } from "/src/react/pages/chat/turns.tsx";
+    import { disclosureLeavesBottom } from "/src/react/pages/chat/scroll-intent.ts";
+    import "/src/react/styles/index.css";
+    document.documentElement.dataset.theme = "dark";
+
+    const agent = (partial) => ({
+      id: partial.id,
+      parentId: partial.parentId,
+      parentTitle: null,
+      title: partial.title,
+      model: "grok-4.7",
+      startedAt: 1700000000,
+      endedAt: partial.status === "running" ? null : 1700001000,
+      endReason: null,
+      status: partial.status,
+      messages: 2,
+      toolCalls: 3,
+      apiCalls: 1,
+      tokens: 10,
+      lastActivityAt: 1700001000,
+      lastTool: null,
+      snippet: partial.snippet || "结果摘要留在卡片里",
+    });
+    const many = (session, prefix, count, status = "done") => Array.from({ length: count }, (_, i) => agent({
+      id: `${session.toLowerCase()}${i + 1}`,
+      parentId: session,
+      title: `${prefix}-${i + 1}`,
+      status,
+      snippet: `${prefix} 摘要 ${i + 1} ${"甲".repeat(24)}`,
+    }));
+    const bodies = {
+      A: { data: [...many("A", "任务A", 8), agent({ id: "foreign-b", parentId: "B", title: "外来B", status: "running" })], running: 1, now: 1700002000 },
+      B: { data: [agent({ id: "b1", parentId: "B", title: "任务B", status: "done" })], running: 0, now: 1700002000 },
+      R: { data: [agent({ id: "r1", parentId: "R", title: "进行中的R", status: "running", snippet: "仍在跑" })], running: 1, now: 1700002000 },
+      C: { data: [agent({ id: "c1", parentId: "C", title: "迟到C", status: "running" })], running: 1, now: 1700002000 },
+      D: { data: [agent({ id: "d1", parentId: "D", title: "迟到D", status: "running" })], running: 1, now: 1700002000 },
+      "": { data: [agent({ id: "z1", parentId: "Z", title: "全局任务", status: "done" })], running: 0, now: 1700002000 },
+    };
+    const tasksFor = {
+      A: [
+        { id: "t1", content: "写回归", status: "completed" },
+        { id: "t2", content: "做弹窗", status: "in_progress" },
+        { id: "t3", content: "子步骤核对间距", status: "pending", parent: "t2" },
+        { id: "t4", content: "旧方案", status: "cancelled" },
+      ],
+      B: [
+        { id: "b-task", content: "B 的任务", status: "pending" },
+      ],
+      R: [
+        { id: "r-task", content: "跑着时不要抢开", status: "pending" },
+      ],
+      C: [{ id: "c-task", content: "C 的任务", status: "pending" }],
+      D: [{ id: "d-task", content: "D 的任务", status: "pending" }],
+      "": [],
+    };
+
+    window.harness = { hold: new Set(), waiters: [], requests: [], frames: [], setSession() {}, setTasks() {}, invalidate() {} };
+    const original = window.fetch.bind(window);
+    window.fetch = (input) => {
+      const url = String(input);
+      if (!url.includes("subagents")) return original(input);
+      const parsed = new URL(url, location.href);
+      const session = parsed.searchParams.get("parent") ?? parsed.searchParams.get("session") ?? "";
+      const limit = Number(parsed.searchParams.get("limit") || 50);
+      const offset = Number(parsed.searchParams.get("offset") || 0);
+      window.harness.requests.push({ session, limit: String(limit), at: performance.now() });
+      const raw = bodies[session] ?? { data: [], running: 0, now: 1700002000 };
+      const data = (raw.data ?? []).slice(offset, offset + limit);
+      const respond = () => new Response(JSON.stringify({
+        data,
+        running: raw.running ?? 0,
+        stalled: 0,
+        total: raw.data?.length ?? 0,
+        now: raw.now,
+        limit,
+        offset,
+      }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+      if (window.harness.hold.has(session)) {
+        return new Promise((resolve) => {
+          window.harness.waiters.push({ session, resolve: () => resolve(respond()) });
+        });
+      }
+      return Promise.resolve(respond());
+    };
+    window.harness.release = (session) => {
+      window.harness.hold.delete(session);
+      const ready = window.harness.waiters.filter((item) => item.session === session);
+      window.harness.waiters = window.harness.waiters.filter((item) => item.session !== session);
+      ready.forEach((item) => item.resolve());
+    };
+    window.harness.bump = (session) => {
+      const body = bodies[session];
+      if (!body) return;
+      body.now += 1;
+    };
+
+    const log = document.querySelector("#log");
+    for (let i = 0; i < 40; i += 1) {
+      const p = document.createElement("p");
+      p.textContent = `消息 ${i}`;
+      log.appendChild(p);
+    }
+    log.scrollTop = 12;
+    document.querySelector("#page").addEventListener("click", (event) => {
+      if (disclosureLeavesBottom(event.composedPath())) {
+        log.scrollTop = log.scrollHeight;
+        document.documentElement.dataset.jumped = "1";
+      }
+    });
+
+    const samplePanels = () => {
+      const taskBar = document.querySelector(".task-list .bar");
+      const agentBar = document.querySelector(".subagents .bar");
+      return {
+        tasks: taskBar?.getAttribute("aria-expanded") ?? "missing",
+        agents: agentBar?.getAttribute("aria-expanded") ?? "missing",
+      };
+    };
+    const pushFrame = () => {
+      const next = samplePanels();
+      const frames = window.harness.frames;
+      const last = frames[frames.length - 1];
+      if (last && last.tasks === next.tasks && last.agents === next.agents) return;
+      frames.push(next);
+    };
+    window.harness.armFrames = () => {
+      window.harness.frames = [];
+      pushFrame();
+      if (window.harness.observer) window.harness.observer.disconnect();
+      window.harness.observer = new MutationObserver(pushFrame);
+      window.harness.observer.observe(document.querySelector("#panels"), {
+        subtree: true,
+        attributes: true,
+        attributeFilter: ["aria-expanded", "data-open"],
+      });
+    };
+
+    function Harness() {
+      const [sessionId, setSessionId] = useState("A");
+      const [tasks, setTasks] = useState(tasksFor.A);
+      const [browserShown, setBrowserShown] = useState(false);
+      const [generation, setGeneration] = useState(0);
+      useEffect(() => {
+        window.harness.setBrowser = (shown) => flushSync(() => setBrowserShown(shown));
+        window.harness.setSession = (id) => {
+          flushSync(() => {
+            setSessionId(id);
+            setTasks(tasksFor[id] ?? []);
+          });
+        };
+        window.harness.setTasks = (next) => flushSync(() => setTasks(next));
+        window.harness.remount = () => flushSync(() => setGeneration((value) => value + 1));
+      });
+      return createElement(ComposerPanels, {
+        key: generation,
+        sessionId,
+        active: false,
+        tasks,
+        taskDockRef: (node) => { window.harness.dock = node; },
+      }, createElement(BrowserTask, { active: true, steps: browserShown ? [{ kind: "tool", id: "synthetic-browser", name: "browser_exec", args: {}, status: "running", output: null, preview: null }] : [] }));
+    }
+
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    window.harness.invalidate = () => client.invalidateQueries({ queryKey: ["subagents"] });
+    flushSync(() => {
+      createRoot(document.querySelector("#panels")).render(createElement(QueryClientProvider, { client },
+        createElement(ChatStyles),
+        createElement(Harness),
+      ));
+    });
+    window.harness.measureDock = () => {
+      const height = window.harness.dock?.offsetHeight ?? 0;
+      document.querySelector("#page").style.setProperty("--task-dock", `${height}px`);
+      return height;
+    };
+
+    const box = (el) => {
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      return { top: r.top, left: r.left, right: r.right, bottom: r.bottom, width: r.width, height: r.height };
+    };
+    window.inspect = () => {
+      const root = document.querySelector("#panels");
+      const taskBar = root.querySelector(".task-list .bar");
+      const agentBar = root.querySelector(".subagents .bar");
+      const shell = root.querySelector(".panel-shell");
+      const shellLive = shell && shell.querySelector(".bar") && getComputedStyle(shell).display !== "none" ? shell : null;
+      const taskFrame = shellLive || root.querySelector(".task-list .frame");
+      const agentFrame = shellLive || root.querySelector(".subagents .frame");
+      const taskFold = root.querySelector(".task-list .fold");
+      const agentFold = root.querySelector(".subagents .fold");
+      const list = root.querySelector(".subagents .list");
+      const items = [...root.querySelectorAll(".task-list li")].map((node) => ({
+        text: node.querySelector(".text")?.textContent ?? "",
+        status: node.getAttribute("data-s"),
+        nested: node.hasAttribute("data-nested"),
+        label: node.getAttribute("aria-label"),
+        mark: node.querySelector(".mark")?.textContent ?? "",
+        tag: node.querySelector(".tag")?.textContent ?? "",
+        strike: node.querySelector(".text") ? getComputedStyle(node.querySelector(".text")).textDecorationLine : "",
+      }));
+      const hit = (el) => {
+        if (!el) return false;
+        const r = el.getBoundingClientRect();
+        const node = document.elementFromPoint(r.left + r.width / 2, r.top + Math.min(r.height / 2, 8));
+        return !!node && (el === node || el.contains(node));
+      };
+      const styleOf = (el) => {
+        if (!el) return null;
+        const style = getComputedStyle(el);
+        return {
+          borderTop: style.borderTopWidth,
+          radius: style.borderTopLeftRadius,
+          background: style.backgroundColor,
+          position: style.position,
+          bottom: style.bottom,
+        };
+      };
+      return {
+        taskBar: taskBar?.textContent ?? "",
+        taskExpanded: taskBar?.getAttribute("aria-expanded") ?? null,
+        agentBar: agentBar?.textContent ?? "",
+        agentExpanded: agentBar?.getAttribute("aria-expanded") ?? null,
+        titles: [...root.querySelectorAll(".subagents .title")].map((node) => node.textContent),
+        items,
+        taskFrame: box(taskFrame),
+        agentFrame: box(agentFrame),
+        taskStyle: styleOf(taskFrame),
+        agentStyle: styleOf(agentFrame),
+        input: box(document.querySelector("#input")),
+        scrollTop: log.scrollTop,
+        jumped: document.documentElement.dataset.jumped ?? "",
+        dockHeight: window.harness.dock?.offsetHeight ?? 0,
+        taskDockVar: getComputedStyle(document.querySelector("#page")).getPropertyValue("--task-dock").trim(),
+        taskInert: taskFold ? taskFold.hasAttribute("inert") : null,
+        agentInert: agentFold ? agentFold.hasAttribute("inert") : null,
+        taskHit: hit(taskBar),
+        agentHit: hit(agentBar),
+        taskCount: root.querySelectorAll(".task-list").length,
+        agentCount: root.querySelectorAll(".subagents").length,
+        frames: window.harness.frames.map((item) => ({ ...item })),
+        requests: window.harness.requests.map((item) => ({ session: item.session, limit: item.limit })),
+      };
+    };
+    window.readyToken = new URLSearchParams(location.search).get("token");
+    window.ready = true;
+  </script>
+</body>
+</html>

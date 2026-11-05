@@ -33,7 +33,7 @@ and the app relies on reading a session cookie out of a private webview. RFC
 all of that: **do the authorization in the system browser and hand the app its
 own tokens.**
 
-For Hermes specifically, native sign-in means:
+For clawd specifically, native sign-in means:
 
 - **No embedded webview.** The authorization happens in Safari / Chrome /
   Firefox / Edge — whatever you use — with your logins, extensions, and
@@ -122,4 +122,4 @@ The relevant endpoints (all public, pre-auth bootstrap, same as the existing
 
 - [OAuth over SSH / Remote Hosts](./oauth-over-ssh.md) — the loopback-callback
   pattern for provider/MCP OAuth on remote machines.
-- [Run Hermes with Nous Portal](./run-hermes-with-nous-portal.md)
+- [Run clawd with Nous Portal](./run-hermes-with-nous-portal.md)

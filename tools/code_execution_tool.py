@@ -909,7 +909,7 @@ def build_execute_code_schema(enabled_sandbox_tools: set | None = None,
     # Session kernels are always on (kernel_mode retired in #96787): persistence is part of the tool's one
     # description, not a bolt-on paragraph behind a dead conditional.
     description = (
-        "Run Python that calls Hermes tools programmatically. Use when you "
+        "Run Python that calls clawd tools programmatically. Use when you "
         "need 3+ tool calls with logic between them: filtering/reducing "
         "large outputs before they enter context, branching, or loops "
         "(N pages/files, retry on failure). Use normal tool calls for "

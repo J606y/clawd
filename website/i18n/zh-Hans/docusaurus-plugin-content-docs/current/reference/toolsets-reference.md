@@ -1,7 +1,7 @@
 ---
 sidebar_position: 4
 title: "工具集参考"
-description: "Hermes 核心、复合、平台及动态工具集参考"
+description: "clawd 核心、复合、平台及动态工具集参考"
 ---
 
 # 工具集参考
@@ -21,9 +21,9 @@ description: "Hermes 核心、复合、平台及动态工具集参考"
 ### 按会话（CLI）
 
 ```bash
-hermes chat --toolsets web,file,terminal
-hermes chat --toolsets debugging        # composite — expands to file + terminal + web
-hermes chat --toolsets all              # everything
+clawd chat --toolsets web,file,terminal
+clawd chat --toolsets debugging        # composite — expands to file + terminal + web
+clawd chat --toolsets all              # everything
 ```
 
 ### 按平台（config.yaml）
@@ -37,7 +37,7 @@ toolsets:
 ### 交互式管理
 
 ```bash
-hermes tools                            # curses UI to enable/disable per platform
+clawd tools                            # curses UI to enable/disable per platform
 ```
 
 或在会话中：
@@ -54,7 +54,7 @@ hermes tools                            # curses UI to enable/disable per platfo
 |--------|------|------|
 | `browser` | `browser_cdp`、`browser_dialog`、`browser_exec`、`browser_vault` | 核心浏览器自动化。`browser_exec` 通过运行预导入辅助函数的 Python 驱动浏览器（仅提供给同时拥有 `terminal` 的会话）；`browser_cdp`、`browser_dialog` 和 `browser_vault` 作用于同一个浏览器会话。`browser_vault` 随浏览器一起用于凭据表单，默认延迟到工具搜索后加载。禁用此工具集即可关闭浏览功能。快速查询属于 `web`/`search` 工具集——`web_search` 刻意不是其成员，因此 `disabled_toolsets: [browser]` 不会移除它。 |
 | `clarify` | `clarify` | 当 agent 需要澄清时向用户提问。 |
-| `code_execution` | `execute_code` | 运行以编程方式调用 Hermes 工具的 Python 脚本。 |
+| `code_execution` | `execute_code` | 运行以编程方式调用 clawd 工具的 Python 脚本。 |
 | `cronjob` | `cronjob` | 调度和管理周期性任务。 |
 | `debugging` | 复合（`file` + `terminal` + `web`） | 调试套件——文件、进程/终端、网页提取/搜索。 |
 | `delegation` | `delegate_task` | 生成隔离的子 agent 实例以并行执行工作。 |
@@ -79,7 +79,7 @@ hermes tools                            # curses UI to enable/disable per platfo
 | `vision` | `vision_analyze` | 通过视觉能力模型进行图像分析。 |
 | `video` | `video_analyze` | 视频分析与理解工具（需手动启用，不在默认工具集中——通过 `--toolsets` 显式添加）。 |
 | `web` | `web_extract`, `web_search` | 网页搜索和页面内容提取。 |
-| `x_search` | `x_search` | 通过 xAI 内置的 `x_search` Responses 工具搜索 X（Twitter）帖子和话题。默认关闭；通过 `hermes tools` 启用。仅在配置了 xAI 凭据（SuperGrok OAuth 或 `XAI_API_KEY`）时注册 schema。 |
+| `x_search` | `x_search` | 通过 xAI 内置的 `x_search` Responses 工具搜索 X（Twitter）帖子和话题。默认关闭；通过 `clawd tools` 启用。仅在配置了 xAI 凭据（SuperGrok OAuth 或 `XAI_API_KEY`）时注册 schema。 |
 | `yuanbao` | `yb_query_group_info`, `yb_query_group_members`, `yb_search_sticker`, `yb_send_dm`, `yb_send_sticker` | 元宝私信/群组操作和表情包搜索。仅在 `hermes-yuanbao` 上注册。 |
 
 ## 平台工具集
@@ -154,8 +154,8 @@ custom_toolsets:
 
 - `all` 或 `*` — 展开为所有已注册的工具集（内置 + 动态 + 插件）
 
-## 与 `hermes tools` 的关系
+## 与 `clawd tools` 的关系
 
-`hermes tools` 命令提供基于 curses 的 UI，用于按平台切换单个工具的启用/禁用状态。该操作在工具级别进行（比工具集更细粒度），并持久化到 `config.yaml`。即使工具集已启用，被禁用的工具也会被过滤掉。
+`clawd tools` 命令提供基于 curses 的 UI，用于按平台切换单个工具的启用/禁用状态。该操作在工具级别进行（比工具集更细粒度），并持久化到 `config.yaml`。即使工具集已启用，被禁用的工具也会被过滤掉。
 
 另请参阅：[工具参考](./tools-reference.md)，获取所有单个工具及其参数的完整列表。

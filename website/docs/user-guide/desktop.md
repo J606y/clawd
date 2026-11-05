@@ -6,6 +6,12 @@ description: "The native Hermes desktop app — a polished experience for chatti
 
 # Hermes Desktop
 
+<!-- clawd-docs-note -->
+:::warning Not a clawd product
+clawd does not ship official Desktop, the official web dashboard, or the commands `desktop`, `gui`, `webapp`, and `dashboard`. This page documents upstream Hermes Agent. The web UI in this checkout is `clawd panel`.
+:::
+
+
 The Hermes desktop app is a native app built around the **same** agent you get from the CLI and the gateway — same config, same API keys, same sessions, same skills, same memory. It is not a separate product or a lightweight clone; it uses the same Hermes Agent core and settings, and drives it through a modern & thoughtfully designed UI. If you have used `hermes` in a terminal, everything you set up there is already here, and anything you do here shows up there.
 
 It runs on **macOS (Apple Silicon), Windows, and Linux** — see [Platform Support](../getting-started/platform-support.md) for the full matrix.

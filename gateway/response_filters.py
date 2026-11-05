@@ -184,7 +184,15 @@ def display_kind_for_event(event: Any) -> str | None:
         return kind
     if getattr(event, "internal", False) and _producer_card(event):
         return event.metadata["display_kind"]
-    if getattr(event, "internal", False) or getattr(event, "_heartbeat_session_id", None):
+    if getattr(event, "_heartbeat_session_id", None):
+        return INTERNAL_NOTIFICATION_DISPLAY_KIND
+    # Ordinary API human speech is released only by the private admission stamp.
+    # A client-supplied metadata key cannot set the attribute, so a spoof stays a notification.
+    if getattr(event, "_api_admitted_user_input", False) is True:
+        if getattr(event, "_api_admitted_intent", None) == "steer":
+            return "steer"
+        return None
+    if getattr(event, "internal", False):
         return INTERNAL_NOTIFICATION_DISPLAY_KIND
     return None
 

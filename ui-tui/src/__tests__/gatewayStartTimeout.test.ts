@@ -13,11 +13,11 @@ it('shows a terminal bootstrap verdict and its remedy, never "still waiting"', (
   reportGatewayStartTimeout('Command failed: python3 gateway_bootstrap.py --start\n' +
     'gateway unavailable: bootstrap_dependencies\n' +
     'dependency environment unavailable: no dependency environment is committed for this install\n' +
-    'gateway unavailable: run `hermes pm repair`, then restart the TUI\n', s => statuses.push(s))
+    'gateway unavailable: run `clawd pm repair`, then restart the TUI\n', s => statuses.push(s))
 
   const messages = getTurnState().activity.map(a => a.text)
 
-  expect(messages).toContain('gateway unavailable: run `hermes pm repair`, then restart the TUI')
+  expect(messages).toContain('gateway unavailable: run `clawd pm repair`, then restart the TUI')
   expect(messages.some(m => m.includes('Still waiting'))).toBe(false)
   expect(statuses.some(s => s.includes('still starting'))).toBe(false)
 })

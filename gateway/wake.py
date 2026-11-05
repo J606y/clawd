@@ -226,6 +226,13 @@ async def persist_delegation_delivery(adapter: Any, *, text: str, session_id: st
     logger.info(
         "async delegation completion persisted as delivery row for api_server session %s (no wake turn)", session_id
     )
+    # The row stays a delivery notice. A running continuation service may schedule a
+    # gated follow-up; this function still does not self-POST a user turn.
+    try:
+        from gateway.clawd_continuation import note_persisted_delivery
+        note_persisted_delivery(adapter, session_id, evt)
+    except Exception:
+        logger.exception("clawd continuation notify failed for session %s", session_id)
 
 
 async def _self_post_chat_completion(adapter: Any, *, text: str, session_id: str,

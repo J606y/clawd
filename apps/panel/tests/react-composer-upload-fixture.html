@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <base href="/" />
+    <title>composer upload draft</title>
+    <script>
+      window.__errors = [];
+      window.__uploads = [];
+      window.__nativeSends = 0;
+      window.__nativeUrls = [];
+      window.__fetches = [];
+      window.__bitmapEntered = 0;
+      window.__holdBitmap = false;
+      window.__sends = 0;
+      window.addEventListener("error", (event) => window.__errors.push(String(event.message)));
+      window.addEventListener("unhandledrejection", (event) => window.__errors.push(String(event.reason)));
+      const nativeBitmap = window.createImageBitmap.bind(window);
+      window.createImageBitmap = function (...args) {
+        const decoded = nativeBitmap(...args);
+        if (!window.__holdBitmap) return decoded;
+        window.__bitmapEntered += 1;
+        return new Promise((resolve, reject) => {
+          window.__releaseBitmap = () => decoded.then(resolve, reject);
+        });
+      };
+      const nativeOpen = XMLHttpRequest.prototype.open;
+      const nativeSend = XMLHttpRequest.prototype.send;
+      XMLHttpRequest.prototype.open = function (method, url, ...rest) {
+        this.__method = method;
+        this.__url = String(url);
+        return nativeOpen.call(this, method, url, ...rest);
+      };
+      XMLHttpRequest.prototype.send = function (body) {
+        const url = String(this.__url || "");
+        if (url.includes("files/upload")) {
+          const entry = { url, method: this.__method, done: false, xhr: this };
+          window.__uploads.push(entry);
+          return;
+        }
+        window.__nativeSends += 1;
+        window.__nativeUrls.push(url);
+      };
+      window.releaseUpload = (index, status, body) => {
+        const entry = window.__uploads[index];
+        if (!entry || entry.done) return false;
+        entry.done = true;
+        const xhr = entry.xhr;
+        const text = typeof body === "string" ? body : JSON.stringify(body);
+        Object.defineProperty(xhr, "status", { configurable: true, value: status });
+        Object.defineProperty(xhr, "responseText", { configurable: true, value: text });
+        Object.defineProperty(xhr, "readyState", { configurable: true, value: 4 });
+        if (typeof xhr.onload === "function") xhr.onload(new ProgressEvent("load"));
+        return true;
+      };
+      window.abandonUploads = () => {
+        for (const entry of window.__uploads) {
+          if (!entry.done) entry.xhr.onload = null;
+        }
+        window.__uploads = [];
+      };
+      window.fetch = async (input, init) => {
+        const url = String(input instanceof Request ? input.url : input);
+        window.__fetches.push(`${(init && init.method) || "GET"} ${url}`);
+        return new Response("fixture blocked", { status: 599 });
+      };
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/tests/react-composer-upload-fixture.tsx"></script>
+  </body>
+</html>

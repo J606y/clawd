@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f5f5f7" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#161618" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>clawd</title>
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="clawd" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='40%2015%20300%20300'%20shape-rendering='crispEdges'%3E%3Crect%20x='80'%20y='120'%20width='220'%20height='120'%20fill='%23D97757'/%3E%3Crect%20x='40'%20y='160'%20width='40'%20height='40'%20fill='%23D97757'/%3E%3Crect%20x='300'%20y='160'%20width='40'%20height='40'%20fill='%23D97757'/%3E%3Crect%20x='120'%20y='170'%20width='20'%20height='10'%20fill='%231F1E1D'/%3E%3Crect%20x='110'%20y='180'%20width='10'%20height='10'%20fill='%231F1E1D'/%3E%3Crect%20x='140'%20y='180'%20width='10'%20height='10'%20fill='%231F1E1D'/%3E%3Crect%20x='240'%20y='170'%20width='20'%20height='10'%20fill='%231F1E1D'/%3E%3Crect%20x='230'%20y='180'%20width='10'%20height='10'%20fill='%231F1E1D'/%3E%3Crect%20x='260'%20y='180'%20width='10'%20height='10'%20fill='%231F1E1D'/%3E%3Crect%20x='100'%20y='240'%20width='20'%20height='40'%20fill='%23D97757'/%3E%3Crect%20x='140'%20y='240'%20width='20'%20height='40'%20fill='%23D97757'/%3E%3Crect%20x='220'%20y='240'%20width='20'%20height='40'%20fill='%23D97757'/%3E%3Crect%20x='260'%20y='240'%20width='20'%20height='40'%20fill='%23D97757'/%3E%3Crect%20x='120'%20y='60'%20width='140'%20height='40'%20fill='%238B5A2B'/%3E%3Crect%20x='140'%20y='50'%20width='40'%20height='10'%20fill='%238B5A2B'/%3E%3Crect%20x='200'%20y='50'%20width='40'%20height='10'%20fill='%238B5A2B'/%3E%3Crect%20x='60'%20y='100'%20width='260'%20height='20'%20fill='%238B5A2B'/%3E%3Crect%20x='40'%20y='80'%20width='20'%20height='20'%20fill='%238B5A2B'/%3E%3Crect%20x='320'%20y='80'%20width='20'%20height='20'%20fill='%238B5A2B'/%3E%3Crect%20x='120'%20y='85'%20width='140'%20height='15'%20fill='%235A3A1A'/%3E%3C/svg%3E" />
+    <script>
+      // 监听软键盘（VisualViewport）动态适配 iOS 键盘遮挡
+      (function() {
+        if (window.visualViewport) {
+          function updateKeyboardInset() {
+            var vv = window.visualViewport;
+            var inset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+            document.documentElement.style.setProperty("--keyboard-inset", inset > 30 ? inset + "px" : "0px");
+          }
+          window.visualViewport.addEventListener("resize", updateKeyboardInset);
+          window.visualViewport.addEventListener("scroll", updateKeyboardInset);
+        }
+      })();
+      // 捕获未处理异常避免白屏无响应，iOS Web App 模式下若被带入空白状态则支持兜底自愈。
+      window.addEventListener("error", function (e) {
+        console.error("Uncaught error:", e.error || e.message);
+      });
+      // 首帧前应用主题，避免深色模式下闪白。
+      (function () {
+        try {
+          var t = localStorage.getItem("hp.theme");
+          if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/react/main.tsx"></script>
+  </body>
+</html>

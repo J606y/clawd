@@ -8,6 +8,7 @@ import {
   readFileSync,
   renameSync,
   rmSync,
+  statSync,
   writeFileSync
 } from 'node:fs'
 import { homedir } from 'node:os'
@@ -84,6 +85,27 @@ function syncDirectory(dir: string) {
   }
 }
 
+// The kernel lets uid 0 create files in a directory whose mode has no owner
+// write bit. That must not count as a durable journal: callers clear the
+// composer and claim the row only after this function returns. Fail closed
+// before the temp file exists, including when the operator removed the write
+// bit. Other uids already get EACCES from writeFileSync; do not swallow that.
+function assertJournalWritable(dir: string) {
+  if (process.platform === 'win32' || process.getuid?.() !== 0) {
+    return
+  }
+
+  const stat = statSync(dir)
+
+  if (!stat.isDirectory() || (stat.mode & 0o200) === 0) {
+    throw Object.assign(new Error(`EACCES: permission denied, open '${dir}'`), {
+      code: 'EACCES',
+      path: dir,
+      syscall: 'open'
+    })
+  }
+}
+
 // Separate files avoid read/modify/write loss between two native clients.
 export function savePendingInput(item: QueueItem): void {
   if (!item.submissionId || !item.destination?.sid) {
@@ -92,6 +114,7 @@ export function savePendingInput(item: QueueItem): void {
 
   const dir = directory(item.destination?.profileHome)
   mkdirSync(dir, { recursive: true, mode: 0o700 })
+  assertJournalWritable(dir)
   const path = join(dir, `${item.submissionId}.json`)
   const temporary = `${path}.${process.pid}.tmp`
   const ownerDestination = pendingInputOwner(item.ownerDestination ?? item.destination)

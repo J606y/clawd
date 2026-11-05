@@ -3,7 +3,7 @@ label: WhatsApp Business (Cloud)
 kind: platform
 version: 1.0.0
 description: >
-  WhatsApp Business Cloud API adapter for Hermes Agent.
+  WhatsApp Business Cloud API adapter for clawd.
   Connects to WhatsApp via Meta's official Cloud API (Business account and a
   public webhook URL required, token-based auth): Graph API for outbound,
   an aiohttp webhook receiver with X-Hub-Signature-256 verification for

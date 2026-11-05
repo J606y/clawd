@@ -28,12 +28,32 @@ TESTS_ROOT = REPO_ROOT / "tests"
 # "installation": python driver for the tests/install shell e2e assets.
 # "_fixtures": topic modules tests/conftest.py is split into — suite-wide
 # plumbing (env filtering, live-system guard, platform gating), not tests.
+# clawd_* case homes below are exact directory names, not a prefix or glob.
+# A new tests/clawd_* directory is still an offender until it is listed with a
+# reason. Listing a name does not skip collection.
+_CLAWD_CASE_DIR_REASONS = {
+    "clawd_acceptance_cases": "验收编排跨包夹具，不是源码包。",
+    "clawd_auth_native": "身份与制品根契约夹具，没有同名源码包。",
+    "clawd_continuation_cases": "续跑决策契约夹具，不是 gateway 包镜像。",
+    "clawd_effort_cases": "档位与续跑 pending 契约夹具，不是源码包。",
+    "clawd_event_native": "事件订阅身份伴随夹具，不是源码包。",
+    "clawd_event_recovery_cases": "运行事件恢复契约夹具，不是源码包。",
+    "clawd_file_auth_cases": "文件鉴权跨入口夹具，不是源码包。",
+    "clawd_memory_native": "项目记忆身份与冻结契约夹具，不是源码包。",
+    "clawd_memory_scope_cases": "记忆作用域跨 profile 夹具，不是源码包。",
+    "clawd_race_cases": "审批与续跑竞态夹具，不是源码包。",
+    "clawd_runtime_cases": "安装后 run-wait 与 child 计数契约夹具，不是源码包。",
+    "clawd_settings_cases": "设置公共契约夹具，不是源码包。",
+    "clawd_todo_delegation": "待办执行投影夹具，不是源码包。",
+    "clawd_todo_native": "待办列表接线夹具，不是源码包。",
+}
 _NON_MIRROR_DIRS = {
     "compat", "installation", "_fixtures",
     "ci", "conformance", "dashboard", "desktop", "docker", "e2e", "evals",
     "fakes", "fixtures", "install", "integration", "manual",
     "monitoring", "perf_guards", "scripts", "secret_sources",
     "security", "skills", "verify", "website", "computer_use", "hermes_state",
+    *_CLAWD_CASE_DIR_REASONS,
 }
 
 # Root-level modules whose tests sit directly in tests/ (no package to mirror).
@@ -52,6 +72,11 @@ def _source_dirs() -> set[str]:
 
 def test_every_test_directory_mirrors_a_source_directory_or_is_declared():
     """No sibling directory for a source package that already has one."""
+    for name, reason in _CLAWD_CASE_DIR_REASONS.items():
+        assert "*" not in name and "?" not in name and "[" not in name, name
+        assert name.replace("_", "").isalnum(), name
+        assert isinstance(reason, str) and reason.strip(), name
+    assert set(_CLAWD_CASE_DIR_REASONS) <= _NON_MIRROR_DIRS
     source_dirs = _source_dirs()
     offenders = sorted(
         d.name

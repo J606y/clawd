@@ -139,7 +139,11 @@ def release_session_backend(cache_key: str, session_info: dict[str, Any]) -> Non
     if features.get("sandbox"):
         from tools.browser_session_sandbox import stop_sandbox_browser
         stop_sandbox_browser(session_info)
-    elif not features.get("real_profile"):  # outlives its sessions: stopped at exit / on consent-off
+    elif features.get("real_profile") or features.get("shared_profile"):
+        # Those browsers also hold pages the user opened. Turn cleanup closes
+        # only targets this task registered; it does not stop the browser.
+        return
+    else:
         from tools.browser_launcher import stop_browser
         stop_browser(launcher_key)
 
@@ -158,9 +162,16 @@ def cleanup_single_session(cache_key: str) -> None:
 
 
 def cleanup_browser(task_id: Optional[str] = None) -> None:
-    """Close the sessions serving ``task_id``: its exact key, its hybrid ``::local`` sidecar, and the
-    served-profile-tagged keys browser_exec builds for it (``<task>@<home>``). Per-turn cleanup calls this
-    with the bare task id."""
+    """Close the sessions serving ``task_id``.
+
+    Registered pages are closed first, and only those pages. A held manual lease
+    keeps the browser up; deferred close runs after the lease or records
+    cleanupError. Unregistered popups and user pages are not guessed.
+    """
+    from tools.browser_task_registry import close_owned, manual_gate_held
+    close_owned(task_id)
+    if task_id and manual_gate_held():
+        return
     task = task_id or "default"
     bs = _bs()
     with bs._cleanup_lock:

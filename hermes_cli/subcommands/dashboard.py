@@ -64,13 +64,23 @@ def build_serve_parser(
 ) -> argparse.ArgumentParser:
     """Build the standalone parser used by the lean ``serve`` dispatch path."""
     parser = argparse.ArgumentParser(
-        prog="hermes serve",
-        description="Run the Hermes backend server - the JSON-RPC/WebSocket gateway the "
+        prog="clawd serve",
+        description="Run the clawd backend server - the JSON-RPC/WebSocket gateway the "
             "desktop app and remote clients connect to. Headless: it never opens "
             "a browser UI.",
         add_help=add_help, exit_on_error=exit_on_error)
     _configure_serve_parser(parser, cmd_dashboard=cmd_dashboard)
     return parser
+
+
+def attach_serve_parser(subparsers, *, cmd_dashboard: Callable) -> None:
+    """Register headless ``serve`` without the official dashboard UI command."""
+    serve_parser = subparsers.add_parser(
+        "serve",
+        help="Start the headless API backend",
+        description="Run the JSON-RPC/WebSocket API backend. Headless: it never opens a browser UI.",
+    )
+    _configure_serve_parser(serve_parser, cmd_dashboard=cmd_dashboard)
 
 
 def build_dashboard_parser(
@@ -94,8 +104,8 @@ def build_dashboard_parser(
     # surfaces that merely share this server.
     serve_parser = subparsers.add_parser(
         "serve",
-        help="Start the Hermes backend server (headless; powers the desktop app and remote backends)",
-        description="Run the Hermes backend server — the JSON-RPC/WebSocket gateway the "
+        help="Start the clawd backend server (headless; does not open a browser UI)",
+        description="Run the clawd backend server — the JSON-RPC/WebSocket gateway the "
             "desktop app and remote clients connect to. Headless: it never opens "
             "a browser UI.")
     _configure_serve_parser(serve_parser, cmd_dashboard=cmd_dashboard)

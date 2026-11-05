@@ -1,5 +1,11 @@
 # macOS bundle updates
 
+<!-- clawd-docs-note -->
+:::warning Not a clawd product
+clawd does not ship official Desktop, the official web dashboard, or the commands `desktop`, `gui`, `webapp`, and `dashboard`. This page documents upstream Hermes Agent. The web UI in this checkout is `clawd panel`.
+:::
+
+
 Tagged macOS bundles use `electron-updater`. The bundled and Light stamps
 name that owner. Stable and canary are separate application identities; each
 updates within its baked channel. Development and bootstrap installs keep

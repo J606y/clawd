@@ -70,7 +70,7 @@ it guards. `plan → snapshot → apply → restart-per-kind → verify → repo
   steps, skips WITH reasons, restart outcome, plan, fleet snapshot, `followups`. The receipt is on
   disk as `outcome: "running"` from the start and refreshed at each stage boundary; the next
   update marks a `running` record whose processes are gone `interrupted` and says so. Readers
-  (`hermes logs update`, debug bundle, dashboard status, pm receipts) use the root home too.
+  (`clawd logs update`, debug bundle, dashboard status, pm receipts) use the root home too.
   A dependency-sync failure in the completion bootstrap is a `dependencies` follow-up (A6), and
   Ctrl-C after the commit point finalizes `interrupted` (exit 130), never `failed`.
   Before a source swap, the parent captures plan/snapshots/receipt and its Windows pause token.
@@ -133,19 +133,19 @@ comes from the access token's `email` claim; `Completed.handoff` carries the gue
 lines (what moved, what to reconnect) and `Completed.handoff_status` the latest record as fields
 (`guest_handoff.wire_status`: the public view plus those `lines`), for a surface that renders the
 result itself. Every state carries its own `.copy` (the chat form, which
-never contains a raw exception, a URL or a `hermes` verb) and `.copy_terminal`, so no caller maps a
+never contains a raw exception, a URL or a `clawd` verb) and `.copy_terminal`, so no caller maps a
 reason to a string. `cancelled()` is checked at least once a second inside the token poll and once more
 before the save; a cancel always wins and nothing is saved. TLS verification comes from
 `_resolve_verify`, so `HERMES_CA_BUNDLE` and friends apply. `scope` is entered only around the
 precondition and persist blocks, never across a `yield` or a network wait, because
 `run_in_executor` does not carry contextvars. `replace_account=True` lets a signed-in install sign in
 again (the desktop's "connect another account"); otherwise a signed-in install gets
-`AlreadySignedIn` before any network. `upgrade_guest` (`hermes auth upgrade`), the CLI and TUI
+`AlreadySignedIn` before any network. `upgrade_guest` (`clawd auth upgrade`), the CLI and TUI
 `/login`, the gateway `/login` and the desktop start route are renderers over it; a surface that
-needs the cancel check and the save to be atomic passes `persist_guard`. `hermes model` and
-`hermes auth add nous` keep `_login_nous` (it carries `--portal-url`, `--ca-bundle`, `--insecure`
+needs the cancel check and the save to be atomic passes `persist_guard`. `clawd model` and
+`clawd auth add nous` keep `_login_nous` (it carries `--portal-url`, `--ca-bundle`, `--insecure`
 and the shared-store import); that is the same plain device login, and it prints the handoff result
-the same way. Every sign-in that saves an account (`run_sign_in`, `_login_nous`, `hermes auth add
+the same way. Every sign-in that saves an account (`run_sign_in`, `_login_nous`, `clawd auth add
 nous`, the billing step-up, the tool-setup login) calls `settle_after_upgrade` itself once its locks
 are released; the handoff runner never settles.
 
@@ -154,7 +154,7 @@ are released; the handoff runner never settles.
 When any writer saves a Nous account over a free-tier identity, `hermes_cli/guest_handoff.py` hands
 that identity's connected apps to the account: `POST /api/anonymous/claim {"token": "<anon_...>"}`
 with the account's own Bearer token. Nothing asks the user first; the result is shown afterwards
-(`hermes auth status nous`; the desktop reads it from the sign-in poll's `handoff_status` and, while a
+(`clawd auth status nous`; the desktop reads it from the sign-in poll's `handoff_status` and, while a
 move is still retrying, from the `GET /api/providers/oauth/nous/handoff?since=&wait=` long-poll, which
 answers once the record's `updated_at` changes). Two halves:
 
@@ -171,7 +171,7 @@ answers once the record's `updated_at` changes). Two halves:
 - `drain` makes one attempt per due record of this profile and returns what each did. It sends a
   request, so it runs only outside the auth-store locks: every sign-in surface calls it right after
   its save (`run_sign_in` after its `persist_guard` is released), and so do a free-tier reconcile,
-  `hermes auth status` and `hermes auth upgrade`. It only moves apps; config completion
+  `clawd auth status` and `clawd auth upgrade`. It only moves apps; config completion
   (`settle_after_upgrade`) stays with the sign-in that saved the account.
 - A move a transient error left retrying is finished by a retry worker that every long-lived Nous
   process starts (`start_nous_auth_keepalive` starts it, guest or not); each tick drains the
@@ -196,7 +196,7 @@ classifying a process by `"serve" in cmdline` or similar. `kanban --preserve-cac
 subcommand. Rules:
 
 - Use the canonical matchers: `gateway.status.looks_like_gateway_command_line` (gateway run),
-  `hermes_cli.update_cmd._hermes_holder_subcommand` (top-level subcommand of any Hermes argv). Never
+  `hermes_cli.update_cmd._hermes_holder_subcommand` (top-level subcommand of any clawd argv). Never
   hand-roll token scans.
 - Flag sets must be DERIVED from the parser (`_holder_value_flags()` introspects
   `build_top_level_parser()`), never hand-written lists — they drift.
@@ -221,14 +221,14 @@ subcommand. Rules:
 Built-in skins (`_BUILTIN_SKINS` in `hermes_cli/skin_engine.py`): `default` (classic gold/kawaii),
 `ares` (crimson/bronze with custom spinner wings), `mono` (grayscale), `slate` (cool blue). Add a
 built-in as a dict entry `{"name", "description", "colors", "spinner", "branding", "tool_prefix"}`.
-User skins are `~/.hermes/skins/<name>.yaml` with the same keys, activated with `/skin <name>` or
+User skins are `~/.clawd/skins/<name>.yaml` with the same keys, activated with `/skin <name>` or
 `display.skin: <name>`; the full YAML template is in the
 [Skins & Themes](../user-guide/features/skins.md) user guide.
 
 ## Profiles: multi-instance support
 
-Hermes supports profiles — fully isolated instances, each with its own `HERMES_HOME` (config, API
-keys, memory, sessions, skills, gateway). For single-profile commands (`hermes -p x <cmd>`),
+clawd supports profiles — fully isolated instances, each with its own `HERMES_HOME` (config, API
+keys, memory, sessions, skills, gateway). For single-profile commands (`clawd -p x <cmd>`),
 `_apply_profile_override()` in `hermes_cli/main.py` sets `HERMES_HOME` before any module imports, so
 every `get_hermes_home()` reference scopes to the active profile. The multiplex gateway and the
 Desktop/dashboard `serve` backend serve several profiles from one process instead: the active
@@ -237,6 +237,6 @@ profile's, and a module-level constant derived from the home freezes to that lau
 [Gateway Internals § Multiplexed profiles](./gateway-internals.md#multiplexed-profiles)). Profile
 operations are HOME-anchored (`_get_profiles_root()` returns
 `Path.home() / ".hermes" / "profiles"`, not `get_hermes_home() / "profiles"`) so
-`hermes -p coder profile list` sees all profiles regardless of which one is active — intentional.
+`clawd -p coder profile list` sees all profiles regardless of which one is active — intentional.
 Profile-safe coding rules are in the root `AGENTS.md`; multiplex secret-scope rules in
 `gateway/AGENTS.md`.

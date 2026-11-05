@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>subagent spin</title>
+</head>
+<body>
+  <div id="root" class="hp-chat"></div>
+  <script>
+    const agent = {
+      id: "run-1", parentId: "s1", parentTitle: null, title: "进行中的子任务", model: null,
+      startedAt: 1, endedAt: null, endReason: null, status: "running",
+      messages: 1, toolCalls: 1, apiCalls: 1, tokens: 1, lastActivityAt: 2,
+      lastTool: null, snippet: "",
+    };
+    window.fetch = (input) => {
+      const url = String(input);
+      if (url.includes("subagents")) {
+        const parsed = new URL(url, location.href);
+        const limit = Number(parsed.searchParams.get("limit") || 50);
+        const offset = Number(parsed.searchParams.get("offset") || 0);
+        const page = [agent].slice(offset, offset + limit);
+        return Promise.resolve(new Response(JSON.stringify({
+          data: page, running: page.length, stalled: 0, total: 1, now: Date.now() / 1000, limit, offset,
+        }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }));
+      }
+      return Promise.resolve(new Response(JSON.stringify({ error: { message: "not found", code: "not_found" } }), { status: 404, headers: { "Content-Type": "application/json" } }));
+    };
+  </script>
+  <script type="module">
+    import { createElement } from "react";
+    import { createRoot } from "react-dom/client";
+    import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+    import { ChatStyles } from "/src/react/pages/chat/chat-styles.tsx";
+    import { SubagentsBar } from "/src/react/pages/chat/subagents-bar.tsx";
+
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    createRoot(document.querySelector("#root")).render(createElement(QueryClientProvider, { client },
+      createElement(ChatStyles),
+      createElement("div", { className: "composer-panels" },
+        createElement("div", { className: "slot-agents" },
+          createElement(SubagentsBar, { sessionId: "s1", active: true }),
+        ),
+      ),
+    ));
+    window.ready = true;
+  </script>
+</body>
+</html>

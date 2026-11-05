@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>scroll jump probe</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      window.__scrolls = [];
+      window.__scrollSets = [];
+      const watch = () => {
+        const el = document.querySelector(".hp-chat .scroll");
+        if (!el || el.dataset.probeWatch) return;
+        el.dataset.probeWatch = "1";
+        el.addEventListener("scroll", () => {
+          window.__scrolls.push({ t: performance.now(), top: el.scrollTop, h: el.scrollHeight, c: el.clientHeight });
+        }, true);
+        const desc = Object.getOwnPropertyDescriptor(Element.prototype, "scrollTop");
+        Object.defineProperty(el, "scrollTop", {
+          configurable: true,
+          get() { return desc.get.call(this); },
+          set(value) {
+            const before = desc.get.call(this);
+            window.__scrollSets.push({ t: performance.now(), before, value, same: before === value });
+            desc.set.call(this, value);
+          },
+        });
+      };
+      new MutationObserver(watch).observe(document.documentElement, { childList: true, subtree: true });
+    </script>
+    <script type="module" src="/tests/scroll-jump-probe-fixture.tsx"></script>
+  </body>
+</html>

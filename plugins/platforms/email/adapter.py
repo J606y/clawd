@@ -863,7 +863,7 @@ class EmailAdapter(BasePlatformAdapter):
                    attach_empty_body: bool = False) -> tuple[MIMEMultipart, str, str]:
         """Build a threaded reply skeleton. Returns ``(msg, msg_id, subject)``."""
         msg, ctx = MIMEMultipart(), self._thread_context.get(to_addr, {})
-        subject = ctx.get("subject", "Hermes Agent")
+        subject = ctx.get("subject", "clawd")
         if not subject.startswith("Re:"):
             subject = f"Re: {subject}"
         original_msg_id = reply_to_msg_id or ctx.get("message_id")

@@ -1,12 +1,12 @@
 ---
 sidebar_position: 18
 title: "Browser CDP Supervisor"
-description: "How Hermes detects and responds to native JS dialogs and interacts with cross-origin iframes via a persistent CDP connection."
+description: "How clawd detects and responds to native JS dialogs and interacts with cross-origin iframes via a persistent CDP connection."
 ---
 
 # Browser CDP Supervisor
 
-The CDP supervisor closes two long-standing gaps in Hermes' browser tooling:
+The CDP supervisor closes two long-standing gaps in clawd's browser tooling:
 
 1. **Native JS dialogs** (`alert`/`confirm`/`prompt`/`beforeunload`) block the
    page's JS thread. Without supervision, the agent has no way to know a
@@ -24,7 +24,7 @@ in its snapshot, and exposing a `browser_dialog` tool for explicit responses.
 
 | Backend | Dialog detect | Dialog respond | Frame tree | OOPIF `Runtime.evaluate` via `browser_cdp(frame_id=...)` |
 |---|---|---|---|---|
-| Local Chromium (launched by Hermes for `browser_exec`) / `/browser connect` | ✓ | ✓ full workflow | ✓ | ✓ |
+| Local Chromium (launched by clawd for `browser_exec`) / `/browser connect` | ✓ | ✓ full workflow | ✓ | ✓ |
 | Browserbase | ✓ (via bridge) | ✓ full workflow (via bridge) | ✓ | ✓ |
 
 **Browserbase quirk.** Browserbase's CDP proxy uses Playwright internally and
@@ -41,14 +41,14 @@ From the page's perspective, `prompt()` still returns the agent-supplied
 string. From the agent's perspective, it's the same `browser_dialog(action=...)`
 API either way.
 
-The Camofox catalog plugin (`hermes plugins install camofox`) drives a REST-only
+The Camofox catalog plugin (`clawd plugins install camofox`) drives a REST-only
 browser with no CDP surface, so the supervisor does not apply to it.
 
 ## Architecture
 
 ### CDPSupervisor
 
-One `asyncio.Task` running in a background daemon thread per Hermes `task_id`.
+One `asyncio.Task` running in a background daemon thread per clawd `task_id`.
 Holds a persistent WebSocket to the backend's CDP endpoint. Maintains:
 
 - **Dialog queue** — `List[PendingDialog]` with `{id, type, message, default_prompt, session_id, opened_at}`

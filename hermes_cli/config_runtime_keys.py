@@ -7,6 +7,8 @@ Four owners supply them:
 * Core selection keys (``browser.cloud_provider``, ``<category>.use_gateway``, ``stt.provider``):
   :func:`tools.tool_backend_helpers.selection_config_keys`, built from ``read_selection``'s tables.
 * Core-owned unseeded keys outside that table, each listed with its reader (:data:`CORE_RUNTIME_KEYS`).
+  A path listed there also covers descendants. A list the reader consumes whole is an exact key in
+  :data:`CORE_RUNTIME_EXACT_KEYS` and does not open siblings or children.
 * MoA preset fields under any preset name (:func:`hermes_cli.moa_config.is_preset_field_path`). Only a
   preset's own fields and its aggregator slot fields qualify, not arbitrary descendants of ``moa.presets``.
 * ACTIVE plugins: a ``config_keys`` list in ``plugin.yaml`` (or ``extensions.com.nousresearch.hermes``
@@ -31,6 +33,16 @@ logger = logging.getLogger(__name__)
 CORE_RUNTIME_KEYS: dict[str, str] = {
     "computer_use.backend": "plugins/computer_use/__init__.py configured_backend_name() (unset = cua)",
     "dashboard.kanban": "plugins/kanban/dashboard/plugin_api.py (bundled dashboard tab preferences)",
+}
+
+# Whole values. Do not put these in CORE_RUNTIME_KEYS: ``_covered`` would accept children, and a
+# ``skills`` prefix would accept every unschema'd ``skills.*`` key. ``skills.platform_disabled`` is
+# read too, but only when a platform is supplied; the panel writer does not set it, so it stays closed.
+CORE_RUNTIME_EXACT_KEYS: dict[str, str] = {
+    "skills.disabled": (
+        "agent/skill_utils.py get_disabled_skill_names() and "
+        "hermes_cli/skills_config.py get_disabled_skills() read skills['disabled'] as a name list"
+    ),
 }
 
 
@@ -104,16 +116,20 @@ def plugin_declared_config_keys() -> frozenset[str]:
 
 def is_runtime_read_key(parts: list[str]) -> bool:
     """True when the split key ``parts`` is a MoA preset field, a core selection key, a core runtime key,
-    or sits at/under a path an active plugin declares. Call only for a key the schema walk refused.
+    an exact list slot such as ``skills.disabled``, or sits at/under a path an active plugin declares.
+    Call only for a key the schema walk refused.
 
-    The MoA rule needs the segments (a preset name may contain a dot); the other owners match the
-    dotted join."""
+    The MoA rule needs the segments (a preset name may contain a dot). Exact list slots match the
+    dotted join only, not children. The other owners match the dotted join, including descendants.
+    """
     from hermes_cli.moa_config import is_preset_field_path
     from tools.tool_backend_helpers import selection_config_keys
 
     if is_preset_field_path(parts):
         return True
     dotted = ".".join(parts)
+    if dotted in CORE_RUNTIME_EXACT_KEYS:
+        return True
     if dotted in selection_config_keys() or _covered(dotted, CORE_RUNTIME_KEYS):
         return True
     return _covered(dotted, plugin_declared_config_keys())

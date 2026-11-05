@@ -11,6 +11,12 @@ description: "Install Hermes Agent with desktop bundles, source installers, Dock
 
 # Installation
 
+<!-- clawd-docs-note -->
+:::warning Not this checkout
+The installers, packages, and download links on this page are upstream Hermes Agent. They do not install clawd. This checkout does not publish an installer URL. From this checkout, run `./clawd`. Setup spelling is `clawd setup`. `clawd` refuses `update`, `desktop`, `dashboard`, `gui`, and `webapp`. The web UI here is `clawd panel`.
+:::
+
+
 Get Hermes Agent up and running in under two minutes!
 
 :::tip Platform Support

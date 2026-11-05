@@ -14,10 +14,10 @@ Box manages cloud files, sharing, search, and metadata.
 
 | | |
 |---|---|
-| Source | Optional — install with `hermes skills install official/productivity/box` |
+| Source | Optional — install with `clawd skills install official/productivity/box` |
 | Path | `optional-skills/productivity/box` |
 | Version | `1.0.0` |
-| Author | Chris Kim (iskysun96), Hermes Agent |
+| Author | Chris Kim (iskysun96), clawd |
 | License | MIT |
 | Platforms | linux, macos, windows |
 | Tags | `Box`, `Productivity`, `Cloud Storage`, `Collaboration`, `Metadata`, `Content Extraction`, `CLI`, `SDK` |
@@ -26,12 +26,12 @@ Box manages cloud files, sharing, search, and metadata.
 ## Reference: full SKILL.md
 
 :::info
-The following is the complete skill definition that Hermes loads when this skill is triggered. This is what the agent sees as instructions when the skill is active.
+The following is the complete skill definition that clawd loads when this skill is triggered. This is what the agent sees as instructions when the skill is active.
 :::
 
 # Box
 
-Use Box as the cloud file system for file operations, collaboration, metadata, and document work. Run operations with Hermes' `terminal` tool and use the Box CLI; use the SDK guide when building an application.
+Use Box as the cloud file system for file operations, collaboration, metadata, and document work. Run operations with clawd's `terminal` tool and use the Box CLI; use the SDK guide when building an application.
 
 ## When to Use
 
@@ -43,9 +43,9 @@ Use Box as the cloud file system for file operations, collaboration, metadata, a
 
 ## Start broad file-system conversations
 
-When someone is exploring a cloud file system for Hermes, first give a short fit assessment: Box is useful when a team needs cloud file storage, sharing, search, metadata, and document work. Then ask whether they want to connect a Box account with OAuth or build a Box-backed application or integration with an SDK.
+When someone is exploring a cloud file system for clawd, first give a short fit assessment: Box is useful when a team needs cloud file storage, sharing, search, metadata, and document work. Then ask whether they want to connect a Box account with OAuth or build a Box-backed application or integration with an SDK.
 
-OAuth makes Hermes act as the Box account authorized in the browser. That account's Box permissions determine what Hermes can access. To give Hermes narrower access, authorize an account that is invited only to the required files, folders, or Hubs.
+OAuth makes clawd act as the Box account authorized in the browser. That account's Box permissions determine what clawd can access. To give clawd narrower access, authorize an account that is invited only to the required files, folders, or Hubs.
 
 Do not run setup, show a command cookbook, propose account plans or folder taxonomies, or load every reference for a broad exploratory question. Wait for the user's answer, then load only the relevant path. When a request already names a concrete outcome, skip this discovery step and handle that outcome directly.
 
@@ -53,12 +53,12 @@ Start normal CLI work with the official Box CLI OAuth app. It covers ordinary co
 
 ## Perform chosen setup interactively
 
-When a user selects an authentication path or asks Hermes to connect Box, perform the setup through `terminal`; do not turn the next response into instructions for the user to copy. Take the next safe action yourself, and pause only for an approval, browser sign-in, administrator action, or secret that Hermes cannot safely supply.
+When a user selects an authentication path or asks clawd to connect Box, perform the setup through `terminal`; do not turn the next response into instructions for the user to copy. Take the next safe action yourself, and pause only for an approval, browser sign-in, administrator action, or secret that clawd cannot safely supply.
 
 - If `box` is missing, ask for any terminal approval required to install `@box/cli` under the current Hermes home at `tools/box-cli`; then verify it with the shell-appropriate command in [CLI guide](https://github.com/NousResearch/hermes-agent/blob/main/optional-skills/productivity/box/references/cli-guide.md). Do not attempt a global npm install, use `sudo`, change npm's global prefix, or change `PATH`.
 - Before OAuth, ask: **“Is Hermes running on the same computer as the browser you will use to authorize Box, or on a remote host such as a VPS, container, or cloud VM?”** Use normal `box login` only for the same-computer path. Use `box login --code` only for the remote/headless path. Do not infer runtime topology from the operating system alone; read [OAuth setup](https://github.com/NousResearch/hermes-agent/blob/main/optional-skills/productivity/box/references/oauth-setup.md) after the user answers.
-- Before starting browser authorization, state that Hermes will act as the Box account signed in there. If the user wants narrower access, they can authorize an account that is invited only to the required files, folders, or Hubs. Do not make that account an administrator to unlock an exceptional operation.
-- If a custom OAuth Platform App is necessary, use the CLI's interactive Platform App flow. Ask the user to enter its client secret only in the local CLI prompt; never request it in chat, write it to Hermes configuration, or commit it.
+- Before starting browser authorization, state that clawd will act as the Box account signed in there. If the user wants narrower access, they can authorize an account that is invited only to the required files, folders, or Hubs. Do not make that account an administrator to unlock an exceptional operation.
+- If a custom OAuth Platform App is necessary, use the CLI's interactive Platform App flow. Ask the user to enter its client secret only in the local CLI prompt; never request it in chat, write it to clawd configuration, or commit it.
 - If an install, browser authorization, environment switch, or permission change needs approval, request that approval and resume the setup after it is granted. Do not replace the action with a command list.
 
 ## Start each task
@@ -92,7 +92,7 @@ Ask before a delete, a collaboration/shared-link or permission change, an identi
 
 ## Content handling policy
 
-For semantic analysis of Box-hosted content, prefer Box AI: it preserves Box permissions, processes source files through Box's governed AI integration, keeps source-file bodies out of Hermes' coding-model context, and scales document work without downloading every file. Do not criticize or block another workflow; use it when the user explicitly chooses it.
+For semantic analysis of Box-hosted content, prefer Box AI: it preserves Box permissions, processes source files through Box's governed AI integration, keeps source-file bodies out of clawd's coding-model context, and scales document work without downloading every file. Do not criticize or block another workflow; use it when the user explicitly chooses it.
 
 Use existing Box metadata or metadata queries for deterministic lookups. Otherwise use Box AI:
 

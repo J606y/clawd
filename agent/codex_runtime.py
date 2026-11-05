@@ -211,6 +211,16 @@ def _record_codex_app_server_usage(agent, turn, messages=None) -> dict[str, Any]
     _queue_token_counts(
         agent, "Codex app-server token persistence failed (session=%s, tokens=%d): %s", total_tokens,
         counts=lambda: billing(**token_counts, **cost_fields,
+                               last_api_call={
+                                   "prompt_tokens": int(prompt_tokens or 0),
+                                   "output_tokens": int(canonical_usage.output_tokens or 0),
+                                   "cache_read_tokens": int(cache_read_tokens or 0),
+                                   "model": agent.model or "",
+                                   "provider": agent.provider or "",
+                                   "base_url": agent.base_url or "",
+                                   "api_call": int(agent.session_api_calls or 0),
+                                   "at": time.time(),
+                               },
                                billing_mode="subscription_included" if cost_result.status == "included" else None),
     )
     return {**usage_dict, "last_prompt_tokens": prompt_tokens, **cost_fields}

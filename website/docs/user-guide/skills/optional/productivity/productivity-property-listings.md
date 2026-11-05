@@ -14,10 +14,10 @@ Present property and rental listings as desktop cards.
 
 | | |
 |---|---|
-| Source | Optional — install with `hermes skills install official/productivity/property-listings` |
+| Source | Optional — install with `clawd skills install official/productivity/property-listings` |
 | Path | `optional-skills/productivity/property-listings` |
 | Version | `0.1.0` |
-| Author | Teknium (teknium1), Hermes Agent |
+| Author | Teknium (teknium1), clawd |
 | License | MIT |
 | Platforms | linux, macos, windows |
 | Tags | `property`, `rental`, `real-estate`, `listings`, `desktop`, `cards` |
@@ -25,7 +25,7 @@ Present property and rental listings as desktop cards.
 ## Reference: full SKILL.md
 
 :::info
-The following is the complete skill definition that Hermes loads when this skill is triggered. This is what the agent sees as instructions when the skill is active.
+The following is the complete skill definition that clawd loads when this skill is triggered. This is what the agent sees as instructions when the skill is active.
 :::
 
 # Property Listings Skill
@@ -50,7 +50,7 @@ This is a presentation recipe, not a listing search service or an investment val
 Install this optional skill through the Skills catalog, or use `terminal`:
 
 ```text
-hermes skills install official/productivity/property-listings
+clawd skills install official/productivity/property-listings
 ```
 
 Load it with `skill_view(name="property-listings")` when presenting listings.

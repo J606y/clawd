@@ -2,16 +2,16 @@
 sidebar_position: 13
 sidebar_label: "Plugin Catalog"
 title: "Plugin Catalog"
-description: "Give Hermes new powers with reviewed plugins you can install in one click"
+description: "Give clawd new powers with reviewed plugins you can install in one click"
 ---
 
 # Plugin Catalog
 
-The plugin catalog is a curated, human-reviewed directory of Hermes plugins you
+The plugin catalog is a curated, human-reviewed directory of clawd plugins you
 can install by name with a single command:
 
 ```bash
-hermes plugins install <name>
+clawd plugins install <name>
 ```
 
 Browse it visually at **[/docs/plugins](/plugins)** — entries are shelved by
@@ -44,7 +44,7 @@ directory of the hermes-agent repository, declaring:
 
 | Field | Meaning |
 |---|---|
-| `name` | The catalog key you pass to `hermes plugins install` |
+| `name` | The catalog key you pass to `clawd plugins install` |
 | `description` | One-line summary shown on cards and in the install prompt, including any reviewer disclosure |
 | `repo` | The plugin's public git repository |
 | `sha` | The **exact 40-hex commit** that was reviewed — installs check out this pin, not a branch tip |
@@ -53,7 +53,7 @@ directory of the hermes-agent repository, declaring:
 | `category` | Browse shelf: `desktop` (default), `memory`, `platform`, `web`, `tools`, `voice`, `automation`, `models` or `general` |
 | `maintainer` | Who owns the plugin |
 | `capabilities` | Declared tools, hooks, middleware, and required env vars |
-| `requires_hermes` | Minimum Hermes version, e.g. `>=0.19` (optional). Enforced: installing on an older Hermes is refused with the version it needs, and `hermes plugins update` keeps the installed version until you update Hermes. `search` and `info` still list the entry, marked as needing a newer Hermes |
+| `requires_hermes` | Minimum clawd version, e.g. `>=0.19` (optional). Enforced: installing on an older clawd is refused with the version it needs, and `clawd plugins update` keeps the installed version until you update clawd. `search` and `info` still list the entry, marked as needing a newer clawd |
 | `platforms` | OS restrictions, empty = all (optional) |
 | `title` | Human name shown on cards, e.g. `NVIDIA App` (optional; defaults to `name`) |
 | `onboarding` | `true` offers the plugin on the desktop onboarding card, beside the hosted connectors, on the platforms it lists. Curated: official or verified entries only (optional, default `false`) |
@@ -75,7 +75,7 @@ The catalog is designed so you know exactly what you're installing:
   author pushing new code to their repo does **not** change what the catalog
   installs — updating the pin requires another reviewed PR.
 - **Scanned at admission, trusted at install.** Admission CI runs the same
-  security scanner the installer runs (`hermes plugins validate` includes a
+  security scanner the installer runs (`clawd plugins validate` includes a
   `security scan` check): a `dangerous` verdict fails the entry, `caution`
   findings are listed for the reviewer. Because the reviewer saw them, a
   catalog install checked out at exactly the pinned SHA does not stop to ask
@@ -98,11 +98,11 @@ The catalog is designed so you know exactly what you're installing:
   including one built from `new RegExp(...).source`, still fails. Treat the
   lint as a review aid, not a
   guarantee; give Desktop halves the same scrutiny you'd give a Python half.
-- **No runtime overrides of Hermes.** Listed plugins extend Hermes through
+- **No runtime overrides of clawd.** Listed plugins extend clawd through
   its public surfaces (hooks, middleware, provider profiles, Desktop SDK slots)
   and never replace core functions, methods or Desktop UI in place: two plugins
   patching the same seam would break each other, and a core release could break
-  both. Admission's `no core override` check refuses Python that rebinds Hermes
+  both. Admission's `no core override` check refuses Python that rebinds clawd
   modules, classes or their tables at runtime, and the `desktop surface` lint
   refuses `desktop/plugin.js` code that queries the app's own markup to restyle,
   hide, click or rewrite core UI.
@@ -115,7 +115,7 @@ The catalog is designed so you know exactly what you're installing:
   `http://` and `www.` spellings of the same repo all match. The installer
   refuses to install anything on the removed list, and a plugin that lands on
   the list *after* you installed it stops updating, cannot be enabled and is
-  refused at load time (`hermes plugins remove <name>`, or reinstall with
+  refused at load time (`clawd plugins remove <name>`, or reinstall with
   `--allow-removed` to keep it knowingly).
 - **Installed ≠ enabled.** Installing a catalog plugin puts it on disk; like
   any plugin it must still be enabled before it loads. See
@@ -132,10 +132,10 @@ repository. Review the code of anything you give credentials to.
 
 ```bash
 # Install a reviewed catalog entry by name (checks out the pinned SHA)
-hermes plugins install <name>
+clawd plugins install <name>
 
 # Then enable it, as with any plugin
-hermes plugins enable <name>
+clawd plugins enable <name>
 ```
 
 The install prompt shows the entry's capability summary — declared tools,
@@ -146,15 +146,15 @@ answer yes (`--enable` / `--no-enable` answer it for scripts).
 The catalog name and the plugin's own manifest name can differ. Every later
 command (`enable`, `disable`, `show`, `capabilities`, `update`, `remove`)
 accepts either one: the catalog name resolves through the install record
-Hermes wrote when it cloned the entry, never through a file in the plugin's
+clawd wrote when it cloned the entry, never through a file in the plugin's
 own repo. For example the `touchdesigner` entry (a portable Agent Plugins v1
 package that bundles the twozero MCP server with the `touchdesigner-mcp`
 skill) installs as `td`, kept short so its generated MCP tool names stay
 under provider function-name limits:
 
 ```bash
-hermes plugins install touchdesigner
-hermes plugins enable touchdesigner   # same as: hermes plugins enable td
+clawd plugins install touchdesigner
+clawd plugins enable touchdesigner   # same as: clawd plugins enable td
 ```
 
 In the Desktop app a package with both an agent half and a Desktop half
@@ -166,17 +166,17 @@ Desktop half is shared by every profile.
 
 Portable packages can also carry a stdio MCP server. The `snyk` entry pins the
 Snyk CLI (`npx -y snyk@<version> mcp`) and bundles the `snyk-security-scan`
-skill, so one install gives Hermes code, dependency, container and IaC scanning
+skill, so one install gives clawd code, dependency, container and IaC scanning
 plus the workflow for using it; the catalog name and manifest name match:
 
 ```bash
-hermes plugins install snyk
-hermes plugins enable snyk
+clawd plugins install snyk
+clawd plugins enable snyk
 ```
 
 ### Updating a catalog install
 
-`hermes plugins update <name>` never runs `git pull` for catalog installs —
+`clawd plugins update <name>` never runs `git pull` for catalog installs —
 it compares your installed pin against the current catalog pin and, when the
 catalog moved (via a reviewed PR), prepares and dependency-validates the new SHA
 before publishing it. Your
@@ -196,15 +196,15 @@ dependency metadata (`pyproject.toml`, `package.json`, lockfiles). If a user-sta
 path conflicts with the new tree's file/directory layout, the update stops before
 publication so the installed copy — and the user's data — remain intact.
 Edits you made to *tracked* files are not carried onto the new code; copies are
-saved under `~/.hermes/plugins-backup/<name>-<sha>/` and the update warns you.
+saved under `~/.clawd/plugins-backup/<name>-<sha>/` and the update warns you.
 If the new pin renames the plugin's manifest, the old directory is removed and
-your enabled flag follows the new name. `hermes plugins list` shows catalog
+your enabled flag follows the new name. `clawd plugins list` shows catalog
 installs as `catalog:<tier>@<sha>` so you can see provenance at a glance.
 
 PM validates the dependencies of an active plugin before its new code replaces
 the installed version. A version, scan, dependency, or publication failure keeps
 the working code and dependency selection. Disabled plugins stay disabled.
-Provenance is recorded by the installer in `~/.hermes/plugins/.install-metadata.json`,
+Provenance is recorded by the installer in `~/.clawd/plugins/.install-metadata.json`,
 outside the plugin's own tree — a repository cannot ship a file that makes it
 look like a reviewed catalog install. (The `.hermes-catalog.json` inside the
 plugin directory is a convenience copy only.) Installing a catalog entry with
@@ -224,8 +224,8 @@ unreviewed name index. Install such plugins by `owner/repo` or Git URL instead
 The docs build publishes the catalog as one JSON document
 (`https://hermes-agent.nousresearch.com/docs/api/plugin-catalog.json`).
 `search`/`install`/`update` fetch it at most every six hours and cache it under
-`~/.hermes/cache/`, so new entries and removals reach installed clients without
-updating Hermes. Offline, the cached copy is used for up to 24 hours, then the
+`~/.clawd/cache/`, so new entries and removals reach installed clients without
+updating clawd. Offline, the cached copy is used for up to 24 hours, then the
 copy shipped with your checkout takes over (a failed fetch is remembered for a
 minute, so `plugins list` and the dashboard's Plugins page pay at most one
 connection timeout, not one per installed plugin). When the cached document and
@@ -237,7 +237,7 @@ cache's age.
 
 ### Custom git URLs are different
 
-`hermes plugins install <git-url>` still works for any repository, but it
+`clawd plugins install <git-url>` still works for any repository, but it
 bypasses the catalog entirely:
 
 - **No review** — you get whatever is at the branch tip, not a reviewed pin.
@@ -259,15 +259,15 @@ canonical rules in the
 
 In short, a listed plugin is submitted by its owner (or added in a reviewed
 maintainer sweep), lives in a public repository, pins an exact commit, passes
-`hermes plugins validate` in catalog CI, never updates itself, and extends
-Hermes only through public hooks and the Desktop SDK, never by patching core
+`clawd plugins validate` in catalog CI, never updates itself, and extends
+clawd only through public hooks and the Desktop SDK, never by patching core
 code or Desktop UI at runtime.
 
 ## See also
 
 - [Plugins](plugins.md) — the plugin system itself: manifest format, enabling,
   configuration
-- [Built-in Plugins](built-in-plugins.md) — plugins that ship with Hermes
-- [Build a Hermes Plugin](../../developer-guide/plugins/index.md) — write your own
+- [Built-in Plugins](built-in-plugins.md) — plugins that ship with clawd
+- [Build a clawd Plugin](../../developer-guide/plugins/index.md) — write your own
 - [Plugin Catalog page](/plugins) — the browsable catalog
 - [Submitting to the plugin catalog](../../developer-guide/plugins/catalog-submission.md) — admission rules and the submission guide

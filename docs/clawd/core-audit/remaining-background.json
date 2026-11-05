@@ -1,0 +1,273 @@
+{
+  "meta": {
+    "reviewer": "审批与后台剩余复核",
+    "model": "grok-4.7",
+    "method": "只读源码与调用链；未运行测试、构建、导入、探针、调度、服务或网络",
+    "not_run": true,
+    "assigned": 9,
+    "counts": {
+      "仍成立": 2,
+      "已修复": 0,
+      "误报": 7,
+      "需验证": 0,
+      "duplicate": 0
+    },
+    "active_by_severity": {"高": 0, "中": 1, "低": 1},
+    "note": "计数由本文件条目汇总。与已有 active 不重复。引用行在写报告前按哈希后的搜索复核，未见漂移，未轮询。",
+    "hashes": {
+      "tools/approval.py": "f981161d1f8a2679f74f5ac0e84c576f985c6b5cd5b50e361252abd5b1d616ad",
+      "tools/approval_gateway_wait.py": "cb637ab95a335feec3141ecb05f27df4783c341ad53e2dcf7d794057e0f7e45c",
+      "agent/tool_executor.py": "c85e239d1d56ad415902db2371e9e28c2216f6fd72e29860cff7f97b2e05a0c2",
+      "gateway/clawd_continuation.py": "300f059641a218a78bf8be30fe7a1e4e162f44053b3105efe0bfc78341bbe476",
+      "gateway/clawd_continuation_gates.py": "6d2fa59a5c89ecf198799fb41e51fd7c3c6e671a0e23d2008ea0324ea1511ae9",
+      "gateway/clawd_continuation_decision.py": "9bd9fd9d65e78a7f9d9ebd240b63d10b5262c4e1c82557c0110bad53285751e1",
+      "hermes_state_compression.py": "8b6e2df32259d1d1c89a6f7215c8ba23ff7a91f69ecb83bcc9f3ff9a52863670",
+      "hermes_state_messages.py": "b81c7d272f768a548daa91642bf8283dfad2f592528fbe95c029038a13e7f574",
+      "gateway/wake.py": "7fe985e4606b769355c942ba137e5d52037cd96d61c1a6072a2e837f782b1a32",
+      "tools/async_delegation.py": "a76a78ee29576b6b40d42044666b350f63d33e8b42a792b17bcb0cbd73069082",
+      "gateway/run_notifications.py": "31eba2b09a301ef5294a72bc5c12974648a3e9ec21ebefdb400ff3ed97776a87",
+      "gateway/platforms/api_server_runs.py": "554cb28b411b323fab038d4f24dedc7e4876b7266f2044bc5f3730e528fa122b",
+      "gateway/platforms/api_server.py": "b95284ed570ea9f3ed4f0218af12eff91891373a32a93f60f89658b43ba839de",
+      "clawd_server/server.py": "ea3534ab92e054fe38c79f6533b8797c86dea07facdfb09d3badc5a060dd03ab",
+      "clawd_server/bind.py": "a0cfe9432fbd526d11850105d040d0d0cf1e85f9ceabada2aa57ff04f20d101b",
+      "clawd_server/runtime_native.py": "dfbefdc9fcb8103d6c6d72ba87e4cbc3ac451825777493c410d78028b4b5132c",
+      "apps/panel/sidecar/hermes_panel_sidecar.py": "c8e2b0890e489e2f5c96183068f06a5d923ae67356f6fdfa2fba751288fd9bc8"
+    }
+  },
+  "active": [
+    {
+      "id": "bg-window",
+      "status": "仍成立",
+      "severity": "中",
+      "confidence": "确定",
+      "title": "续跑预检用原始会话查租约，触发只看最新 300 条",
+      "locations": [
+        "gateway/clawd_continuation_gates.py:68-81",
+        "hermes_state_compression.py:694-718",
+        "gateway/clawd_continuation.py:349-351",
+        "gateway/clawd_continuation.py:268-280",
+        "hermes_state_messages.py:1370-1419",
+        "gateway/wake.py:215-220"
+      ],
+      "description": "写入方把 turn lease 放在压缩谱系根。预检查 conversation_id = 传入的 session_id，不走 _session_turn_lease_key_on_conn。投递前 resolve_resume_session_id 会把通知落到子会话尖端。预检因此看不见根上仍有效的租约，可以 admit。get_messages(limit=300, latest=True) 默认不含祖先。open_notices 只扫这 300 条。recover 的 display_kind 查询能找到会话，随后 evaluate 仍用这扇窗，窗口外的完成通知变成 no_trigger，且不写 receipt。",
+      "trigger": "API 会话压缩后，子代理完成被解析到子会话，而根租约仍被父回合持有。或完成行之后又写入超过 300 条更新的活动消息，下一次 evaluate 才读。",
+      "fix": "预检调用 _session_turn_lease_key_on_conn。触发用 display_kind = 'async_delegation_complete' 的索引查询，不要靠最新 300 条。\nkey = db._session_turn_lease_key_on_conn(conn, session_id)\nrow = db._read_one('SELECT expires_at FROM session_turn_leases WHERE conversation_id = ?', (key,))",
+      "call_chain": "note_persisted_delivery → evaluate → _decide → turn_lease_expires(session_id) 与 _load_rows → decide → open_notices(rows)",
+      "origin": ["background.md#中-300条"],
+      "hash": {
+        "gateway/clawd_continuation_gates.py": "6d2fa59a5c89ecf198799fb41e51fd7c3c6e671a0e23d2008ea0324ea1511ae9",
+        "hermes_state_compression.py": "8b6e2df32259d1d1c89a6f7215c8ba23ff7a91f69ecb83bcc9f3ff9a52863670",
+        "gateway/clawd_continuation.py": "300f059641a218a78bf8be30fe7a1e4e162f44053b3105efe0bfc78341bbe476"
+      },
+      "duplicate_of": null,
+      "static_note": "只读。未运行交错。不并入已有 bg-receipt：那是回执时机，这项是预检看不见。"
+    },
+    {
+      "id": "bg-swallow",
+      "status": "仍成立",
+      "severity": "低",
+      "confidence": "确定",
+      "title": "续跑通知失败后投递仍算完成，评估失败不排重试",
+      "locations": [
+        "gateway/wake.py:223-235",
+        "gateway/run_notifications.py:809-846",
+        "gateway/run_notifications.py:1335-1355",
+        "gateway/clawd_continuation.py:32-51",
+        "gateway/clawd_continuation.py:220-227",
+        "gateway/clawd_continuation.py:253-264",
+        "gateway/clawd_continuation.py:388-396"
+      ],
+      "description": "persist 成功后，note_persisted_delivery 的异常只记日志。函数正常返回。_self_post_api_server 因此返回 True，finally 把 durable claim 标成 complete，不 release。evaluate 的宽 except 只 fail_closed，不 schedule。通知扫描失败返回空列表，这一轮 recover 漏掉只存在于消息表的会话。JournalUnavailable 在 note_persisted_delivery 内部被吃掉，同样不排下一次评估。",
+      "trigger": "投递行已写入后，续跑模块导入失败、watch/evaluate 抛出未内部处理的异常，或评估时数据库短暂不可读，且之后没有新通知、run 终态或重启。",
+      "fix": "通知失败不要让调用方把 claim 标完成。至少 journal.watch 成功后排一次 recover。evaluate 失败应 schedule，不要只写 blocked。\nif note_failed:\n    raise ContinuationNotifyError\n# 调用方：operation = 'release'，不要 complete",
+      "call_chain": "_self_post_api_server → persist_delegation_delivery → note_persisted_delivery；外层 _deliver_completion_notification finally → complete_completion_delivery",
+      "origin": ["background.md#低-吞异常"],
+      "hash": {
+        "gateway/wake.py": "7fe985e4606b769355c942ba137e5d52037cd96d61c1a6072a2e837f782b1a32",
+        "gateway/clawd_continuation.py": "300f059641a218a78bf8be30fe7a1e4e162f44053b3105efe0bfc78341bbe476",
+        "gateway/run_notifications.py": "31eba2b09a301ef5294a72bc5c12974648a3e9ec21ebefdb400ff3ed97776a87"
+      },
+      "duplicate_of": null,
+      "static_note": "外层没有降级重试。未运行。"
+    }
+  ],
+  "false_positive": [
+    {
+      "id": "appr-auto",
+      "status": "误报",
+      "severity": "中",
+      "confidence": "确定",
+      "title": "未标记默认同意分支存在，但产品入口到不了",
+      "locations": [
+        "tools/approval.py:1211-1216",
+        "tools/approval.py:1027-1062",
+        "tools/approval.py:1176",
+        "tools/terminal_tool.py:1114-1120",
+        "gateway/platforms/api_server.py:3608-3623",
+        "gateway/platforms/api_server.py:3745-3751",
+        "agent/managed_worker.py:356",
+        "cron/scheduler.py:2376-2379"
+      ],
+      "description": "1216 只在非 CLI、非网关、非 ask，且没有任何无人值守上下文时返回同意。产品入口都先绑标记：CLI 设 HERMES_INTERACTIVE；-q 走 single_query 默认拒绝；-z 设 YOLO 与 SINGLE_QUERY；网关绑定平台，api_server/webhook 默认 unattended deny；API 与续跑在 run_conversation 前 bind platform=api_server，工具线程经 DaemonThreadPoolExecutor 复制 context；ACP 在执行线程设 interactive contextvar；TUI 进程设三个标记；托管 worker 设 HERMES_GATEWAY_SESSION；cron 设 HERMES_CRON_SESSION。check_dangerous_command 无产品调用者。写文件和 computer_use 传 fail_closed_when_no_human=True。",
+      "trigger": "原报告的内部调用者不存在。要走到 1216，必须有一个不经上述入口、也不设标记的产品线程调用 terminal 门。未找到。",
+      "fix": "不要按这条派修。若将来新增无标记执行器，该分支应改为 _blocked。",
+      "call_chain": "terminal_tool._run_approval_guards → check_all_command_guards。各产品入口在此之前绑定会话标记。",
+      "origin": ["approval.md#中-默认同意"],
+      "hash": {"tools/approval.py": "f981161d1f8a2679f74f5ac0e84c576f985c6b5cd5b50e361252abd5b1d616ad"},
+      "duplicate_of": null
+    },
+    {
+      "id": "appr-timeout",
+      "status": "误报",
+      "severity": "低",
+      "confidence": "确定",
+      "title": "截止后、出队前的选择是真实同意，不是过期票据",
+      "locations": [
+        "tools/approval_gateway_wait.py:48-76",
+        "tools/approval_gateway_wait.py:194-231",
+        "tools/approval_gateway_wait.py:248-261",
+        "tools/approval.py:915-919"
+      ],
+      "description": "_poll_event 在截止后返回 timeout，不持审批锁。_drop_entry 在同一把锁里读 entry.result 并删除条目。resolve 也在这把锁里写 result。选择若在删除前提交，resolved 为真，_human_decision 按该选择放行。注释 #112548 写明这是回答，不是超时。删除之后再 POST 找不到条目，不能重放。结果没有被当成超时哨兵来同意。",
+      "trigger": "原触发是超时与同意几乎同时。代码把锁内已提交的选择当同意，这是既定结算，不是用错结果。",
+      "fix": "不必为这个窄窗口改语义。若产品要严格截止，应在锁内同时判断 deadline 与 result。",
+      "call_chain": "check_all_command_guards → _human_decision → _await_gateway_decision → _drop_entry",
+      "origin": ["approval.md#低-超时窗口"],
+      "hash": {"tools/approval_gateway_wait.py": "cb637ab95a335feec3141ecb05f27df4783c341ad53e2dcf7d794057e0f7e45c"},
+      "duplicate_of": null
+    },
+    {
+      "id": "appr-grace",
+      "status": "误报",
+      "severity": "低",
+      "confidence": "确定",
+      "title": "3 秒宽限提交的是已完成的真实结果，不是取消哨兵",
+      "locations": [
+        "agent/tool_executor.py:570-575",
+        "agent/tool_executor.py:952-958",
+        "agent/tool_executor.py:1491-1493",
+        "agent/tool_executor.py:1540-1553",
+        "agent/tool_executor.py:1810-1820",
+        "agent/tool_executor.py:1879-1880"
+      ],
+      "description": "中断后先给 worker 打中断位，再等 3 秒。顺序路径若 future 已完成且未取消，返回 future.result()。发布方只把 _ToolCancelledResult 当取消；真实返回值按正常工具结果写入。下一个未开始的调用在 _interrupt_requested 处跳过。并行路径同样等 3 秒，完成的 worker 写入 results，汇总时优先真实结果。副作用已经发生，丢弃返回值也不能撤销。没有把取消标记误当成成功。",
+      "trigger": "用户在工具已经启动后取消，且该工具在 3 秒内正常结束。这是记录已发生的结果，不是取消后新启动。",
+      "fix": "不必把已完成结果改成取消标记。若要求杀进程，应在采用结果前确认进程树已退出，那是另一项，本次未见结果用错。",
+      "call_chain": "execute_tool_calls_sequential → _run_sequential_tool_execution_middleware → _publish_sequential_result；并行走 _append_batch_results",
+      "origin": ["approval.md#低-3秒"],
+      "hash": {"agent/tool_executor.py": "c85e239d1d56ad415902db2371e9e28c2216f6fd72e29860cff7f97b2e05a0c2"},
+      "duplicate_of": null
+    },
+    {
+      "id": "bg-plan",
+      "status": "误报",
+      "severity": "中",
+      "confidence": "确定",
+      "title": "计划探针缺失，但没有可触发的计划待批输入",
+      "locations": [
+        "gateway/clawd_continuation_gates.py:47-51",
+        "gateway/clawd_continuation_gates.py:54-65",
+        "gateway/clawd_continuation.py:375-378",
+        "gateway/clawd_continuation_decision.py:209-242",
+        "gateway/clawd_continuation_decision.py:305-306",
+        "gateway/clawd_continuation_decision.py:332-333"
+      ],
+      "description": "缺 clawd_plan_approval_pending 时 plan_pending 返回 False，不把 unknown 置真。全仓库没有给 adapter 赋这个属性，也没有 plan_mode 工具注册或 plan_approval 写入方。transcript 扫描找的工具名没有产品生产者。外持有者探针同样没有接线，缺省 False；decide 只在值为 None 时因所有权不明而阻断。clawd 面板只 arm 一套续跑，不启动第二调度。没有可控的计划待批或外进程持有者输入。",
+      "trigger": "原触发依赖侧表计划或未接线的外持有者。这两类输入在当前产品里不存在。",
+      "fix": "不要为不存在的计划侧表派修。若以后接入计划审批，缺探针必须返回 None，让 collect_gates 走 gate_unknown。",
+      "call_chain": "evaluate → collect_gates → plan_pending；decide 再看 transcript_plan_pending(已载入行)",
+      "origin": ["background.md#中-计划闸门"],
+      "hash": {
+        "gateway/clawd_continuation_gates.py": "6d2fa59a5c89ecf198799fb41e51fd7c3c6e671a0e23d2008ea0324ea1511ae9",
+        "gateway/clawd_continuation_decision.py": "9bd9fd9d65e78a7f9d9ebd240b63d10b5262c4e1c82557c0110bad53285751e1"
+      },
+      "duplicate_of": null
+    },
+    {
+      "id": "bg-approval-key",
+      "status": "误报",
+      "severity": "中",
+      "confidence": "确定",
+      "title": "审批队列键不一致，但真实门不靠这把键放行",
+      "locations": [
+        "gateway/platforms/api_server_runs.py:630-633",
+        "gateway/platforms/api_server_runs.py:905-907",
+        "gateway/platforms/api_server_runs.py:1056-1059",
+        "gateway/platforms/api_server.py:3253-3261",
+        "gateway/clawd_continuation_gates.py:34-44",
+        "gateway/platforms/api_server.py:3725-3727",
+        "gateway/session_api_turn.py:144-155",
+        "hermes_state_runtime.py:206-209"
+      ],
+      "description": "API 审批队列键是 run_id，续跑用 session_id 查 get_pending_gateway_approval，这一查会落空。但创建 run 时已把 session_id 写入 _run_statuses。通知回调在等待前同步写成 waiting_for_approval，collect_gates 先看这个状态。authority 路径的 waiting_for_approval 只在 GET 投影里，不在 _run_statuses；续跑若看到 session_authority 则走 run_api_turn，admit_session_input 入队，claim_session_input 只领 FIFO 头，不会在已开始的审批回合旁再执行一条。键不一致不等于绕过。",
+      "trigger": "原报告的空窗是通知尚未写状态。通知回调在返回前就写状态，且与入队同在工具线程的同步段。这不是一条可单独利用的绕过。",
+      "fix": "不必把键不一致单独当绕过修。若要让探针与队列一致，可额外按本会话非终态 run id 查队列；缺了它，现有状态门和 FIFO 仍然挡住。",
+      "call_chain": "危险命令 → notify → _set_run_status(waiting_for_approval) → collect_gates；authority：_run_agent → run_api_turn → admit_session_input → claim_session_input",
+      "origin": ["background.md#中-审批键"],
+      "hash": {
+        "gateway/platforms/api_server_runs.py": "554cb28b411b323fab038d4f24dedc7e4876b7266f2044bc5f3730e528fa122b",
+        "gateway/platforms/api_server.py": "b95284ed570ea9f3ed4f0218af12eff91891373a32a93f60f89658b43ba839de"
+      },
+      "duplicate_of": null
+    },
+    {
+      "id": "bg-claim-true",
+      "status": "误报",
+      "severity": "低",
+      "confidence": "确定",
+      "title": "缺行返回 True 不会让第二个产品进程拿到同一事件",
+      "locations": [
+        "tools/async_delegation.py:582-597",
+        "tools/async_delegation.py:205-228",
+        "tools/async_delegation.py:343-371",
+        "hermes_state_detached_results.py:24-57",
+        "tui_gateway/session_notifications.py:583-596",
+        "gateway/run_notifications.py:1199-1207"
+      ],
+      "description": "行不存在时 claim 返回 True，注释写明是旧事件放行。回放 restore_undelivered_completions 只读仍存在的 pending 行。剪掉的行不会进入另一进程的队列。内存队列是进程内的。clawd 面板的网关 watcher 与 TUI poller 不共享这个队列。同进程没有第二条路径对同一事件再认领。即使两边都持久化，append_delegation_delivery 按 delegation_id 在同一写事务去重。",
+      "trigger": "原触发是超过 1000 条 pending 被删，且网关与 TUI 同时认领。剪行后 TUI 回放看不到该事件。双投递不可达。",
+      "fix": "不必为双投派修。若要收紧旧事件，缺行应返回 False；那会丢掉仍在本进程内存队列里的唯一副本，不是当前缺陷。",
+      "call_chain": "完成事件 → 本进程 completion_queue → claim_completion_delivery；他进程只经 restore_undelivered_completions 读账本",
+      "origin": ["background.md#低-无账本"],
+      "hash": {"tools/async_delegation.py": "a76a78ee29576b6b40d42044666b350f63d33e8b42a792b17bcb0cbd73069082"},
+      "duplicate_of": null
+    },
+    {
+      "id": "bg-sidecar",
+      "status": "误报",
+      "severity": "低",
+      "confidence": "确定",
+      "title": "sidecar main 仍会起旧线程，但 clawd 安装链不调用它",
+      "locations": [
+        "apps/panel/sidecar/hermes_panel_sidecar.py:6168-6175",
+        "clawd_server/server.py:149-152",
+        "clawd_server/server.py:198-208",
+        "clawd_server/server.py:220-225",
+        "clawd_server/bind.py:130-145",
+        "clawd_server/runtime_native.py:67-78"
+      ],
+      "description": "直接执行脚本的 main 会启动 auto-continue 线程。clawd 面板只 import 模块，bind 把 _continue_watcher 与 _continue_tick 换成会抛错的函数，并把 main 换成 SystemExit。_start_sidecar 只 serve_forever，不调用 main。runtime_native.install 只替换读接口，不启动线程。续跑由 arm_adapter 单独启动。这不是 clawd 产品入口的活跃双调度。",
+      "trigger": "有人绕过 clawd_server，直接 python hermes_panel_sidecar.py。那不是 bind/runtime_native 安装链。",
+      "fix": "不要把脚本残留当 clawd 活跃缺陷派修。若要防误运行，可在未被 bind 的 main 里拒绝，那是加固，不是当前产品故障。",
+      "call_chain": "ClawdPanel.start → bind → _start_sidecar(serve_forever)；不经过 sidecar.main",
+      "origin": ["background.md#低-sidecar"],
+      "hash": {
+        "apps/panel/sidecar/hermes_panel_sidecar.py": "c8e2b0890e489e2f5c96183068f06a5d923ae67356f6fdfa2fba751288fd9bc8",
+        "clawd_server/bind.py": "a0cfe9432fbd526d11850105d040d0d0cf1e85f9ceabada2aa57ff04f20d101b",
+        "clawd_server/runtime_native.py": "dfbefdc9fcb8103d6c6d72ba87e4cbc3ac451825777493c410d78028b4b5132c"
+      },
+      "duplicate_of": null
+    }
+  ],
+  "mapping": [
+    {"id": "appr-auto", "origin": "approval.md#中-默认同意", "status": "误报"},
+    {"id": "appr-timeout", "origin": "approval.md#低-超时窗口", "status": "误报"},
+    {"id": "appr-grace", "origin": "approval.md#低-3秒", "status": "误报"},
+    {"id": "bg-plan", "origin": "background.md#中-计划闸门", "status": "误报"},
+    {"id": "bg-window", "origin": "background.md#中-300条", "status": "仍成立"},
+    {"id": "bg-approval-key", "origin": "background.md#中-审批键", "status": "误报"},
+    {"id": "bg-swallow", "origin": "background.md#低-吞异常", "status": "仍成立"},
+    {"id": "bg-claim-true", "origin": "background.md#低-无账本", "status": "误报"},
+    {"id": "bg-sidecar", "origin": "background.md#低-sidecar", "status": "误报"}
+  ]
+}

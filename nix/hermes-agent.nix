@@ -100,6 +100,8 @@ let
     callPackage ./python.nix {
       inherit uv2nix pyproject-nix pyproject-build-systems;
       pythonSrc = hermesNpmLib.pythonSrc;
+      # Wheel-build input only. Do not copy into agentInputsFile.env or makeWrapper.
+      panelResourceRoot = hermesNpmLib.panelResources;
       # Deduplicated so naming a group the variant already ships leaves the
       # venv derivation unchanged.
       dependency-groups = lib.unique ([ "all" ] ++ groups);
@@ -291,6 +293,9 @@ let
   '';
 in
 stdenv.mkDerivation (finalAttrs: {
+  # Nix package identity stays hermes-agent so external overlays, module
+  # options, and checks.nix pname filters keep resolving. The Python
+  # distribution inside the venv is clawd (see nix/python.nix).
   pname = "hermes-agent";
   inherit version;
 
@@ -443,7 +448,7 @@ stdenv.mkDerivation (finalAttrs: {
     };
 
   meta = with lib; {
-    description = "AI agent with advanced tool-calling capabilities";
+    description = "clawd AI agent (Nous Research Hermes Agent upstream; Nix attribute remains hermes-agent)";
     homepage = "https://github.com/NousResearch/hermes-agent";
     mainProgram = "hermes";
     license = licenses.mit;

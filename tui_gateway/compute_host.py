@@ -259,8 +259,14 @@ class ComputeHost:
                 server._start_inflight_turn(session, inflight)
                 turn_started_at = time.time()
             self._reply("turn.started", sid, request_id, started_ns=now_ns())
-            with contextlib.suppress(Exception):
+            from clawd_projects.inheritance import ProjectInheritanceError
+            try:
                 server._ensure_session_db_row(session)
+            except ProjectInheritanceError:
+                raise
+            except Exception:
+                pass
+            with contextlib.suppress(Exception):
                 # #85303: the parent's prompt.submit reopened this row before dispatching here (or
                 # the turn would not have been admitted), but an old parent predating that fix --
                 # or a synthesized re-entry -- must not strand the child's transcript writes in a
@@ -271,8 +277,12 @@ class ComputeHost:
             with contextlib.suppress(Exception):
                 import hermes_undo
                 hermes_undo.on_user_message_appended(session["session_key"])
-            with contextlib.suppress(Exception):
+            try:
                 server._persist_branch_seed(session)
+            except ProjectInheritanceError:
+                raise
+            except Exception:
+                pass
             server._run_prompt_submit(
                 request_id, sid, session, text, display_kind=frame.get("display_kind") or None,
                 display_metadata=(frame.get("display_metadata")
@@ -293,6 +303,8 @@ class ComputeHost:
                 "turn.end", sid, request_id, **meta, interrupted=interrupted, ended_ns=now_ns(),
                 session_info=session_info, session_info_emitted=True)
         except (Exception, ConfigBackendUnavailable) as exc:  # health: allow BLE001 -- the turn's one reply (the outage is a SystemExit)
+            from clawd_projects.inheritance import ProjectInheritanceError
+            reason = "project_inheritance_failed" if isinstance(exc, ProjectInheritanceError) else "exception"
             with contextlib.suppress(Exception):
                 from tui_gateway import server
                 session = server._sessions.get(sid)
@@ -300,7 +312,7 @@ class ComputeHost:
                     with session.get("history_lock", threading.Lock()):
                         session["running"] = False
                         server._clear_inflight_turn(session)
-            self._reply("turn.error", sid, request_id, reason="exception", message=str(exc))
+            self._reply("turn.error", sid, request_id, reason=reason, message=str(exc))
 
     def _emit_turn_activity(self, sid: str, session: dict, turn_id: str, started_at: float) -> None:
         # Observe the agent clock, never the host heartbeat. A reused agent's last

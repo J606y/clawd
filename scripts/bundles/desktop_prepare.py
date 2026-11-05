@@ -387,4 +387,8 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    print(
+        "refused: clawd does not build the official desktop app. This entry is unsupported.",
+        file=sys.stderr,
+    )
+    raise SystemExit(2)

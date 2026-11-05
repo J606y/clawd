@@ -1,4 +1,4 @@
-"""``hermes logs`` — view and filter Hermes log files.
+"""``clawd logs`` — view and filter clawd log files.
 
 Supports tailing, following, session filtering, level filtering,
 component filtering, and relative time ranges.  All log files live
@@ -6,19 +6,19 @@ under ``~/.hermes/logs/``.
 
 Usage examples::
 
-    hermes logs                    # last 50 lines of agent.log
-    hermes logs -f                 # follow agent.log in real time
-    hermes logs errors             # last 50 lines of errors.log
-    hermes logs gateway -n 100    # last 100 lines of gateway.log
-    hermes logs gui -f            # follow gui.log (dashboard/pty/ws)
-    hermes logs desktop -f        # follow desktop.log (Electron app boot/backend)
-    hermes logs update            # last 50 lines of update.log (hermes update mirror)
-    hermes logs handoff           # last 50 lines of desktop-update-handoff.log
-    hermes logs --level WARNING    # only WARNING+ lines
-    hermes logs --session abc123   # filter by session ID substring
-    hermes logs --component tools  # only tool-related lines
-    hermes logs --since 1h         # lines from the last hour
-    hermes logs --since 30m -f     # follow, starting 30 min ago
+    clawd logs                    # last 50 lines of agent.log
+    clawd logs -f                 # follow agent.log in real time
+    clawd logs errors             # last 50 lines of errors.log
+    clawd logs gateway -n 100    # last 100 lines of gateway.log
+    clawd logs gui -f            # follow gui.log (dashboard/pty/ws)
+    clawd logs desktop -f        # follow desktop.log (Electron app boot/backend)
+    clawd logs update            # last 50 lines of update.log (clawd update mirror)
+    clawd logs handoff           # last 50 lines of desktop-update-handoff.log
+    clawd logs --level WARNING    # only WARNING+ lines
+    clawd logs --session abc123   # filter by session ID substring
+    clawd logs --component tools  # only tool-related lines
+    clawd logs --since 1h         # lines from the last hour
+    clawd logs --since 30m -f     # follow, starting 30 min ago
 """
 
 import re
@@ -37,11 +37,11 @@ LOG_FILES = {
     "gateway": "gateway.log",
     "gui": "gui.log",
     "desktop": "desktop.log",
-    # Full stdout/stderr mirror of the last `hermes update` runs (written by
+    # Full stdout/stderr mirror of the last `clawd update` runs (written by
     # hermes_cli.main's _UpdateOutputStream; append-only across runs). When a
     # Desktop-driven update fails at the Electron rebuild the ONLY artifacts
     # holding the root cause are this file and the hand-off log below, so
-    # `hermes logs list` (a directory scan) showing them without readable
+    # `clawd logs list` (a directory scan) showing them without readable
     # keys was an inconsistency of its own.
     "update": "update.log",
     # Desktop-driven update hand-off (scripts/desktop-update/windows.ps1 +
@@ -53,7 +53,7 @@ LOG_FILES = {
     "mcp": "mcp-stderr.log",
 }
 
-# Written to the ROOT home whatever profile is active: ``hermes update`` mutates the checkout every
+# Written to the ROOT home whatever profile is active: ``clawd update`` mutates the checkout every
 # profile shares, and its mirror (main_dashboard) + the Desktop hand-off scripts write <root>/logs.
 ROOT_HOME_LOGS = frozenset({"update", "handoff"})
 
@@ -69,7 +69,7 @@ def log_file_path(log_name: str) -> Optional[Path]:
 
 # "2026-04-05 22:35:00[,123]" at the start of a line; update.log /
 # desktop-update-handoff.log stamp with the shell's ISO-8601 "T" shape
-# ("2026-09-29T21:36:18+08:00", "=== hermes update started 2026-09-29T21:36:18 ===").
+# ("2026-09-29T21:36:18+08:00", "=== clawd update started 2026-09-29T21:36:18 ===").
 _TS_RE = re.compile(r"(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2})")
 _LEVEL_RE = re.compile(r"\s(DEBUG|INFO|WARNING|ERROR|CRITICAL)\s")
 # Logger name: the token before ":" after the level and optional "[session]" tag,
@@ -191,7 +191,7 @@ def tail_log(
     log_path = log_file_path(log_name)
     if not log_path.exists():
         print(f"Log file not found: {log_path}")
-        print("(Logs are created when Hermes runs — try 'hermes chat' first)")
+        print("(Logs are created when clawd runs — try 'clawd chat' first)")
         sys.exit(1)
 
     since_dt = None
@@ -347,4 +347,4 @@ def list_logs() -> None:
             found = True
 
     if not found:
-        print("  (no log files yet — run 'hermes chat' to generate logs)")
+        print("  (no log files yet — run 'clawd chat' to generate logs)")

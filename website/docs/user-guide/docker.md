@@ -1,15 +1,15 @@
 ---
 sidebar_position: 7
-title: "Hermes Docker Setup"
-description: "Running Hermes Agent in Docker and using Docker as a terminal backend"
+title: "clawd Docker Setup"
+description: "Running clawd in Docker and using Docker as a terminal backend"
 ---
 
-# Hermes Docker Setup
+# clawd Docker Setup
 
-There are two distinct ways Docker intersects with Hermes Agent:
+There are two distinct ways Docker intersects with clawd:
 
-1. **Running Hermes IN Docker** — the agent itself runs inside a container (this page's primary focus)
-2. **Docker as a terminal backend** — the agent runs on your host but executes every command inside a single, persistent Docker sandbox container that survives across tool calls, `/new`, and subagents for the life of the Hermes process (see [Configuration → Docker Backend](./configuration.md#docker-backend))
+1. **Running clawd IN Docker** — the agent itself runs inside a container (this page's primary focus)
+2. **Docker as a terminal backend** — the agent runs on your host but executes every command inside a single, persistent Docker sandbox container that survives across tool calls, `/new`, and subagents for the life of the clawd process (see [Configuration → Docker Backend](./configuration.md#docker-backend))
 
 This page covers option 1. The container stores all user data (config, API keys, sessions, skills, memories) in a single directory mounted from the host at `/opt/data`. The image itself is stateless and can be upgraded by pulling a new version without losing any configuration.
 
@@ -31,14 +31,14 @@ Python 3.14). Its curated extras are not the native desktop bundle's
 
 ## Quick start
 
-If this is your first time running Hermes Agent, create a data directory on the host and start the container interactively to run the setup wizard:
+If this is your first time running clawd, create a data directory on the host and start the container interactively to run the setup wizard:
 
 :::caution Avoid browser-based VPS consoles for the install commands
 Some VPS providers (Hetzner Cloud, and several others) offer a browser-based
 console for managing hosts. These consoles transmit special characters
 incorrectly — `:` may arrive as `;`, `@` may be mis-rendered, and non-English
 keyboard layouts fare worse — which silently corrupts `docker run` arguments
-like `-v ~/.hermes:/opt/data`, `-e KEY=value`, and pasted API keys / tokens.
+like `-v ~/.clawd:/opt/data`, `-e KEY=value`, and pasted API keys / tokens.
 
 **Connect over SSH instead** (`ssh root@<host>`) for copy-paste-safe command
 entry. If you must use the browser console, type the commands manually
@@ -47,16 +47,16 @@ result before hitting Enter.
 :::
 
 ```sh
-mkdir -p ~/.hermes
+mkdir -p ~/.clawd
 docker run -it --rm \
-  -v ~/.hermes:/opt/data \
+  -v ~/.clawd:/opt/data \
   nousresearch/hermes-agent setup
 ```
 
-This drops you into the setup wizard, which will prompt you for your API keys and write them to `~/.hermes/.env`. You only need to do this once. It is highly recommended to set up a chat system for the gateway to work with at this point.
+This drops you into the setup wizard, which will prompt you for your API keys and write them to `~/.clawd/.env`. You only need to do this once. It is highly recommended to set up a chat system for the gateway to work with at this point.
 
 :::tip
-Inside the container, run `hermes setup --portal` once — the refresh token persists in the mounted `~/.hermes` volume. See [Nous Portal](../integrations/nous-portal.md).
+Inside the container, run `clawd setup --portal` once — the refresh token persists in the mounted `~/.clawd` volume. See [Nous Portal](../integrations/nous-portal.md).
 :::
 
 ## Running in gateway mode
@@ -65,9 +65,9 @@ Once configured, run the container in the background as a persistent gateway (Te
 
 ```sh
 docker run -d \
-  --name hermes \
+  --name clawd \
   --restart unless-stopped \
-  -v ~/.hermes:/opt/data \
+  -v ~/.clawd:/opt/data \
   -p 8642:8642 \
   nousresearch/hermes-agent gateway run
 ```
@@ -101,9 +101,9 @@ Note: the API server is gated on `API_SERVER_ENABLED=true`. To expose it beyond 
 
 ```sh
 docker run -d \
-  --name hermes \
+  --name clawd \
   --restart unless-stopped \
-  -v ~/.hermes:/opt/data \
+  -v ~/.clawd:/opt/data \
   -p 8642:8642 \
   -e API_SERVER_ENABLED=true \
   -e API_SERVER_HOST=0.0.0.0 \
@@ -120,9 +120,9 @@ The built-in web dashboard runs as a supervised s6-rc service alongside the gate
 
 ```sh
 docker run -d \
-  --name hermes \
+  --name clawd \
   --restart unless-stopped \
-  -v ~/.hermes:/opt/data \
+  -v ~/.clawd:/opt/data \
   -p 8642:8642 \
   -p 9119:9119 \
   -e HERMES_DASHBOARD=1 \
@@ -169,7 +169,7 @@ dashboard:
 
 This allows the proxy's `X-Forwarded-Proto: https` to control secure OAuth
 cookies while leaving forwarding headers from other peers untrusted. Do not
-use `*`, `0.0.0.0/0`, or `::/0`; Hermes rejects those unbounded entries.
+use `*`, `0.0.0.0/0`, or `::/0`; clawd rejects those unbounded entries.
 
 If no provider is registered and the bind is non-loopback, the dashboard **fails closed at startup** with a specific error pointing at the missing env var. There is no longer an escape hatch that serves the dashboard unauthenticated on a public bind: `HERMES_DASHBOARD_INSECURE=1` is now a deprecated no-op (it logs a warning and is ignored). Configure a provider, or bind `HERMES_DASHBOARD_HOST=127.0.0.1` and reach the dashboard over an SSH tunnel / Tailscale instead.
 
@@ -195,9 +195,9 @@ Publish the port and configure a sign-in provider, as for the dashboard:
 
 ```sh
 docker run -d \
-  --name hermes \
+  --name clawd \
   --restart unless-stopped \
-  -v ~/.hermes:/opt/data \
+  -v ~/.clawd:/opt/data \
   -p 9120:9120 \
   -e HERMES_DASHBOARD_BASIC_AUTH_USERNAME=admin \
   -e HERMES_DASHBOARD_BASIC_AUTH_PASSWORD="$(openssl rand -hex 16)" \
@@ -212,7 +212,7 @@ To open an interactive chat session against a running data directory:
 
 ```sh
 docker run -it --rm \
-  -v ~/.hermes:/opt/data \
+  -v ~/.clawd:/opt/data \
   nousresearch/hermes-agent
 ```
 
@@ -224,17 +224,17 @@ Or if you have already opened a terminal in your running container (via Docker D
 
 ## Persistent volumes
 
-The `/opt/data` volume is the single source of truth for all Hermes state. It maps to your host's `~/.hermes/` directory and contains:
+The `/opt/data` volume is the single source of truth for all clawd state. It maps to your host's `~/.clawd/` directory and contains:
 
 | Path | Contents |
 |------|----------|
 | `.env` | API keys and secrets |
-| `config.yaml` | All Hermes configuration |
+| `config.yaml` | All clawd configuration |
 | `SOUL.md` | Agent personality/identity |
 | `sessions/` | Conversation history |
 | `memories/` | Persistent memory store |
 | `skills/` | Installed skills |
-| `home/` | Per-profile HOME for Hermes tool subprocesses (`git`, `ssh`, `gh`, `npm`, and skill CLIs) |
+| `home/` | Per-profile HOME for clawd tool subprocesses (`git`, `ssh`, `gh`, `npm`, and skill CLIs) |
 | `cron/` | Scheduled job definitions |
 | `hooks/` | Event hooks |
 | `logs/` | Runtime logs |
@@ -242,65 +242,65 @@ The `/opt/data` volume is the single source of truth for all Hermes state. It ma
 
 ### Filesystem requirements for `state.db` in containers
 
-Hermes keeps sessions in a SQLite database (`/opt/data/state.db`) that is opened in WAL journal mode by default. WAL relies on shared memory (`state.db-shm`) being coherent between every process that has the file open. Bind mounts that cross a VM boundary do not provide that: **virtiofs** (Docker Desktop and Podman on macOS, OrbStack) and **9p / drvfs** (Docker Desktop on Windows) both let concurrent writers silently corrupt a WAL database while the main file still passes `PRAGMA integrity_check`.
+clawd keeps sessions in a SQLite database (`/opt/data/state.db`) that is opened in WAL journal mode by default. WAL relies on shared memory (`state.db-shm`) being coherent between every process that has the file open. Bind mounts that cross a VM boundary do not provide that: **virtiofs** (Docker Desktop and Podman on macOS, OrbStack) and **9p / drvfs** (Docker Desktop on Windows) both let concurrent writers silently corrupt a WAL database while the main file still passes `PRAGMA integrity_check`.
 
-What Hermes does about it (since v2026.9.14):
+What clawd does about it (since v2026.9.14):
 
 - A **fresh** database whose directory is on a virtiofs/9p mount is created in rollback (`DELETE`) journal mode and a one-time warning is logged. Nothing to do.
-- An **existing** WAL database on such a mount is never live-downgraded — other Hermes processes may hold it open, and a live switch destroys their uncheckpointed commits. Instead, every process logs a one-time error at startup and `hermes doctor` flags the database. Fix it one of two ways:
-  1. Stop every Hermes process that uses the database, then run a one-time offline conversion with the Python that ships in the image (it has no `sqlite3` shell): `docker exec hermes python3 -c "import sqlite3; print(sqlite3.connect('/opt/data/state.db').execute('PRAGMA journal_mode=DELETE').fetchone()[0])"`. Set `database.journal_mode: delete` in `config.yaml` so a later open does not switch it back to WAL.
+- An **existing** WAL database on such a mount is never live-downgraded — other clawd processes may hold it open, and a live switch destroys their uncheckpointed commits. Instead, every process logs a one-time error at startup and `clawd doctor` flags the database. Fix it one of two ways:
+  1. Stop every clawd process that uses the database, then run a one-time offline conversion with the Python that ships in the image (it has no `sqlite3` shell): `docker exec clawd python3 -c "import sqlite3; print(sqlite3.connect('/opt/data/state.db').execute('PRAGMA journal_mode=DELETE').fetchone()[0])"`. Set `database.journal_mode: delete` in `config.yaml` so a later open does not switch it back to WAL.
   2. Move the data directory onto a native volume — a named Docker volume (`-v hermes-data:/opt/data`) lives on the VM's own ext4 filesystem and supports WAL normally.
 
-Detection reads `/proc/self/mountinfo` inside the container, so it works regardless of the host operating system. It does not classify NFS, SMB, or generic FUSE mounts; on those, set `database.journal_mode: delete` explicitly. Hermes does not offer SQLite's `locking_mode=EXCLUSIVE` as an alternative because the gateway, cron, and worker processes open the database concurrently.
+Detection reads `/proc/self/mountinfo` inside the container, so it works regardless of the host operating system. It does not classify NFS, SMB, or generic FUSE mounts; on those, set `database.journal_mode: delete` explicitly. clawd does not offer SQLite's `locking_mode=EXCLUSIVE` as an alternative because the gateway, cron, and worker processes open the database concurrently.
 
 ### Immutable install tree
 
-In hosted and published Docker images, `/opt/hermes` is the installed application tree. It is root-owned and read-only to the runtime `hermes` user, so agent turns, gateway sessions, dashboard actions, and normal `docker exec hermes hermes ...` commands cannot edit the core source, bundled `.venv`, `node_modules`, or TUI bundle in place.
+In hosted and published Docker images, `/opt/hermes` is the installed application tree. It is root-owned and read-only to the runtime `clawd` user, so agent turns, gateway sessions, dashboard actions, and normal `docker exec clawd clawd ...` commands cannot edit the core source, bundled `.venv`, `node_modules`, or TUI bundle in place.
 
-All mutable Hermes state belongs under `/opt/data`: config, `.env`, profiles, skills, memories, sessions, logs, dashboard uploads, plugins, and other user-managed files. The image also disables runtime `.pyc` writes and Hermes lazy dependency installs into `/opt/hermes`; optional platform dependencies needed by the published image should be baked into the image or installed through a new image build.
+All mutable clawd state belongs under `/opt/data`: config, `.env`, profiles, skills, memories, sessions, logs, dashboard uploads, plugins, and other user-managed files. The image also disables runtime `.pyc` writes and clawd lazy dependency installs into `/opt/hermes`; optional platform dependencies needed by the published image should be baked into the image or installed through a new image build.
 
 On hosted/published images, agent self-improvement is scoped to skills, memory, plugins, and config under `/opt/data`. The installed core source under `/opt/hermes` is immutable; core changes are made via PRs to the repo and shipped by updating the image, not by live-editing the running install.
 
-If an operator needs to repair or inspect files outside `/opt/data`, use a root shell intentionally. The `hermes` shim normally drops `docker exec hermes hermes ...` back to the runtime user; set `HERMES_DOCKER_EXEC_AS_ROOT=1` for a one-off root invocation when you explicitly need root semantics.
+If an operator needs to repair or inspect files outside `/opt/data`, use a root shell intentionally. The `clawd` shim normally drops `docker exec clawd clawd ...` back to the runtime user; set `HERMES_DOCKER_EXEC_AS_ROOT=1` for a one-off root invocation when you explicitly need root semantics.
 
-Skill CLIs that store credentials under `~` must be initialized against the subprocess HOME, not just the data-volume root. For example, the [xurl skill](./skills/bundled/social-media/social-media-xurl.md) stores OAuth state in `~/.xurl`; in the official Docker layout, Hermes tool calls read that as `/opt/data/home/.xurl`, so run manual xurl auth with `HOME=/opt/data/home` and verify with `HOME=/opt/data/home xurl auth status`.
+Skill CLIs that store credentials under `~` must be initialized against the subprocess HOME, not just the data-volume root. For example, the [xurl skill](./skills/bundled/social-media/social-media-xurl.md) stores OAuth state in `~/.xurl`; in the official Docker layout, clawd tool calls read that as `/opt/data/home/.xurl`, so run manual xurl auth with `HOME=/opt/data/home` and verify with `HOME=/opt/data/home xurl auth status`.
 
 :::warning
-Never run two Hermes **gateway** containers against the same data directory simultaneously — session files and memory stores are not designed for concurrent write access.
+Never run two clawd **gateway** containers against the same data directory simultaneously — session files and memory stores are not designed for concurrent write access.
 :::
 
 ## Multi-profile support
 
-Hermes supports [multiple profiles](../reference/profile-commands.md) — separate `~/.hermes/` subdirectories that let you run independent agents (different SOUL, skills, memory, sessions, credentials) from a single installation. **Inside the official Docker image, the s6 supervision tree treats each profile as a first-class supervised service**, so the recommended deployment is **one container hosting all profiles**.
+clawd supports [multiple profiles](../reference/profile-commands.md) — separate `~/.clawd/` subdirectories that let you run independent agents (different SOUL, skills, memory, sessions, credentials) from a single installation. **Inside the official Docker image, the s6 supervision tree treats each profile as a first-class supervised service**, so the recommended deployment is **one container hosting all profiles**.
 
-Each profile created with `hermes profile create <name>` gets:
+Each profile created with `clawd profile create <name>` gets:
 
 - A dedicated s6 service slot at `/run/service/gateway-<name>/`, registered dynamically by the runtime — no container rebuild required.
 - Auto-restart on crash, backoff-managed by `s6-supervise`.
 - Per-profile rotated logs at `${HERMES_HOME}/logs/gateways/<name>/current` (10 archives × 1 MB each).
-- State persistence across container restarts: the boot-time reconciler reads `gateway_state.json` from each profile directory and brings the slot back up only for profiles whose last recorded state was `running`. Only a gateway you explicitly stopped (`hermes gateway stop`) stays down across a restart — a container restart, image upgrade, or unexpected exit leaves the recorded state as `running`, so the gateway auto-starts on the next boot.
+- State persistence across container restarts: the boot-time reconciler reads `gateway_state.json` from each profile directory and brings the slot back up only for profiles whose last recorded state was `running`. Only a gateway you explicitly stopped (`clawd gateway stop`) stays down across a restart — a container restart, image upgrade, or unexpected exit leaves the recorded state as `running`, so the gateway auto-starts on the next boot.
 
-A profile created from the **host** against a bind-mounted `~/.hermes` gets its directory but no slot (the host process cannot reach the container's `/run/service`). Inside the container, `hermes -p <name> gateway start` registers the missing slot on demand and starts it — no `docker restart` needed. Only `start` does this, and only for a real profile directory (one carrying `SOUL.md`); `stop`/`restart` on an unregistered profile and a mistyped `-p` name still fail with `✗ no such gateway`.
+A profile created from the **host** against a bind-mounted `~/.clawd` gets its directory but no slot (the host process cannot reach the container's `/run/service`). Inside the container, `clawd -p <name> gateway start` registers the missing slot on demand and starts it — no `docker restart` needed. Only `start` does this, and only for a real profile directory (one carrying `SOUL.md`); `stop`/`restart` on an unregistered profile and a mistyped `-p` name still fail with `✗ no such gateway`.
 
 The lifecycle commands you'd run on the host work the same way from inside the container:
 
 ```sh
 # Create a profile — registers the gateway-<name> s6 slot.
-docker exec hermes hermes profile create coder
+docker exec clawd clawd profile create coder
 
 # Start / stop / restart — dispatches s6-svc; the gateway lifecycle survives docker restart.
-docker exec hermes hermes -p coder gateway start
-docker exec hermes hermes -p coder gateway stop
-docker exec hermes hermes -p coder gateway restart
+docker exec clawd clawd -p coder gateway start
+docker exec clawd clawd -p coder gateway stop
+docker exec clawd clawd -p coder gateway restart
 
 # Status — reports `Manager: s6 (container supervisor)` inside the container.
-docker exec hermes hermes -p coder gateway status
+docker exec clawd clawd -p coder gateway status
 
 # Remove a profile — tears down the s6 slot too.
-docker exec hermes hermes profile delete coder
+docker exec clawd clawd profile delete coder
 ```
 
-Under the hood, `hermes gateway start/stop/restart` inside the container is intercepted and routed to `s6-svc` against the right service directory; you don't need to learn the s6 commands directly. For raw supervisor state, use `/command/s6-svstat /run/service/gateway-<name>` (note `/command/` is on PATH only for processes spawned by the supervision tree — when calling from `docker exec`, pass the absolute path).
+Under the hood, `clawd gateway start/stop/restart` inside the container is intercepted and routed to `s6-svc` against the right service directory; you don't need to learn the s6 commands directly. For raw supervisor state, use `/command/s6-svstat /run/service/gateway-<name>` (note `/command/` is on PATH only for processes spawned by the supervision tree — when calling from `docker exec`, pass the absolute path).
 
 ### Reaching more than one profile from outside the container
 
@@ -312,7 +312,7 @@ Two different surfaces reach a profile's gateway from outside, and they behave d
 
 ```sh
 # Create the profile (registers its gateway-<name> s6 slot)
-docker exec hermes hermes profile create work
+docker exec clawd clawd profile create work
 
 # Point its API server at a free port (write to the profile's own .env)
 cat >> /opt/data/profiles/work/.env <<'EOF'
@@ -320,7 +320,7 @@ API_SERVER_ENABLED=true
 API_SERVER_PORT=8643
 EOF
 
-docker exec hermes hermes -p work gateway restart
+docker exec clawd clawd -p work gateway restart
 ```
 
 Keep `API_SERVER_PORT` in each profile's **own** `.env`, never in the container-wide `environment:` block — a global value would force every profile onto the same port and they would collide. With bridge networking, publish the extra port in `docker-compose.yml` (`- "8643:8643"`); with `network_mode: host` it is already reachable on the host. The default profile's 8642 connection is untouched.
@@ -333,10 +333,10 @@ Before the s6 migration, "one container per profile" was the recommended pattern
 |---|---|---|
 | Disk overhead | One image, one bundled venv, one Playwright cache | N images / N caches |
 | Memory overhead | Shared Python interpreter cache, shared node_modules | Duplicated per container |
-| Profile creation | `docker exec ... hermes profile create <name>` (seconds) | New `docker run` invocation + port allocation + bind-mount config |
+| Profile creation | `docker exec ... clawd profile create <name>` (seconds) | New `docker run` invocation + port allocation + bind-mount config |
 | Per-profile crash recovery | `s6-supervise` auto-restart | Docker's `--restart unless-stopped` (slower, kills sibling work) |
 | Logs | Per-profile rotated file via `s6-log`, plus container-boot audit log | `docker logs <name>` per container — no built-in rotation |
-| Backup | One `~/.hermes` directory | N directories to coordinate |
+| Backup | One `~/.clawd` directory | N directories to coordinate |
 
 The default profile (`default`) is always registered on first boot, so a fresh container ships with one supervised gateway out of the box. Additional profiles are pure runtime adds.
 
@@ -361,7 +361,7 @@ services:
     ports:
       - "8642:8642"
     volumes:
-      - ~/.hermes-work:/opt/data
+      - ~/.clawd-work:/opt/data
 
   hermes-personal:
     image: nousresearch/hermes-agent:latest
@@ -371,10 +371,10 @@ services:
     ports:
       - "8643:8642"
     volumes:
-      - ~/.hermes-personal:/opt/data
+      - ~/.clawd-personal:/opt/data
 ```
 
-The warning from [Persistent volumes](#persistent-volumes) still applies: never point two containers at the same `~/.hermes` directory simultaneously. The s6 supervisor inside each container manages its own profile set; cross-container sharing of a data volume corrupts session files and memory stores.
+The warning from [Persistent volumes](#persistent-volumes) still applies: never point two containers at the same `~/.clawd` directory simultaneously. The s6 supervisor inside each container manages its own profile set; cross-container sharing of a data volume corrupts session files and memory stores.
 
 ## Where the logs go
 
@@ -382,19 +382,19 @@ The s6 container has four distinct log surfaces, and "why isn't my gateway showi
 
 | Source | Where it lands | How to read it |
 |---|---|---|
-| **Per-profile gateway** (`hermes gateway run` and per-profile gateways under s6) | Tee'd to two places: `docker logs <container>` (real time, no extra prefix) **and** `${HERMES_HOME}/logs/gateways/<profile>/current` (rotated, ISO-8601 timestamped, 10 archives × 1 MB each) | `docker logs -f hermes` or `tail -F ~/.hermes/logs/gateways/default/current` on the host |
-| **Dashboard** (when `HERMES_DASHBOARD=1`) | `docker logs <container>` (no prefix) | `docker logs -f hermes` — interleaved with gateway lines |
+| **Per-profile gateway** (`clawd gateway run` and per-profile gateways under s6) | Tee'd to two places: `docker logs <container>` (real time, no extra prefix) **and** `${HERMES_HOME}/logs/gateways/<profile>/current` (rotated, ISO-8601 timestamped, 10 archives × 1 MB each) | `docker logs -f clawd` or `tail -F ~/.hermes/logs/gateways/default/current` on the host |
+| **Dashboard** (when `HERMES_DASHBOARD=1`) | `docker logs <container>` (no prefix) | `docker logs -f clawd` — interleaved with gateway lines |
 | **Boot reconciler** (records which profile gateways were restored on each container start) | `${HERMES_HOME}/logs/container-boot.log` (append-only audit log) | `tail -F ~/.hermes/logs/container-boot.log` |
-| **Generic Hermes logs** (`agent.log`, `errors.log`) | `${HERMES_HOME}/logs/` (profile-aware) | `docker exec hermes hermes logs --follow [--level WARNING] [--session <id>]` |
+| **Generic clawd logs** (`agent.log`, `errors.log`) | `${HERMES_HOME}/logs/` (profile-aware) | `docker exec clawd clawd logs --follow [--level WARNING] [--session <id>]` |
 
-For an interactive container with terminal input and output (such as `docker run -it ... --tui` or `bash`), the foreground command owns the terminal. The entrypoint defaults to `S6_LOGGING=2` and `S6_CMD_USE_TERMINAL=1` so supervised gateway and dashboard output does not overwrite that screen. Their console output goes to s6's rotated catch-all log at `/run/uncaught-logs/current` inside the container. The per-profile gateway file logs and normal Hermes logs remain available at the paths above. The catch-all directory is runtime storage, so it does not survive a container restart or removal.
+For an interactive container with terminal input and output (such as `docker run -it ... --tui` or `bash`), the foreground command owns the terminal. The entrypoint defaults to `S6_LOGGING=2` and `S6_CMD_USE_TERMINAL=1` so supervised gateway and dashboard output does not overwrite that screen. Their console output goes to s6's rotated catch-all log at `/run/uncaught-logs/current` inside the container. The per-profile gateway file logs and normal clawd logs remain available at the paths above. The catch-all directory is runtime storage, so it does not survive a container restart or removal.
 
 Headless containers keep forwarding service output to `docker logs`. Explicit `S6_LOGGING` and `S6_CMD_USE_TERMINAL` settings take precedence over these interactive defaults.
 
 Two practical consequences worth knowing:
 
 - The file copy at `logs/gateways/<profile>/current` is what survives container restarts. `docker logs` only retains output from the current container's lifetime (and is wiped on `docker rm`); the rotated files persist on the bind-mounted volume.
-- The boot reconciler's audit line shape is `<iso-timestamp> profile=<name> prior_state=<state> action=<registered|started>`, so a quick `grep profile=coder ~/.hermes/logs/container-boot.log` reveals when a given profile was last restored and whether s6 auto-started it.
+- The boot reconciler's audit line shape is `<iso-timestamp> profile=<name> prior_state=<state> action=<registered|started>`, so a quick `grep profile=coder ~/.clawd/logs/container-boot.log` reveals when a given profile was last restored and whether s6 auto-started it.
 
 ## Environment variable forwarding
 
@@ -402,7 +402,7 @@ API keys are read from `/opt/data/.env` inside the container. You can also pass 
 
 ```sh
 docker run -it --rm \
-  -v ~/.hermes:/opt/data \
+  -v ~/.clawd:/opt/data \
   -e ANTHROPIC_API_KEY="sk-ant-..." \
   -e OPENAI_API_KEY="sk-..." \
   nousresearch/hermes-agent
@@ -411,7 +411,7 @@ docker run -it --rm \
 Direct `-e` flags override values from `.env`. This is useful for CI/CD or secrets-manager integrations where you don't want keys on disk.
 
 :::note Looking for Docker as the **terminal backend**?
-This page covers running Hermes itself inside Docker. If you want Hermes to execute the agent's `terminal` / `execute_code` calls inside a Docker sandbox container (one long-lived container shared across Hermes processes — see issue #20561), that's a separate config block — `terminal.backend: docker` plus `terminal.docker_image`, `terminal.docker_volumes`, `terminal.docker_forward_env`, `terminal.docker_env`, `terminal.docker_run_as_host_user`, `terminal.docker_extra_args`, `terminal.docker_persist_across_processes`, and `terminal.docker_orphan_reaper`. See [Configuration → Docker Backend](configuration.md#docker-backend) for the full set including container-lifecycle rules.
+This page covers running clawd itself inside Docker. If you want clawd to execute the agent's `terminal` / `execute_code` calls inside a Docker sandbox container (one long-lived container shared across clawd processes — see issue #20561), that's a separate config block — `terminal.backend: docker` plus `terminal.docker_image`, `terminal.docker_volumes`, `terminal.docker_forward_env`, `terminal.docker_env`, `terminal.docker_run_as_host_user`, `terminal.docker_extra_args`, `terminal.docker_persist_across_processes`, and `terminal.docker_orphan_reaper`. See [Configuration → Docker Backend](configuration.md#docker-backend) for the full set including container-lifecycle rules.
 :::
 
 ## Docker Compose example
@@ -422,14 +422,14 @@ For persistent deployment with both the gateway and dashboard, a `docker-compose
 services:
   hermes:
     image: nousresearch/hermes-agent:latest
-    container_name: hermes
+    container_name: clawd
     restart: unless-stopped
     command: gateway run
     ports:
       - "8642:8642"   # gateway API
       - "9119:9119"   # dashboard (only reached when HERMES_DASHBOARD=1)
     volumes:
-      - ~/.hermes:/opt/data
+      - ~/.clawd:/opt/data
     environment:
       - HERMES_DASHBOARD=1
       # Uncomment to forward specific env vars instead of using .env file:
@@ -447,10 +447,10 @@ Start with `docker compose up -d` and view logs with `docker compose logs -f`. T
 
 ## Optional: Linux desktop audio bridge
 
-Voice mode in Docker needs two separate things to work: Hermes must be allowed to probe audio devices inside the container, and the container must be able to reach your host audio server. The setup below covers the host audio plumbing for Linux desktops that expose a PulseAudio-compatible socket, including many PipeWire setups.
+Voice mode in Docker needs two separate things to work: clawd must be allowed to probe audio devices inside the container, and the container must be able to reach your host audio server. The setup below covers the host audio plumbing for Linux desktops that expose a PulseAudio-compatible socket, including many PipeWire setups.
 
 :::caution
-This is a Linux desktop workaround, not a general Docker Desktop feature. It is useful when you already have host audio working and want CLI voice mode inside the Hermes container. If Hermes still reports `Running inside Docker container -- no audio devices`, use a build that includes Docker audio probing support for `PULSE_SERVER` / `PIPEWIRE_REMOTE`.
+This is a Linux desktop workaround, not a general Docker Desktop feature. It is useful when you already have host audio working and want CLI voice mode inside the clawd container. If clawd still reports `Running inside Docker container -- no audio devices`, use a build that includes Docker audio probing support for `PULSE_SERVER` / `PIPEWIRE_REMOTE`.
 :::
 
 First, create an ALSA config next to your Compose file:
@@ -493,11 +493,11 @@ services:
       context: .
       dockerfile: Dockerfile.audio
     image: hermes-agent-audio
-    container_name: hermes
+    container_name: clawd
     restart: unless-stopped
     command: gateway run
     volumes:
-      - ~/.hermes:/opt/data
+      - ~/.clawd:/opt/data
       - /run/user/${HERMES_UID}/pulse:/run/user/${HERMES_UID}/pulse
       # no-tmp: ok — path inside the container
       - ~/.config/pulse/cookie:/tmp/pulse-cookie:ro
@@ -522,12 +522,12 @@ docker compose up -d --build
 To verify what PortAudio sees inside the container:
 
 ```sh
-docker exec hermes /opt/hermes/.venv/bin/python -c "import sounddevice as sd; print(sd.query_devices())"
+docker exec clawd /opt/hermes/.venv/bin/python -c "import sounddevice as sd; print(sd.query_devices())"
 ```
 
 ## Resource limits
 
-The Hermes container needs moderate resources. Recommended minimums:
+The clawd container needs moderate resources. Recommended minimums:
 
 | Resource | Minimum | Recommended |
 |----------|---------|-------------|
@@ -541,10 +541,10 @@ Set limits in Docker:
 
 ```sh
 docker run -d \
-  --name hermes \
+  --name clawd \
   --restart unless-stopped \
   --memory=4g --cpus=2 \
-  -v ~/.hermes:/opt/data \
+  -v ~/.clawd:/opt/data \
   nousresearch/hermes-agent gateway run
 ```
 
@@ -554,7 +554,7 @@ The image uses Debian 13.4 and includes:
 
 
 - A Python 3.14 environment synchronized from the committed `uv.lock`, followed
-  by a no-dependency editable install of Hermes.
+  by a no-dependency editable install of clawd.
 - The curated extras `all`, `messaging`, `otlp`, `anthropic`, `bedrock`,
   `azure-identity`, and `matrix`. This is not `--all-extras`.
 - Node.js 26 and npm from the digest-pinned Node source image.
@@ -564,7 +564,7 @@ The image uses Debian 13.4 and includes:
 - s6-overlay for supervision and zombie-process cleanup.
 
 Chromium is staged through PM, not `npx playwright install`. The build records
-its resolved executable in `/etc/hermes/chromium-executable-path`, which Hermes
+its resolved executable in `/etc/hermes/chromium-executable-path`, which clawd
 reads when it launches the browser.
 `PLAYWRIGHT_BROWSERS_PATH` names `/opt/hermes/tools`, outside the data mount.
 
@@ -597,9 +597,9 @@ On the PID-1 path, `/init`:
 2. Runs `/etc/cont-init.d/02-reconcile-profiles` (= `hermes_cli.container_boot`): walks `$HERMES_HOME/profiles/<name>/`, recreates the per-profile gateway s6 service slot under `/run/service/gateway-<profile>/`, and auto-starts only those whose last recorded state was `running` (see [Per-profile gateway supervision](#per-profile-gateway-supervision)).
 3. Starts the static `main-hermes` and `dashboard` s6-rc services.
 4. Exec's the container's CMD as the main program (`/opt/hermes/docker/main-wrapper.sh`), which routes the arguments the user passed to `docker run`:
-   - no args → `hermes` (the default)
+   - no args → `clawd` (the default)
    - first arg is an executable on PATH (e.g. `sleep`, `bash`) → exec it directly
-   - anything else → `hermes <args>` (subcommand passthrough)
+   - anything else → `clawd <args>` (subcommand passthrough)
    The container exits when this main program exits, with its exit code.
 
 :::warning Breaking change vs. pre-s6 images
@@ -607,11 +607,11 @@ The container ENTRYPOINT is now the `entrypoint-dispatch.sh` dispatcher (which d
 :::
 
 :::warning Privilege model
-Do not override the image entrypoint unless you keep `/init` (or, equivalently, the legacy `docker/entrypoint.sh` shim that forwards to the stage2 hook) in the command chain. s6-overlay's `/init` runs as root so it can chown the volume on first boot, then drops to the `hermes` user via `s6-setuidgid` for every supervised service AND for the main program. Starting `hermes gateway run` as root inside the official image is refused by default because it can leave root-owned files in `/opt/data` and break later dashboard or gateway starts. Set `HERMES_ALLOW_ROOT_GATEWAY=1` only when you intentionally accept that risk.
+Do not override the image entrypoint unless you keep `/init` (or, equivalently, the legacy `docker/entrypoint.sh` shim that forwards to the stage2 hook) in the command chain. s6-overlay's `/init` runs as root so it can chown the volume on first boot, then drops to the `clawd` user via `s6-setuidgid` for every supervised service AND for the main program. Starting `clawd gateway run` as root inside the official image is refused by default because it can leave root-owned files in `/opt/data` and break later dashboard or gateway starts. Set `HERMES_ALLOW_ROOT_GATEWAY=1` only when you intentionally accept that risk.
 :::
 
 :::warning Overriding `entrypoint:` also removes the zombie reaper
-`/init` is what reaps orphaned grandchildren (headless browsers, MCP servers, `git`/`npm` helpers spawned by tools). A Compose service that overrides `entrypoint:` to call `hermes` directly — for example to run the dashboard as a non-root user — makes the hermes process itself PID 1, and nothing above it ever calls `wait()`: every orphan stays a `<defunct>` entry forever (one deployment reached 284 zombies in under three hours). Hermes prints `[hermes] WARNING: this process is PID 1 with no init above it` at startup in that configuration.
+`/init` is what reaps orphaned grandchildren (headless browsers, MCP servers, `git`/`npm` helpers spawned by tools). A Compose service that overrides `entrypoint:` to call `clawd` directly — for example to run the dashboard as a non-root user — makes the clawd process itself PID 1, and nothing above it ever calls `wait()`: every orphan stays a `<defunct>` entry forever (one deployment reached 284 zombies in under three hours). clawd prints `[clawd] WARNING: this process is PID 1 with no init above it` at startup in that configuration.
 
 If you must override the entrypoint, add Docker's init as PID 1 so orphans are reaped:
 
@@ -624,49 +624,49 @@ services:
     command: ["dashboard", "--host", "0.0.0.0", "--port", "9119", "--no-open", "--skip-build"]
 ```
 
-(`docker run --init …` is the equivalent flag.) This fixes the zombie accumulation only — with `/init` out of the chain, the s6 supervision tree is still gone: the dashboard, `hermes gateway run` and per-profile gateways are unsupervised, exactly as the dispatcher's own non-PID-1 warning says. Keep the default `ENTRYPOINT` whenever you can.
+(`docker run --init …` is the equivalent flag.) This fixes the zombie accumulation only — with `/init` out of the chain, the s6 supervision tree is still gone: the dashboard, `clawd gateway run` and per-profile gateways are unsupervised, exactly as the dispatcher's own non-PID-1 warning says. Keep the default `ENTRYPOINT` whenever you can.
 :::
 
-### `docker exec` automatically drops to the `hermes` user
+### `docker exec` automatically drops to the `clawd` user
 
-`docker exec hermes <cmd>` defaults to running as root inside the container, but the image ships a thin shim at `/opt/hermes/bin/hermes` (earliest on PATH) that detects root callers and transparently re-execs through `s6-setuidgid hermes`. So `docker exec hermes hermes login`, `docker exec hermes hermes profile create …`, `docker exec hermes hermes setup`, etc. all write files owned by UID 10000 — i.e. readable by the supervised gateway — with no extra `--user` flag needed. Non-root callers (the supervised processes themselves, `docker exec --user hermes`, kanban subagents inside the container) hit a short-circuit that exec's the venv binary directly, so there's no overhead on the hot paths.
+`docker exec clawd <cmd>` defaults to running as root inside the container, but the image ships a thin shim at `/opt/hermes/bin/hermes` (earliest on PATH) that detects root callers and transparently re-execs through `s6-setuidgid clawd`. So `docker exec clawd clawd login`, `docker exec clawd clawd profile create …`, `docker exec clawd clawd setup`, etc. all write files owned by UID 10000 — i.e. readable by the supervised gateway — with no extra `--user` flag needed. Non-root callers (the supervised processes themselves, `docker exec --user clawd`, kanban subagents inside the container) hit a short-circuit that exec's the venv binary directly, so there's no overhead on the hot paths.
 
 If you specifically need a `docker exec` that retains root semantics (diagnostic sessions, inspecting root-only state, files outside `/opt/data` that root happens to own), opt out per invocation:
 
 ```sh
-docker exec -e HERMES_DOCKER_EXEC_AS_ROOT=1 hermes <cmd>
+docker exec -e HERMES_DOCKER_EXEC_AS_ROOT=1 clawd <cmd>
 ```
 
-The shim accepts `1` / `true` / `yes` (case-insensitive). Anything else — including typos like `=0` — falls through to the drop, so silent opt-outs aren't possible. If `s6-setuidgid` isn't available (custom builds that stripped s6-overlay), the shim refuses to run as root and exits 126 instead, surfacing the broken privilege model loudly rather than regressing to the historical footgun where `docker exec hermes login` would write `auth.json` as `root:root` and break the supervised gateway's auth on every chat platform message.
+The shim accepts `1` / `true` / `yes` (case-insensitive). Anything else — including typos like `=0` — falls through to the drop, so silent opt-outs aren't possible. If `s6-setuidgid` isn't available (custom builds that stripped s6-overlay), the shim refuses to run as root and exits 126 instead, surfacing the broken privilege model loudly rather than regressing to the historical footgun where `docker exec clawd login` would write `auth.json` as `root:root` and break the supervised gateway's auth on every chat platform message.
 
 ### Per-profile gateway supervision
 
-Each profile created with `hermes profile create <name>` automatically gets an s6-supervised gateway service registered at `/run/service/gateway-<name>/`, with state-persistent auto-restart across container restarts. See [Multi-profile support](#multi-profile-support) above for the user-facing workflow and the lifecycle commands.
+Each profile created with `clawd profile create <name>` automatically gets an s6-supervised gateway service registered at `/run/service/gateway-<name>/`, with state-persistent auto-restart across container restarts. See [Multi-profile support](#multi-profile-support) above for the user-facing workflow and the lifecycle commands.
 
 **Supervision benefits over the pre-s6 image:**
 
 - Gateway crashes are auto-restarted by `s6-supervise` after a ~1s backoff.
 - Dashboard, when enabled with `HERMES_DASHBOARD=1`, is supervised on the same supervision tree and gets the same auto-restart treatment.
-- `docker restart`, image upgrades (`docker compose up -d --force-recreate`), and unexpected exits preserve running gateways: the cont-init reconciler reads `$HERMES_HOME/profiles/<name>/gateway_state.json` and brings the slot back up if the last recorded state was `running`. Only an explicit `hermes gateway stop` records `stopped` and keeps the gateway down across the restart; the container/s6 SIGTERM sent on a restart or upgrade is treated as "still running" and auto-starts.
+- `docker restart`, image upgrades (`docker compose up -d --force-recreate`), and unexpected exits preserve running gateways: the cont-init reconciler reads `$HERMES_HOME/profiles/<name>/gateway_state.json` and brings the slot back up if the last recorded state was `running`. Only an explicit `clawd gateway stop` records `stopped` and keeps the gateway down across the restart; the container/s6 SIGTERM sent on a restart or upgrade is treated as "still running" and auto-starts.
 - Per-profile gateway logs persist under `$HERMES_HOME/logs/gateways/<profile>/current` (rotated by `s6-log`), and the reconciler's actions are appended to `$HERMES_HOME/logs/container-boot.log` per boot. See [Where the logs go](#where-the-logs-go) for the full routing map.
 
-`hermes status --full` inside the container reports `Manager: s6 (container supervisor)`. Use `/command/s6-svstat /run/service/gateway-<name>` for the raw supervisor view (note `/command/` is on PATH for supervision-tree processes only; pass the absolute path when calling from `docker exec`).
+`clawd status --full` inside the container reports `Manager: s6 (container supervisor)`. Use `/command/s6-svstat /run/service/gateway-<name>` for the raw supervisor view (note `/command/` is on PATH for supervision-tree processes only; pass the absolute path when calling from `docker exec`).
 
 ## Upgrading
 
 Pull the latest image and recreate the container. Your data directory is
 preserved, and the container runs non-interactive config-schema migrations
 against the mounted `$HERMES_HOME/config.yaml` before starting the gateway.
-When a migration is needed, Hermes writes timestamped backups next to
+When a migration is needed, clawd writes timestamped backups next to
 `config.yaml` and `.env` first.
 
 ```sh
 docker pull nousresearch/hermes-agent:latest
-docker rm -f hermes
+docker rm -f clawd
 docker run -d \
-  --name hermes \
+  --name clawd \
   --restart unless-stopped \
-  -v ~/.hermes:/opt/data \
+  -v ~/.clawd:/opt/data \
   nousresearch/hermes-agent gateway run
 ```
 
@@ -682,7 +682,7 @@ persisted config manually before letting the new image rewrite it.
 
 ## Skills and credential files
 
-When using Docker as the execution environment (not the methods above, but when the agent runs commands inside a Docker sandbox — see [Configuration → Docker Backend](./configuration.md#docker-backend)), Hermes reuses a single long-lived container for all tool calls and automatically bind-mounts the skills directory (`~/.hermes/skills/`) and any credential files declared by skills into that container as read-only volumes. Skill scripts, templates, and references are available inside the sandbox without manual configuration, and because the container persists for the life of the Hermes process, any dependencies you install or files you write stay around for the next tool call.
+When using Docker as the execution environment (not the methods above, but when the agent runs commands inside a Docker sandbox — see [Configuration → Docker Backend](./configuration.md#docker-backend)), clawd reuses a single long-lived container for all tool calls and automatically bind-mounts the skills directory (`~/.clawd/skills/`) and any credential files declared by skills into that container as read-only volumes. Skill scripts, templates, and references are available inside the sandbox without manual configuration, and because the container persists for the life of the clawd process, any dependencies you install or files you write stay around for the next tool call.
 
 The same syncing happens for SSH and Modal backends — skills and credential files are uploaded via rsync or the Modal mount API before each command.
 
@@ -692,7 +692,7 @@ The official image ships with a curated set of utilities (see [What the Dockerfi
 
 ### npm or Python tools — use `npx` or `uvx`
 
-For any tool published to npm or PyPI, instruct Hermes to run it via `npx` (npm) or `uvx` (Python) and to remember that command in its persistent memory. If the tool needs a config file or credentials, instruct it to drop those under `/opt/data` (e.g. `/opt/data/<tool>/config.yaml`).
+For any tool published to npm or PyPI, instruct clawd to run it via `npx` (npm) or `uvx` (Python) and to remember that command in its persistent memory. If the tool needs a config file or credentials, instruct it to drop those under `/opt/data` (e.g. `/opt/data/<tool>/config.yaml`).
 
 Dependencies are fetched on demand and cached for the life of the container. Configuration written under `/opt/data` survives container restarts because it lives on the bind-mounted host directory. The package cache itself is rebuilt after a `docker rm`, but `npx` and `uvx` re-fetch transparently the next time the tool runs.
 
@@ -725,9 +725,9 @@ Build it and use it in place of the official image:
 ```sh
 docker build -t my-hermes:latest .
 docker run -d \
-  --name hermes \
+  --name clawd \
   --restart unless-stopped \
-  -v ~/.hermes:/opt/data \
+  -v ~/.clawd:/opt/data \
   -p 8642:8642 \
   my-hermes:latest gateway run
 ```
@@ -736,19 +736,19 @@ The entrypoint script and `/opt/data` semantics are inherited unchanged, so the 
 
 ### Complex tools or multi-service stacks — run a sidecar container
 
-For tools that bring their own service (a database, a web server, a queue, a headless browser farm) or that are too heavy to live inside the Hermes container, run them as a separate container on a shared Docker network. Hermes reaches the sidecar by container name, the same way it reaches a local inference server (see [Connecting to local inference servers](#connecting-to-local-inference-servers-vllm-ollama-etc)).
+For tools that bring their own service (a database, a web server, a queue, a headless browser farm) or that are too heavy to live inside the clawd container, run them as a separate container on a shared Docker network. clawd reaches the sidecar by container name, the same way it reaches a local inference server (see [Connecting to local inference servers](#connecting-to-local-inference-servers-vllm-ollama-etc)).
 
 ```yaml
 services:
   hermes:
     image: nousresearch/hermes-agent:latest
-    container_name: hermes
+    container_name: clawd
     restart: unless-stopped
     command: gateway run
     ports:
       - "8642:8642"
     volumes:
-      - ~/.hermes:/opt/data
+      - ~/.clawd:/opt/data
     networks:
       - hermes-net
 
@@ -764,7 +764,7 @@ networks:
     driver: bridge
 ```
 
-From inside the Hermes container, the sidecar is reachable at `http://my-tool:<port>` (or whatever protocol it serves). This pattern keeps each service's lifecycle, resource limits, and upgrade cadence independent, and avoids bloating the Hermes image with dependencies that are only needed by one tool.
+From inside the clawd container, the sidecar is reachable at `http://my-tool:<port>` (or whatever protocol it serves). This pattern keeps each service's lifecycle, resource limits, and upgrade cadence independent, and avoids bloating the clawd image with dependencies that are only needed by one tool.
 
 ### Broadly useful tools — open an issue or pull request
 
@@ -772,7 +772,7 @@ If a tool is likely to be useful to most Hermes Agent users, consider contributi
 
 ## Connecting to local inference servers (vLLM, Ollama, etc.)
 
-When running Hermes in Docker and your inference server (vLLM, Ollama, text-generation-inference, etc.) is also running on the host or in another container, networking requires extra attention.
+When running clawd in Docker and your inference server (vLLM, Ollama, text-generation-inference, etc.) is also running on the host or in another container, networking requires extra attention.
 
 ### Docker Compose (recommended)
 
@@ -800,13 +800,13 @@ services:
 
   hermes:
     image: nousresearch/hermes-agent:latest
-    container_name: hermes
+    container_name: clawd
     restart: unless-stopped
     command: gateway run
     ports:
       - "8642:8642"
     volumes:
-      - ~/.hermes:/opt/data
+      - ~/.clawd:/opt/data
     networks:
       - hermes-net
 
@@ -815,7 +815,7 @@ networks:
     driver: bridge
 ```
 
-Then in your `~/.hermes/config.yaml`, use the **container name** as the hostname:
+Then in your `~/.clawd/config.yaml`, use the **container name** as the hostname:
 
 ```yaml
 model:
@@ -826,7 +826,7 @@ model:
 ```
 
 :::tip Key points
-- Use the **container name** (`vllm`) as the hostname — not `localhost` or `127.0.0.1`, which refer to the Hermes container itself.
+- Use the **container name** (`vllm`) as the hostname — not `localhost` or `127.0.0.1`, which refer to the clawd container itself.
 - The `model` value must match the `--served-model-name` you passed to vLLM.
 - Set `api_key` to any non-empty string (vLLM requires the header but doesn't validate it by default).
 - Do **not** include a trailing slash in `base_url`.
@@ -840,8 +840,8 @@ If your inference server runs directly on the host (not in Docker), use `host.do
 
 ```sh
 docker run -d \
-  --name hermes \
-  -v ~/.hermes:/opt/data \
+  --name clawd \
+  -v ~/.clawd:/opt/data \
   -p 8642:8642 \
   nousresearch/hermes-agent gateway run
 ```
@@ -859,9 +859,9 @@ model:
 
 ```sh
 docker run -d \
-  --name hermes \
+  --name clawd \
   --network host \
-  -v ~/.hermes:/opt/data \
+  -v ~/.clawd:/opt/data \
   nousresearch/hermes-agent gateway run
 ```
 
@@ -879,10 +879,10 @@ model:
 
 ### Verifying connectivity
 
-From inside the Hermes container, confirm the inference server is reachable:
+From inside the clawd container, confirm the inference server is reachable:
 
 ```sh
-docker exec hermes curl -s http://vllm:8000/v1/models
+docker exec clawd curl -s http://vllm:8000/v1/models
 ```
 
 You should see a JSON response listing your served model. If this fails, check:
@@ -907,13 +907,13 @@ model:
 
 ### Container exits immediately
 
-Check logs: `docker logs hermes`. Common causes:
+Check logs: `docker logs clawd`. Common causes:
 - Missing or invalid `.env` file — run interactively first to complete setup
 - Port conflicts if running with exposed ports
 
 ### "Permission denied" errors
 
-The container's stage2 hook drops privileges to the non-root `hermes` user (UID 10000) via `s6-setuidgid` inside each supervised service. If your host `~/.hermes/` is owned by a different UID, set `HERMES_UID`/`HERMES_GID` — or their `PUID`/`PGID` aliases, for parity with LinuxServer.io and NAS images — to match your host user, or ensure the data directory is writable:
+The container's stage2 hook drops privileges to the non-root `clawd` user (UID 10000) via `s6-setuidgid` inside each supervised service. If your host `~/.clawd/` is owned by a different UID, set `HERMES_UID`/`HERMES_GID` — or their `PUID`/`PGID` aliases, for parity with LinuxServer.io and NAS images — to match your host user, or ensure the data directory is writable:
 
 Do not make the whole data tree world-readable. It contains credentials.
 Match the container UID/GID to the bind mount's owner instead.
@@ -922,31 +922,31 @@ On a NAS (UGOS, Synology, unRAID) the data directory is typically a **bind mount
 
 ```sh
 docker run -d \
-  --name hermes \
+  --name clawd \
   -e PUID=1000 -e PGID=10 \
   -v /volume1/docker/hermes:/opt/data \
   nousresearch/hermes-agent gateway run
 ```
 
-`docker exec hermes <cmd>` automatically drops to UID 10000 too — see [`docker exec` automatically drops to the `hermes` user](#docker-exec-automatically-drops-to-the-hermes-user) for details and the per-invocation opt-out.
+`docker exec clawd <cmd>` automatically drops to UID 10000 too — see [`docker exec` automatically drops to the `clawd` user](#docker-exec-automatically-drops-to-the-hermes-user) for details and the per-invocation opt-out.
 
 ### Shared data directory keeps resetting to `0700`
 
-Outside a container Hermes locks `HERMES_HOME` (and its `cron/`, `sessions/`, `logs/`, `memories/` subdirectories) to owner-only `0700` on every start. Inside a container it leaves directory modes alone, so a bind mount shared with a sibling container running as a different UID (a web UI, a permissions fixer) keeps whatever mode and ACLs you set on the host. To force a specific directory mode anyway, set `HERMES_HOME_MODE` (octal, e.g. `HERMES_HOME_MODE=0755`); it is applied in containers too.
+Outside a container clawd locks `HERMES_HOME` (and its `cron/`, `sessions/`, `logs/`, `memories/` subdirectories) to owner-only `0700` on every start. Inside a container it leaves directory modes alone, so a bind mount shared with a sibling container running as a different UID (a web UI, a permissions fixer) keeps whatever mode and ACLs you set on the host. To force a specific directory mode anyway, set `HERMES_HOME_MODE` (octal, e.g. `HERMES_HOME_MODE=0755`); it is applied in containers too.
 
 ### "Permission denied" on every `docker exec` (install dir locked to 0700)
 
-Images built before late August 2026 had a bug where writing a credential file directly under `/opt/hermes` restricted that directory to `0700`, locking the `hermes` user (UID 10000) out of the install tree. Every new `docker exec` then fails with `Permission denied`.
+Images built before late August 2026 had a bug where writing a credential file directly under `/opt/hermes` restricted that directory to `0700`, locking the `clawd` user (UID 10000) out of the install tree. Every new `docker exec` then fails with `Permission denied`.
 
 Pulling a newer image and recreating the container fixes it permanently (the install dir ships as `0755` and current releases no longer restrict it). If you need to recover a running container in place without recreating it:
 
 ```sh
-docker exec -u root hermes chmod 0755 /opt/hermes
+docker exec -u root clawd chmod 0755 /opt/hermes
 ```
 
 ### Zombie (`<defunct>`) processes piling up under PID 1
 
-`ps -eo stat,ppid,comm | awk '$1 ~ /^Z/'` inside the container lists dead children that were never reaped. This happens when hermes itself is PID 1 — almost always because a Compose service overrides `entrypoint:` and so skips `docker/entrypoint-dispatch.sh` → `/init`. Hermes also warns about it at startup (`this process is PID 1 with no init above it`). Restore the default entrypoint, or add `init: true` (Compose) / `docker run --init` so `docker-init` reaps orphans; see [What the Dockerfile does](#what-the-dockerfile-does). Recreating the container clears the existing zombies.
+`ps -eo stat,ppid,comm | awk '$1 ~ /^Z/'` inside the container lists dead children that were never reaped. This happens when clawd itself is PID 1 — almost always because a Compose service overrides `entrypoint:` and so skips `docker/entrypoint-dispatch.sh` → `/init`. clawd also warns about it at startup (`this process is PID 1 with no init above it`). Restore the default entrypoint, or add `init: true` (Compose) / `docker run --init` so `docker-init` reaps orphans; see [What the Dockerfile does](#what-the-dockerfile-does). Recreating the container clears the existing zombies.
 
 ### Browser tools not working
 
@@ -954,9 +954,9 @@ Chromium needs shared memory. Add `--shm-size=1g` to your Docker run command:
 
 ```sh
 docker run -d \
-  --name hermes \
+  --name clawd \
   --shm-size=1g \
-  -v ~/.hermes:/opt/data \
+  -v ~/.clawd:/opt/data \
   nousresearch/hermes-agent gateway run
 ```
 
@@ -965,13 +965,13 @@ docker run -d \
 The `--restart unless-stopped` flag handles most transient failures. If the gateway is stuck, restart the container:
 
 ```sh
-docker restart hermes
+docker restart clawd
 ```
 
 ### Checking container health
 
 ```sh
-docker logs --tail 50 hermes          # Recent logs
+docker logs --tail 50 clawd          # Recent logs
 docker run -it --rm nousresearch/hermes-agent:latest --version   # Verify version
-docker stats hermes                    # Resource usage
+docker stats clawd                    # Resource usage
 ```

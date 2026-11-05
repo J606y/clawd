@@ -1,0 +1,63 @@
+{
+  "date": "2026-11-05",
+  "kind": "static-sensitive-integration",
+  "ran_tests": false,
+  "ran_build": false,
+  "ran_import": false,
+  "ran_cli": false,
+  "ran_browser": false,
+  "source_modified": false,
+  "verdict": "not-pass",
+  "note": "静态核对不是运行通过。两份 runs.ts 全文一致。未审 package 中间字节。",
+  "must_fix": [
+    {
+      "id": "settle-identity",
+      "owner": [
+        "apps/panel/src/lib/runs.ts",
+        "apps/panel/src/react/lib/runs.ts"
+      ],
+      "branch": "foreignIdentity 113-120; finishFromStatus 730-749; settleLostExecutor 1247; approval/clarify 409 at 1140 and 1187; follow poll 592-599; stop 1406-1415",
+      "evidence": "缺 run_id/session_id 不算 foreign，终态字符串即可 settle。404 不改成 completed：reconcile 1271 要求双 id；follow 621-624 无匹配记录是 failed 无法确认。approval-contract.test.mjs 398-400 补了身份，不能证明无身份体会被拒绝。",
+      "suggestion": "终态结算要求 run_id 与 session_id 都等于当前 run。不要把内容事件的缺字段规则用到 settle。真实 GET /v1/runs/{id} 带 run_id。"
+    },
+    {
+      "id": "artifacts-empty-success",
+      "owner": ["apps/panel/tests/artifacts-browser.mjs"],
+      "branch": "line 47 state.run??{}; line 62 unknown /panel- route",
+      "evidence": "缺 run 回 200 {}。未知 panel 路由回 200 {data:[],running:0,items:{}}。",
+      "suggestion": "两处都改为 404 且带 error.code，禁止空对象或空列表成功体。"
+    },
+    {
+      "id": "takeq-journal-loss",
+      "owner": ["ui-tui/src/hooks/useQueue.ts"],
+      "branch": "takeQ 475-481 removePendingInput then claim",
+      "evidence": "换 submissionId 时先删旧 journal。pendingInputs.ts 93-117 的 root 写位预检，以及真实 ENOSPC，都会让随后的 save 抛错，旧 token 已不在盘上。enqueue/stage/dequeue 是先写再改内存。",
+      "suggestion": "claim 成功后再删旧记录；抛错保留旧文件。"
+    },
+    {
+      "id": "plugin-put-unguarded",
+      "owner": ["apps/panel/src/react/lib/admin-api.ts"],
+      "branch": "setPluginConfig 560-561 versus getPluginConfig 556-557",
+      "evidence": "PUT 用 request<PluginConfigResult> 再 withoutSecrets。空体变成 {}，秘密字段带 value 不拒绝。类型夹具只锁 GET。",
+      "suggestion": "PUT 改为 request<unknown>(...).then(readPluginConfigResult)。"
+    }
+  ],
+  "checked_no_proven_relaxation": [
+    "home fd ancestor O_NOFOLLOW; list lexical .. cannot leave root or pass deny/secret before normalize; download .. remains 400; symlink dirs are readlink-only; listing and upload absPath require inode match or 500",
+    "root journal precheck is product-wide for uid 0, not a 0o500-only test flag; 0o700 still has owner write; non-root still depends on real write errors; callers other than takeQ do not clear input before save",
+    "assertSubagentPage does not invent total; omitted profile is not written as default; config-tab does not guess default",
+    "loadEarlier generation and message-ref guards are the button and onNearTop entry",
+    "gate/chat/admission/stream-perf/folders unknown routes are 404; stream-perf thresholds remain 16.7 and longTasks 0; native browser fixture calls install and register_created, not a permission mock"
+  ],
+  "unverified": [
+    "all tests, typecheck, build, import, CLI, browser, disk, ACL, ENOSPC through writeFileSync",
+    "diskfull cases mock savePendingInput and do not reach writeFileSync",
+    "clock and session-frame fixtures fill missing total from data.length; pagination reject path not exercised there"
+  ],
+  "out_of_scope": [
+    "package web-search byte trim",
+    "execution-input-recovery-fixture.tsx empty {} already excluded by lifecycle report",
+    "original 63 background findings",
+    "UI redesign"
+  ]
+}

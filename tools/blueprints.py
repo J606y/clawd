@@ -167,7 +167,7 @@ def register_blueprint_suggestion(spec: BlueprintSpec) -> Optional[dict[str, Any
 
 def export_blueprint(job: dict[str, Any], body: str, *, blueprint_name: Optional[str] = None) -> str:
     """Inverse of ``create_blueprint_job``: render a cron job as a SKILL.md (with a
-    ``metadata.hermes.blueprint`` block) ready for ``hermes skills publish``.
+    ``metadata.hermes.blueprint`` block) ready for ``clawd skills publish``.
     ``body`` becomes the SKILL.md body; its first line is the description."""
     import hermes_yaml as yaml
 

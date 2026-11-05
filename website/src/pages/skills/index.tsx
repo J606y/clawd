@@ -390,7 +390,7 @@ function SkillCard({
             href={installUrl}
             onClick={(e) => e.stopPropagation()}
           >
-            Install in Hermes
+            Install in clawd
           </a>
         )}
 
@@ -462,9 +462,9 @@ function SkillCard({
               </div>
             )}
             <div className={styles.installHint}>
-              <code>{skill.installCmd || `hermes skills install ${skillCatalogInstallIdentifier(skill) || skill.name}`}</code>
+              <code>{skill.installCmd || `clawd skills install ${skillCatalogInstallIdentifier(skill) || skill.name}`}</code>
               <CopyButton
-                text={skill.installCmd || `hermes skills install ${skillCatalogInstallIdentifier(skill) || skill.name}`}
+                text={skill.installCmd || `clawd skills install ${skillCatalogInstallIdentifier(skill) || skill.name}`}
               />
             </div>
             {onPick ? (
@@ -570,7 +570,7 @@ export default function SkillsDashboard() {
           type: "hermes-skill-pick",
           name: skill.name,
           identifier: skillCatalogInstallIdentifier(skill) || skill.name,
-          installCmd: skill.installCmd || `hermes skills install ${skillCatalogInstallIdentifier(skill) || skill.name}`,
+          installCmd: skill.installCmd || `clawd skills install ${skillCatalogInstallIdentifier(skill) || skill.name}`,
           source: skill.source,
         },
         "*"
@@ -860,13 +860,13 @@ export default function SkillsDashboard() {
   return (
     <Layout
       title="Skills Hub"
-      description="Browse all skills and plugins available for Hermes Agent"
+      description="Browse all skills and plugins available for clawd"
     >
       <div className={`${styles.page} ${pickerMode ? styles.pickerMode : ""}`}>
         <header className={styles.hero}>
           <div className={styles.heroGlow} />
           <div className={styles.heroContent}>
-            <p className={styles.heroEyebrow}>Hermes Agent</p>
+            <p className={styles.heroEyebrow}>clawd</p>
             <h1 className={styles.heroTitle}>Skills Hub</h1>
             <nav className={styles.crossNav} aria-label="Catalog pages">
               <span className={`${styles.crossNavLink} ${styles.crossNavActive}`}>

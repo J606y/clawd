@@ -19,7 +19,7 @@ metadata:
 
 # Google Workspace
 
-Gmail, Calendar, Drive, Contacts, Sheets, and Docs — through Hermes-managed OAuth and a thin CLI wrapper. When `gws` is installed, the skill uses it as the execution backend for broader Google Workspace coverage; otherwise it falls back to the bundled Python client implementation.
+Gmail, Calendar, Drive, Contacts, Sheets, and Docs — through clawd-managed OAuth and a thin CLI wrapper. When `gws` is installed, the skill uses it as the execution backend for broader Google Workspace coverage; otherwise it falls back to the bundled Python client implementation.
 
 ## References
 
@@ -36,10 +36,10 @@ Gmail, Calendar, Drive, Contacts, Sheets, and Docs — through Hermes-managed OA
 The setup is fully non-interactive — you drive it step by step so it works
 on CLI, Telegram, Discord, or any platform.
 
-Run the setup script with Python from the Hermes environment, not an unrelated
-system Python. `--install-deps` syncs Hermes' declared Google extra through PM;
-after syncing, restart Hermes and rerun the OAuth command. If Hermes is not
-importable, use `hermes setup` first rather than installing packages with pip.
+Run the setup script with Python from the clawd environment, not an unrelated
+system Python. `--install-deps` syncs clawd' declared Google extra through PM;
+after syncing, restart clawd and rerun the OAuth command. If clawd is not
+importable, use `clawd setup` first rather than installing packages with pip.
 
 Define a shorthand first:
 
@@ -106,7 +106,7 @@ Tell the user:
 >    Audience → Test users → Add users
 > 6. Download the JSON file and tell me the file path
 >
-> Important Hermes CLI note: if the file path starts with `/`, do NOT send only the bare path as its own message in the CLI, because it can be mistaken for a slash command. Send it in a sentence instead, like:
+> Important clawd CLI note: if the file path starts with `/`, do NOT send only the bare path as its own message in the CLI, because it can be mistaken for a slash command. Send it in a sentence instead, like:
 > `The JSON file path is: ~/Downloads/client_secret_....json`
 
 Once they provide the path:
@@ -117,7 +117,7 @@ $GSETUP --client-secret /path/to/client_secret.json
 
 If they paste the raw client ID / client secret values instead of a file path,
 write a valid Desktop OAuth JSON file for them yourself, save it somewhere
-explicit (for example `~/Downloads/hermes-google-client-secret.json`), then run
+explicit (for example `~/Downloads/clawd-google-client-secret.json`), then run
 `--client-secret` against that file.
 
 ### Step 3: Get authorization URL

@@ -19,20 +19,20 @@
 
 | 后端 | 对话框检测 | 对话框响应 | 框架树 | OOPIF `Runtime.evaluate`（通过 `browser_cdp(frame_id=...)`） |
 |---|---|---|---|---|
-| 本地 Chromium（由 Hermes 为 `browser_exec` 启动）/ `/browser connect` | ✓ | ✓ 完整流程 | ✓ | ✓ |
+| 本地 Chromium（由 clawd 为 `browser_exec` 启动）/ `/browser connect` | ✓ | ✓ 完整流程 | ✓ | ✓ |
 | Browserbase | ✓（通过 bridge） | ✓ 完整流程（通过 bridge） | ✓ | ✓（`document.title = "Example Domain"` 已在真实跨域 iframe 上验证） |
 
 **Browserbase 响应的工作原理。** Browserbase 的 CDP 代理在内部使用 Playwright，并在约 10ms 内自动关闭原生对话框，因此 `Page.handleJavaScriptDialog` 无法跟上。为解决此问题，supervisor 通过 `Page.addScriptToEvaluateOnNewDocument` 注入一个 bridge 脚本，将 `window.alert`/`confirm`/`prompt` 覆盖为向魔法主机（`hermes-dialog-bridge.invalid`）发起的同步 XHR。`Fetch.enable` 在这些 XHR 触达网络之前将其拦截——对话框变成 supervisor 捕获的 `Fetch.requestPaused` 事件，`respond_to_dialog` 通过 `Fetch.fulfillRequest` 以 JSON 响应体完成请求，注入的脚本对其进行解码。
 
 最终效果：从页面角度看，`prompt()` 仍然返回 agent 提供的字符串。从 agent 角度看，无论哪种方式，都是同一套 `browser_dialog(action=...)` API。已针对真实 Browserbase 会话进行端到端测试——4/4（alert/prompt/confirm-accept/confirm-dismiss）全部通过，包括值回传到页面 JS 的验证。
 
-Camofox 目录插件（`hermes plugins install camofox`）驱动的是仅支持 REST、没有 CDP 接口的浏览器，因此 supervisor 不适用于它。
+Camofox 目录插件（`clawd plugins install camofox`）驱动的是仅支持 REST、没有 CDP 接口的浏览器，因此 supervisor 不适用于它。
 
 ## 架构
 
 ### CDPSupervisor
 
-每个 Hermes `task_id` 对应一个在后台守护线程中运行的 `asyncio.Task`。持有一个到后端 CDP 端点的持久 WebSocket 连接。维护：
+每个 clawd `task_id` 对应一个在后台守护线程中运行的 `asyncio.Task`。持有一个到后端 CDP 端点的持久 WebSocket 连接。维护：
 
 - **对话框队列** — `List[PendingDialog]`，包含 `{id, type, message, default_prompt, session_id, opened_at}`
 - **框架树** — `Dict[frame_id, FrameInfo]`，包含父子关系、URL、origin，以及是否为跨域子会话

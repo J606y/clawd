@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>agent close</title>
+</head>
+<body>
+  <div id="root"></div>
+  <script>
+    const agent = (id, title) => ({
+      id,
+      parentId: "parent-probe",
+      parentTitle: "合成会话",
+      title,
+      model: "probe",
+      startedAt: 1700000000,
+      endedAt: 1700000012,
+      endReason: "completed",
+      status: "done",
+      messages: 2,
+      toolCalls: 1,
+      apiCalls: 1,
+      tokens: 12,
+      lastActivityAt: 1700000012,
+      lastTool: null,
+      snippet: "合成输出，不是真实任务",
+    });
+    const agents = [agent("agent-a", "合成子代理A"), agent("agent-b", "合成子代理B")];
+    const json = (body) => new Response(JSON.stringify(body), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+    window.fetch = async (input) => {
+      const url = String(input instanceof Request ? input.url : input);
+      if (url.includes("/subagents")) {
+        const parsed = new URL(url, location.href);
+        const limit = Number(parsed.searchParams.get("limit") || 50);
+        const offset = Number(parsed.searchParams.get("offset") || 0);
+        const page = agents.slice(offset, offset + limit);
+        return json({ data: page, running: 0, stalled: 0, total: agents.length, now: 1700000012, limit, offset });
+      }
+      if (url.includes("/messages")) {
+        const id = decodeURIComponent((url.match(/sessions\/([^/]+)\/messages/) || [])[1] || "");
+        return json({
+          data: [
+            { id: 1, role: "user", content: "合成提问" },
+            { id: 2, role: "assistant", content: `合成回答 ${id}：关闭后不应留下缩略内容。` },
+          ],
+          pagination: { returned: 2 },
+        });
+      }
+      if (url.includes("/api/runtime/sessions/") && url.includes("/context")) return json({ used: null, window: null, source: "no-data" });
+      if (url.includes("/api/runtime/sessions/") && url.includes("/run")) return json({ busy: false, run: null });
+      if (url.includes("/api/runtime/sessions/") && url.includes("/background")) return json({ processes: [] });
+      if (url.includes("/api/runtime/sessions/") && url.includes("/execution")) return json({ busy: false, execution: null });
+      if (url.includes("/effort")) return json({ session_id: "parent-probe", effort: null, source: "unset", applied: "unset", running: null });
+      if (url.includes("/health")) return json({ status: "ok", version: "probe" });
+      if (url.includes("/api/sessions")) return json({ data: [], has_more: false });
+      if (url.includes("message-origins") || url.includes("/commentary")) return json({ items: {} });
+      if (url.includes("/folders")) return json({ folders: [], assignments: {} });
+      if (url.includes("/models")) return json({ providers: [], choices: [], default: null });
+      if (url.includes("live/state") || url.includes("task-live") || url.includes("/live/")) return json({ link: "disconnected" });
+      return json({ error: { message: "夹具没有这条路由", code: "fixture_not_found" } }, 404);
+    };
+  </script>
+  <script type="module">
+    import { createElement } from "react";
+    import { createRoot } from "react-dom/client";
+    import { App } from "/src/react/app.tsx";
+    import { useUiStore } from "/src/react/stores/ui.ts";
+    import "/src/react/styles/index.css";
+
+    useUiStore.getState().setSelectedSessionId("parent-probe");
+    createRoot(document.querySelector("#root")).render(createElement(App));
+
+    const waitFor = async (fn, label, tries = 100) => {
+      for (let n = 0; n < tries; n += 1) {
+        const value = fn();
+        if (value) return value;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+      }
+      throw new Error(`timeout: ${label}; body=${document.body.innerText.slice(0, 180)}`);
+    };
+    const box = (el) => {
+      if (!el) return null;
+      const rect = el.getBoundingClientRect();
+      return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+    };
+    const sample = (t0) => {
+      const sheet = document.querySelector(".agent-sheet");
+      const dialog = document.querySelector("dialog.agent-modal");
+      const side = document.querySelector(".side-dock");
+      const style = sheet ? getComputedStyle(sheet) : null;
+      const rect = sheet ? sheet.getBoundingClientRect() : null;
+      return {
+        t: Math.round(performance.now() - t0),
+        mounted: Boolean(sheet || side),
+        sheet: Boolean(sheet),
+        modal: dialog ? dialog.matches(":modal") : false,
+        leave: Boolean(dialog?.hasAttribute("data-leave") || side?.hasAttribute("data-leaving")),
+        opacity: style ? Number(style.opacity) : null,
+        transform: style ? style.transform : null,
+        w: rect ? Math.round(rect.width) : 0,
+        h: rect ? Math.round(rect.height) : 0,
+        x: rect ? Math.round(rect.x) : null,
+        y: rect ? Math.round(rect.y) : null,
+        kind: side?.getAttribute("data-kind") || (dialog ? "agent" : ""),
+        title: (sheet || side)?.querySelector("h2")?.textContent || "",
+        anims: sheet ? [...sheet.getAnimations()].map((anim) => {
+          const timing = anim.effect?.getComputedTiming?.() ?? {};
+          return { state: anim.playState, time: Math.round(Number(anim.currentTime) || 0), duration: timing.duration ?? null };
+        }) : [],
+      };
+    };
+
+    window.__samples = [];
+    window.__t0 = 0;
+    const watch = (ms = 1600) => {
+      window.__t0 = performance.now();
+      window.__samples = [];
+      const tick = () => {
+        window.__samples.push(sample(window.__t0));
+        if (performance.now() - window.__t0 < ms) requestAnimationFrame(tick);
+      };
+      requestAnimationFrame(tick);
+    };
+
+    window.agentClose = {
+      async prepare() {
+        const bar = await waitFor(() => document.querySelector(".subagents .bar"), "subagent bar");
+        if (bar.getAttribute("aria-expanded") !== "true") bar.click();
+        await waitFor(() => document.querySelector("[data-view-agent='agent-a']"), "view button");
+        return true;
+      },
+      async open(id) {
+        await this.prepare();
+        const button = document.querySelector(`[data-view-agent='${id}']`);
+        const origin = box(button);
+        button.click();
+        await waitFor(() => document.querySelector("dialog.agent-modal, .side-dock"), "dock");
+        await new Promise((resolve) => setTimeout(resolve, 320));
+        return { origin, open: sample(performance.now()) };
+      },
+      async close() {
+        const button = await waitFor(
+          () => document.querySelector("dialog.agent-modal button[aria-label='关闭'], .side-dock button[aria-label='关闭'], .dock-live button[aria-label='关闭'], .dock-task button[aria-label='关闭']"),
+          "close button",
+        );
+        watch();
+        button.click();
+        return true;
+      },
+      repeatClose() {
+        const button = document.querySelector("dialog.agent-modal button[aria-label='关闭']");
+        button?.click();
+        return Boolean(button);
+      },
+      dispatchView(id) {
+        const button = document.querySelector(`[data-view-agent='${id}']`);
+        const rect = button?.getBoundingClientRect();
+        window.dispatchEvent(new CustomEvent("hp-view-subagent", {
+          detail: {
+            id,
+            parentId: "parent-probe",
+            origin: rect && rect.width >= 1 ? { x: rect.x, y: rect.y, width: rect.width, height: rect.height } : { x: 40, y: 700, width: 48, height: 32 },
+          },
+        }));
+        return true;
+      },
+      dispatch(name, detail) {
+        window.dispatchEvent(new CustomEvent(name, { detail }));
+        return true;
+      },
+      watch,
+      samples() { return window.__samples; },
+      now() { return sample(window.__t0 || performance.now()); },
+    };
+    window.ready = true;
+  </script>
+</body>
+</html>

@@ -1,0 +1,84 @@
+/* Transparent glass for the selected floating surfaces.
+   CSS approximates the material; it is not native iOS refraction. */
+:root {
+  --glass-edge: 0.18;
+  --glass-glint: 0.22;
+  --glass-solid: transparent;
+  --glass-border: var(--border);
+  --glass-filter: blur(3px) saturate(170%);
+  --glass-fill: none;
+  --context-glass-filter: blur(10px) saturate(170%);
+  --context-glass-solid: rgb(255 255 255 / 0.72);
+  --context-ink: #000;
+  --context-ink-strong: #000;
+  --context-ink-muted: #000;
+  --glass-inset: inset 0 1px 0 rgb(255 255 255 / var(--glass-glint)),
+    inset 0 -1px 0 rgb(255 255 255 / var(--glass-edge));
+}
+
+:root[data-theme="dark"] {
+  --glass-edge: 0.08;
+  --glass-glint: 0.12;
+  --context-glass-solid: transparent;
+  --context-ink: var(--text-secondary);
+  --context-ink-strong: var(--text);
+  --context-ink-muted: var(--text-tertiary);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --glass-edge: 0.08;
+    --glass-glint: 0.12;
+    --context-glass-solid: transparent;
+    --context-ink: var(--text-secondary);
+    --context-ink-strong: var(--text);
+    --context-ink-muted: var(--text-tertiary);
+  }
+}
+
+/* Without backdrop support, keep text legible with the existing surface. */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root,
+  :root[data-theme="dark"] {
+    --glass-filter: none;
+    --glass-solid: var(--bg-elevated);
+    --context-glass-filter: none;
+    --context-glass-solid: var(--bg-elevated);
+    --glass-inset: inset 0 0 0 transparent;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    :root:not([data-theme="light"]) {
+      --glass-filter: none;
+      --glass-solid: var(--bg-elevated);
+      --context-glass-filter: none;
+      --context-glass-solid: var(--bg-elevated);
+      --glass-inset: inset 0 0 0 transparent;
+    }
+  }
+}
+
+@media (prefers-reduced-transparency: reduce), (prefers-contrast: more), (forced-colors: active) {
+  :root,
+  :root[data-theme="dark"] {
+    --glass-filter: none;
+    --glass-solid: var(--bg-elevated);
+    --context-glass-filter: none;
+    --context-glass-solid: var(--bg-elevated);
+    --glass-inset: inset 0 0 0 transparent;
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  @media (prefers-reduced-transparency: reduce), (prefers-contrast: more), (forced-colors: active) {
+    :root:not([data-theme="light"]) {
+      --glass-filter: none;
+      --glass-solid: var(--bg-elevated);
+      --context-glass-filter: none;
+      --context-glass-solid: var(--bg-elevated);
+      --glass-inset: inset 0 0 0 transparent;
+    }
+  }
+}

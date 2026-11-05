@@ -2,6 +2,7 @@ import { contrastRatio, ensureContrast, mix, parseColor, relativeLuminance, toHe
 import type { SkinBranding, SkinColors } from '@hermes/shared/skin'
 
 import { desaturate, grayOf, liftForContrast } from './lib/color.js'
+import { displayBrandCopy, displayBrandName, PRODUCT_NAME } from './productDisplay.js'
 
 export interface ThemeColors {
   primary: string
@@ -252,7 +253,7 @@ export function themeToneHex(tone: string): string {
 // ── Defaults ─────────────────────────────────────────────────────────
 
 const BRAND: ThemeBrand = {
-  name: 'Hermes Agent',
+  name: PRODUCT_NAME,
   icon: '☤',
   prompt: '❯',
   welcome: 'Type your message or /help for commands.',
@@ -953,11 +954,11 @@ export function fromSkin(
       color: adapted,
 
       brand: {
-        name: branding.agent_name ?? d.brand.name,
+        name: displayBrandName(branding.agent_name, d.brand.name),
         icon: d.brand.icon,
         prompt: cleanPromptSymbol(branding.prompt_symbol, d.brand.prompt),
-        welcome: branding.welcome ?? d.brand.welcome,
-        goodbye: branding.goodbye ?? d.brand.goodbye,
+        welcome: displayBrandCopy(branding.welcome, d.brand.welcome),
+        goodbye: displayBrandCopy(branding.goodbye, d.brand.goodbye),
         tool: toolPrefix || d.brand.tool,
         helpHeader: branding.help_header ?? (helpHeader || d.brand.helpHeader)
       },

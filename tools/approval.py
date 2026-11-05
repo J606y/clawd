@@ -961,7 +961,7 @@ def _human_decision(spec: _GateSpec, *, command: str, description: str,
 def _presence(approval_callback=None) -> tuple:
     """``(approval_callback, is_cli, is_gateway, is_ask)`` for the current context.
 
-    Single-query ``-q`` and cron clear the presence trio: ``hermes chat -q`` exports
+    Single-query ``-q`` and cron clear the presence trio: ``clawd chat -q`` exports
     HERMES_INTERACTIVE=1 for sudo prompts, and a gateway sets HERMES_EXEC_ASK=1 at startup and
     passes its environ to every external cron worker (#110932) — in neither can a human answer
     the card, so the gate must resolve from ``approvals.<ctx>_mode`` instead of parking on a

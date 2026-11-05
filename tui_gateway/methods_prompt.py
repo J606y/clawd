@@ -318,7 +318,7 @@ def _legacy_group_fence_error(rid, session, params):
     if hosted or peer:
         owner = "its gateway" if hosted else "its home host"
         return _err(
-            rid, 4122, f"This room is managed by {owner}. Update Hermes Desktop to continue it.")
+            rid, 4122, f"This room is managed by {owner}. Update clawd to continue it.")
     return None
 
 
@@ -348,7 +348,7 @@ def _parse_truncation_params(rid, sid, session, params, history):
         rid, 4029,
         "truncation parameters require confirm_truncate=true; "
         "an ordinary prompt.submit must not drop session history "
-        "(update your Hermes client if a rewind was intended)")
+        "(update your clawd client if a rewind was intended)")
 
 
 def _resolve_truncation_ordinal(rid, sid, session, params, history):
@@ -628,6 +628,7 @@ def _persist_session_row_for_submit(rid, session, text=None, display_kind=None):
     here), then the message itself (#111868: a freeze during the first build must leave a
     resumable transcript); the error reply is the only user-visible signal (desktop maps it to a toast)."""
     from hermes_state_user_copy import describe_storage_failure
+    from clawd_projects.inheritance import ProjectInheritanceError
     try:
         if _ensure_session_db_row(session) is False:
             failure = describe_storage_failure(_db_error)
@@ -645,6 +646,13 @@ def _persist_session_row_for_submit(rid, session, text=None, display_kind=None):
                     _reopen_if_finalized(db, str(session.get("session_key") or ""))
             _persist_submit_user_row(session, text, display_kind)
             return None
+    except ProjectInheritanceError as exc:
+        logger.warning("prompt.submit: project inheritance failed: %s", exc, exc_info=True)
+        error = _err(
+            rid, 5073,
+            "Project inheritance failed, so this message was not sent and no model or tool ran. "
+            f"{exc}",
+        )
     except Exception as exc:
         failure = describe_storage_failure(exc)
         if failure.code == "disk_full":

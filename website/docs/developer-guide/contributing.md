@@ -1,12 +1,12 @@
 ---
 sidebar_position: 4
 title: "Contributing"
-description: "How to contribute to Hermes Agent — dev setup, code style, PR process"
+description: "How to contribute to clawd — dev setup, code style, PR process"
 ---
 
 # Contributing
 
-Thank you for contributing to Hermes Agent! This guide covers setting up your dev environment, understanding the codebase, and getting your PR merged.
+Thank you for contributing to clawd! This guide covers setting up your dev environment, understanding the codebase, and getting your PR merged.
 
 ## Contribution Priorities
 
@@ -23,7 +23,7 @@ We value contributions in this order:
 ## Contribution rubric
 
 The project's intent layer, summarised in the root `AGENTS.md`; this is the long form with the
-examples. Hermes ships a lot: most merges are bug fixes and the product surface (platforms,
+examples. clawd ships a lot: most merges are bug fixes and the product surface (platforms,
 providers, models, desktop/TUI features) expands on purpose. The restraint targets the core agent
 and the model tool schema, where every addition is paid for on every API call: expansive at the
 edges, conservative at the waist.
@@ -34,7 +34,7 @@ edges, conservative at the waist.
   where it manifests, and fix the whole bug class — sibling call paths included.
 - **Expand reach at the edges.** New adapters, channels, providers, models, desktop/TUI/
   dashboard features land routinely, including large ones — as long as they integrate with
-  the existing setup/config UX (`hermes tools`, `hermes setup`, auto-install) rather than
+  the existing setup/config UX (`clawd tools`, `clawd setup`, auto-install) rather than
   bolting on a raw env var.
 - **Refactor god-files into clean modules.** Huge mechanical `+N/-N` extraction PRs are
   wanted work. "Every line traces to the request" applies to *feature* PRs; a declared
@@ -76,14 +76,14 @@ edges, conservative at the waist.
   (`git log -p -S`) before restricting behavior; find a fix that preserves the feature.
 - **Outbound telemetry / usage attribution without opt-in gating.** No analytics,
   third-party identifier tagging, or attribution tags until a generic user-facing opt-in
-  (config gate + setup prompt + `hermes tools` toggle) exists. Park behind a label.
+  (config gate + setup prompt + `clawd tools` toggle) exists. Park behind a label.
 - **Change-detector tests, cache-breaking mid-conversation, dead code wired in without E2E
   proof, plugins that touch core files.** Plugins work within the ABCs/hooks we provide; if
   one needs more, widen the generic plugin surface, never special-case it in core.
 - **Third-party products integrated into the core tree.** Observability backends, vendor
   SaaS connectors, analytics dashboards, and other "someone else's product" plugins do NOT
   land under `plugins/` — every one becomes our burden against a fast-moving core for a
-  backend we don't own. Ship as a **standalone plugin repo** (`~/.hermes/plugins/` or pip
+  backend we don't own. Ship as a **standalone plugin repo** (`~/.clawd/plugins/` or pip
   entry point), promoted in the Nous Research Discord `#plugins-skills-and-skins`. This is a
   coupling decision, not a quality bar; such PRs are closed with a pointer to publish.
 
@@ -122,14 +122,14 @@ Choose the highest (least-footprint) rung that correctly solves the problem:
 
 1. **Extend existing code** — a variation of something that exists. Zero new surface.
 2. **CLI command + skill** — config/state/infra expressible as shell commands; the agent runs
-   `hermes <subcommand>` guided by a skill. Default for subscriptions, scheduled tasks,
-   service setup (`hermes webhook`, `hermes cron`, `hermes tools`).
+   `clawd <subcommand>` guided by a skill. Default for subscriptions, scheduled tasks,
+   service setup (`clawd webhook`, `clawd cron`, `clawd tools`).
 3. **Service-gated tool (`check_fn`)** — needs structured params/returns AND only appears when
    a prerequisite is configured (Home Assistant tools, memory-provider tools). This rung gates
    reachability/opt-in process-wide; a capability that varies per SESSION (who is watching) is
    a named toolset folded in by the toolset resolver, not a `check_fn` — see `tools/AGENTS.md` § "Surface
    capability is a property of the SESSION".
-4. **Plugin** — third-party/niche/user-specific; lives in `~/.hermes/plugins/` or a pip
+4. **Plugin** — third-party/niche/user-specific; lives in `~/.clawd/plugins/` or a pip
    package, discovered at runtime.
 5. **MCP server (in the catalog)** — genuinely a tool but not core-fundamental. Zero permanent
    core-schema footprint, reusable by any MCP host, reached via the built-in MCP client.
@@ -139,8 +139,8 @@ Choose the highest (least-footprint) rung that correctly solves the problem:
 
 ## Common contribution paths
 
-- Building a custom/local tool without modifying Hermes core? Start with [Build a Hermes Plugin](../developer-guide/plugins/index.md)
-- Building a new built-in core tool for Hermes itself? Start with [Adding Tools](./adding-tools.md)
+- Building a custom/local tool without modifying clawd core? Start with [Build a clawd Plugin](../developer-guide/plugins/index.md)
+- Building a new built-in core tool for clawd itself? Start with [Adding Tools](./adding-tools.md)
 - Building a new skill? Start with [Creating Skills](./creating-skills.md)
 - Building a new inference provider? Start with [Adding Providers](./adding-providers.md)
 
@@ -167,18 +167,18 @@ Bash:
 
 ```bash
 source ./activate
-hermes --version
+clawd --version
 ```
 
 PowerShell:
 
 ```powershell
 . .\activate.ps1
-hermes --version
+clawd --version
 ```
 
-Run `hermes` for this checkout. Activation defines it as a function for this
-worktree, so it hides a global `hermes` alias and refuses outside the worktree.
+Run `clawd` for this checkout. Activation defines it as a function for this
+worktree, so it hides a global `clawd` alias and refuses outside the worktree.
 PM activation syncs tools and Python dependencies before adding them to the shell. It does
 not install JS workspaces or rewrite launchers and shell configuration. `deactivate` restores the prior shell environment and removes the function.
 
@@ -218,7 +218,7 @@ This test environment does not replace PM's application selection or tool
 store. Do not point a bundled app at it or install into an MSIX payload.
 
 For an isolated development instance, select a disposable `HERMES_HOME` before
-starting the source command. Use `hermes setup` to configure it rather
+starting the source command. Use `clawd setup` to configure it rather
 than copying production credentials into the checkout.
 
 ### JavaScript workspaces and website
@@ -236,7 +236,7 @@ Native desktop dependencies can also require the platform build toolchain.
 
 Logos and icons are generated from `assets/nous-girl-*.svg` and
 `assets/backgrounds/`. `node scripts/generate-icons.mjs` renders them with the
-Hermes runtime Python (`HERMES_PYTHON`, else `python` on PATH): Pillow and
+clawd runtime Python (`HERMES_PYTHON`, else `python` on PATH): Pillow and
 resvg-py are core dependencies. Do not commit generated PNG/ICO/ICNS outputs.
 
 ### Run tests
@@ -268,7 +268,7 @@ See [Package management](../reference/package-management.md) for PM commands and
 - **Comments**: Only when explaining non-obvious intent, trade-offs, or API quirks
 - **Error handling**: Catch specific exceptions. Use `logger.warning()`/`logger.error()` with `exc_info=True` for unexpected errors
 - **Cross-platform**: Never assume Unix (see below)
-- **Profile-safe paths**: Never hardcode `~/.hermes` — use `get_hermes_home()` from `hermes_constants` for code paths and `display_hermes_home()` for user-facing messages. See [AGENTS.md](https://github.com/NousResearch/hermes-agent/blob/main/AGENTS.md#profiles-multi-instance-support) for full rules.
+- **Profile-safe paths**: Never hardcode `~/.clawd` — use `get_hermes_home()` from `hermes_constants` for code paths and `display_hermes_home()` for user-facing messages. See [AGENTS.md](https://github.com/NousResearch/hermes-agent/blob/main/AGENTS.md#profiles-multi-instance-support) for full rules.
 
 ## Cross-Platform Compatibility
 
@@ -311,7 +311,7 @@ Use `pathlib.Path` instead of string concatenation with `/`.
 
 ## Security Considerations
 
-Hermes has terminal access. Security matters.
+clawd has terminal access. Security matters.
 
 ### Existing Protections
 
@@ -348,7 +348,7 @@ refactor/description   # Code restructuring
 ### Before Submitting
 
 1. **Run tests**: `scripts/run_tests.sh` for CI-parity. Use direct `python -m pytest ...` only when the wrapper is unavailable or you are intentionally debugging outside the wrapper.
-2. **Test manually**: Run `hermes` and exercise the code path you changed
+2. **Test manually**: Run `clawd` and exercise the code path you changed
 3. **Check cross-platform impact**: Consider macOS, Linux, WSL2, and native Windows. If you touch file I/O, process management, terminal handling, subprocesses, or signals, run `scripts/check-windows-footguns.py`.
 4. **Keep PRs focused**: One logical change per PR
 5. **Prompt or tool-schema changes**: if `tests/ci/test_prompt_surface.py` fails, your change alters the system prompt or a tool schema that every session sends. Regenerate with `scripts/run-in-hermes-env python scripts/ci/prompt_surface.py render` and commit the snapshot. Changes there need a maintainer approval (see [Prompt Assembly](./prompt-assembly.md#reviewing-changes-to-the-prompt-surface)).
@@ -392,7 +392,7 @@ fix(security): prevent shell injection in sudo password piping
 
 ### Repo-local review checklists: `.agents/checks/*.md`
 
-Projects built on (or reviewed by) Hermes can keep reviewer checklists inside the repository under `.agents/checks/`. Each file is a focused, plain-markdown checklist that an agent loads before reviewing a change touching the matching area:
+Projects built on (or reviewed by) clawd can keep reviewer checklists inside the repository under `.agents/checks/`. Each file is a focused, plain-markdown checklist that an agent loads before reviewing a change touching the matching area:
 
 ```
 .agents/
@@ -409,12 +409,12 @@ Conventions that make these work well:
 - **State the trigger at the top** — which paths or change types the checklist applies to — so an agent (or human) can skip irrelevant ones cheaply.
 - Keep them in version control next to the code they guard: they evolve with the codebase, and a PR that changes the rules changes the checklist in the same diff.
 
-When you ask Hermes to review a PR in a repository that has `.agents/checks/`, tell it (or teach it via a skill) to read the relevant checklists first and report against them. This gives review agents the project-specific bar that generic review prompts miss.
+When you ask clawd to review a PR in a repository that has `.agents/checks/`, tell it (or teach it via a skill) to read the relevant checklists first and report against them. This gives review agents the project-specific bar that generic review prompts miss.
 
 ## Reporting Issues
 
 - Use [GitHub Issues](https://github.com/NousResearch/hermes-agent/issues)
-- Include: OS, Python version, Hermes version (`hermes --version`), full error traceback
+- Include: OS, Python version, clawd version (`clawd --version`), full error traceback
 - Include steps to reproduce
 - Check existing issues before creating duplicates
 - For security vulnerabilities, please report privately

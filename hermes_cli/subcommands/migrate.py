@@ -1,4 +1,4 @@
-"""``hermes migrate`` subcommand parser."""
+"""``clawd migrate`` subcommand parser."""
 
 from __future__ import annotations
 
@@ -31,11 +31,11 @@ def build_migrate_parser(subparsers) -> None:
     migrate_relay = migrate_subparsers.add_parser(
         "relay", help="Convert legacy HERMES_NEMO_RELAY_ATIF_*/ATOF_* exporter vars into relay-plugins.toml",
         description="The NeMo Relay cutover stopped reading the legacy exporter variables. Generate "
-            "<hermes home>/relay-plugins.toml from them, point HERMES_NEMO_RELAY_PLUGINS_TOML at it, "
-            "and comment the legacy lines out. `hermes update` runs this for every profile automatically.")
+            "<clawd home>/relay-plugins.toml from them, point HERMES_NEMO_RELAY_PLUGINS_TOML at it, "
+            "and comment the legacy lines out. `clawd update` runs this for every profile automatically.")
     migrate_relay.add_argument(
         "--all-profiles", action="store_true",
-        help="Migrate the default home and every named profile (what `hermes update` does)")
+        help="Migrate the default home and every named profile (what `clawd update` does)")
     migrate_relay.add_argument(
         "--no-validate", action="store_true",
         help="Skip activating the generated file through Relay's validator before writing it")
@@ -45,14 +45,14 @@ def build_migrate_parser(subparsers) -> None:
 
 
 def _add_agent_import_parsers(migrate_subparsers) -> None:
-    """``hermes migrate <agent>``: one per importer setup offers; runs the agent-importers plugin's
-    ``hermes import-agent <agent>`` (installing the plugin first when it is missing)."""
+    """``clawd migrate <agent>``: one per importer setup offers; runs the agent-importers plugin's
+    ``clawd import-agent <agent>`` (installing the plugin first when it is missing)."""
     from hermes_cli.migrate import cmd_migrate_agent
     from hermes_cli.setup_agent_import import IMPORT_SOURCES
 
     for source in IMPORT_SOURCES:
         sub = migrate_subparsers.add_parser(
-            source.name, help=f"Import your {source.label} setup into Hermes",
+            source.name, help=f"Import your {source.label} setup into clawd",
             description=f"Import your {source.label} setup into the active profile through the "
                 "agent-importers plugin (installed from the plugin catalog when missing). Always "
                 "previews first and asks before changing anything.")

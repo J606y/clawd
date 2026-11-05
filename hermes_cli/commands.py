@@ -1,4 +1,4 @@
-"""Slash command registry for the Hermes CLI and gateway.
+"""Slash command registry for the clawd CLI and gateway.
 
 Every consumer -- CLI help, gateway dispatch, Telegram BotCommands, Slack
 subcommand mapping, autocomplete -- derives from ``COMMAND_REGISTRY``. To add a
@@ -114,7 +114,7 @@ COMMAND_REGISTRY: list[CommandDef] = [
                aliases=("compact",), args_hint="[here [N] | focus topic | --preview|--dry-run]"),
     CommandDef("rollback", "List or restore filesystem checkpoints (restores keep your hand-edits; --all overrides)", "Session",
                args_hint="[number] [--all]"),
-    CommandDef("snapshot", "Create or restore state snapshots of Hermes config/state", "Session",
+    CommandDef("snapshot", "Create or restore state snapshots of clawd config/state", "Session",
                cli_only=True, aliases=("snap",), args_hint="[create|restore <id>|prune]",
                desktop="terminal"),
     CommandDef("export", "Export a profile (config, skills, theme) to a shareable archive", "Configuration",
@@ -123,7 +123,7 @@ COMMAND_REGISTRY: list[CommandDef] = [
                cli_only=True, args_hint="<archive.tar.gz> [--name <name>]"),
     CommandDef("stop", "Kill all running background processes", "Session",
                busy_policy="interrupt_then_dispatch", busy_handler="stop"),
-    CommandDef("discard", "Drop a turn lost when Hermes restarted so this chat's queue runs again", "Session",
+    CommandDef("discard", "Drop a turn lost when clawd restarted so this chat's queue runs again", "Session",
                gateway_only=True, busy_policy="dispatch"),
     CommandDef("pause", "Pause new work globally (emergency stop); '/pause off' resumes", "Session",
                gateway_only=True, args_hint="[reason | off]", busy_policy="dispatch"),
@@ -146,7 +146,7 @@ COMMAND_REGISTRY: list[CommandDef] = [
                busy_policy="dispatch", busy_handler="queue"),
     CommandDef("steer", "Inject a message after the next tool call without interrupting", "Session",
                aliases=("s",), args_hint="<prompt>", busy_policy="dispatch", busy_handler="steer"),
-    CommandDef("goal", "Set a standing goal Hermes works on across turns until achieved", "Session",
+    CommandDef("goal", "Set a standing goal clawd works on across turns until achieved", "Session",
                args_hint="[text | -- <text> | draft <text> | show | gate add <cmd> | pause | resume | clear | status | wait <pid> | unwait]",
                argument_mode="mixed", busy_policy="dispatch", busy_handler="goal"),
     CommandDef("heartbeat", "Set a recurring prompt that re-enters this session when idle", "Session",
@@ -236,7 +236,7 @@ COMMAND_REGISTRY: list[CommandDef] = [
                desktop="composer-voice"),
     CommandDef("wake", "Toggle the 'Hey Hermes' wake word listener", "Configuration",
                cli_only=True, args_hint="[on|off|status]", subcommands=("on", "off", "status")),
-    CommandDef("busy", "Control how messages behave while Hermes is working", "Configuration",
+    CommandDef("busy", "Control how messages behave while clawd is working", "Configuration",
                args_hint="[queue|steer|interrupt|status]",
                subcommands=("queue", "steer", "interrupt", "status"),
                busy_policy="dispatch", desktop="terminal"),
@@ -300,7 +300,7 @@ COMMAND_REGISTRY: list[CommandDef] = [
                cli_only=True, desktop="terminal"),
     CommandDef("reload-mcp", "Reload MCP servers from config", "Tools & Skills",
                aliases=("reload_mcp",), desktop="advanced"),
-    CommandDef("reload-skills", "Re-scan ~/.hermes/skills/ for newly installed or removed skills",
+    CommandDef("reload-skills", "Re-scan ~/.clawd/skills/ for newly installed or removed skills",
                "Tools & Skills", aliases=("reload_skills",), desktop="advanced"),
     CommandDef("browser", "Connect browser tools to your live Chromium-family browser via CDP", "Tools & Skills",
                cli_only=True, args_hint="[connect|disconnect|status]",
@@ -337,9 +337,9 @@ COMMAND_REGISTRY: list[CommandDef] = [
                cli_only=True, desktop="terminal"),
     CommandDef("image", "Attach a local image file for your next prompt", "Info",
                cli_only=True, args_hint="<path>", desktop="terminal"),
-    CommandDef("update", "Update Hermes Agent to the latest version", "Info",
+    CommandDef("update", "Update clawd to the latest version", "Info",
                busy_policy="dispatch", desktop="terminal"),
-    CommandDef("version", "Show Hermes Agent version", "Info", aliases=("v",),
+    CommandDef("version", "Show clawd version", "Info", aliases=("v",),
                busy_policy="dispatch", execute="version"),
     CommandDef("debug", "Upload debug report (system info + logs) and get shareable links", "Info",
                args_hint="[nous|local]"),

@@ -1,4 +1,4 @@
-"""``hermes mcp`` subcommand parser."""
+"""``clawd mcp`` subcommand parser."""
 
 from __future__ import annotations
 
@@ -12,8 +12,8 @@ def build_mcp_parser(subparsers, *, cmd_mcp: Callable) -> None:
         "mcp", help="Manage MCP server connections",
         description="Manage MCP server connections.\n\n"
             "MCP servers provide additional tools via the Model Context Protocol.\n"
-            "Use 'hermes mcp add' to connect to a new server. Running Hermes itself as an\n"
-            "MCP server is the mcp-serve plugin: `hermes plugins install mcp-serve`.")
+            "Use 'clawd mcp add' to connect to a new server. Running clawd itself as an\n"
+            "MCP server is the mcp-serve plugin: `clawd plugins install mcp-serve`.")
     mcp_sub = mcp_parser.add_subparsers(dest="mcp_action")
 
     mcp_add_p = mcp_sub.add_parser("add", help="Add an MCP server (discovery-first install)")
@@ -61,10 +61,10 @@ def build_mcp_parser(subparsers, *, cmd_mcp: Callable) -> None:
 
     # Catalog (Nous-approved MCPs shipped with the repo)
     mcp_sub.add_parser(
-        "picker", help="Interactive catalog picker (also the default for `hermes mcp`)")
+        "picker", help="Interactive catalog picker (also the default for `clawd mcp`)")
     mcp_sub.add_parser("catalog", help="List Nous-approved MCPs available for one-click install")
     mcp_install_p = mcp_sub.add_parser(
-        "install", help="Install a catalog MCP by name (e.g. `hermes mcp install deepwiki`)")
+        "install", help="Install a catalog MCP by name (e.g. `clawd mcp install deepwiki`)")
     mcp_install_p.add_argument("identifier", help="Catalog entry name (or `official/<name>`)")
 
     mcp_parser.set_defaults(func=cmd_mcp)

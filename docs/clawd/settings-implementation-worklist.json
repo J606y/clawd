@@ -1,0 +1,129 @@
+{
+  "meta": {
+    "stage": "contract-only",
+    "runtimeVerified": false,
+    "doNotRun": ["tests", "build", "py_compile", "import", "cli", "browser", "network", "database"],
+    "doNotTouch": [
+      "settings-zh.json",
+      "locales",
+      "docs/clawd/rebrand-*",
+      "docs/clawd/core-audit",
+      "生产配置",
+      "/root/.hermes",
+      ".env"
+    ],
+    "integratorOwns": [
+      "clawd_server/admin_routes.py",
+      "clawd_server/admin_native.py",
+      "clawd_server/admin_common.py",
+      "apps/panel/src/react/lib/admin-api.ts",
+      "apps/panel/src/react/lib/sidecar.ts",
+      "apps/panel/src/react/lib/queries.ts",
+      "apps/panel/src/react/lib/api.ts"
+    ],
+    "frozenContract": "docs/clawd/settings-core-contract.md",
+    "matrix": "docs/clawd/settings-core-matrix.json"
+  },
+  "parallelGroups": [
+    {
+      "id": "integrator",
+      "exclusive": true,
+      "files": [
+        "clawd_server/admin_routes.py",
+        "clawd_server/admin_native.py",
+        "clawd_server/admin_common.py",
+        "apps/panel/src/react/lib/admin-api.ts",
+        "apps/panel/src/react/lib/sidecar.ts",
+        "apps/panel/src/react/lib/queries.ts",
+        "apps/panel/src/react/lib/api.ts"
+      ],
+      "does": "只注册冻结路由、秘密策略、类型和 CronJobInput 可选字段。不实现各页业务。"
+    },
+    {
+      "id": "skills-backend",
+      "files": ["clawd_server/admin_skills.py"],
+      "does": "用 commit_set/commit_unset 写 skills.disabled。不调用 CLI。不改 sidecar。"
+    },
+    {
+      "id": "skills-ui",
+      "files": ["apps/panel/src/react/pages/settings/skills-tab.tsx"],
+      "does": "切换失败时显示服务端错误，不乐观地把技能画成已生效。不新增安装按钮。"
+    },
+    {
+      "id": "mcp-backend",
+      "files": ["clawd_server/admin_mcp.py"],
+      "does": "新增 create_mcp，调用 mcp_config._save_mcp_server。不改路由注册。"
+    },
+    {
+      "id": "mcp-ui",
+      "files": ["apps/panel/src/react/pages/settings/mcp-tab.tsx"],
+      "does": "新增结构化表单。不展示 env 明文。"
+    },
+    {
+      "id": "models-backend",
+      "files": ["clawd_server/admin_models.py"],
+      "does": "自定义端点安全写入与 hasKey 状态。禁止 reveal。"
+    },
+    {
+      "id": "models-ui",
+      "files": ["apps/panel/src/react/pages/settings/models-tab.tsx"],
+      "does": "端点表单只显示已设置/未设置。不回填密钥。"
+    },
+    {
+      "id": "settings-backend",
+      "files": ["clawd_server/admin_settings.py"],
+      "does": "开放对象的结构化读写。不改秘密策略文件。"
+    },
+    {
+      "id": "config-ui",
+      "files": ["apps/panel/src/react/pages/settings/config-tab.tsx"],
+      "does": "接入高级编辑和分组组件。不改 settings-zh.json。不重排现有行。"
+    },
+    {
+      "id": "zh-supplement",
+      "files": ["apps/panel/src/react/lib/settings-zh-supplement.json"],
+      "does": "只补矩阵 zhMissing 的 43 条中文。不改 settings-zh.json。"
+    },
+    {
+      "id": "tools",
+      "files": ["clawd_server/admin_tools.py", "apps/panel/src/react/pages/settings/tools-section.tsx"],
+      "does": "工具集开关。新组件，不改 config-tab.tsx。"
+    },
+    {
+      "id": "memory",
+      "files": ["clawd_server/admin_memory.py", "apps/panel/src/react/pages/settings/memory-section.tsx"],
+      "does": "记忆提供方非秘密字段。不跑 setup。不新建项目记忆页。"
+    },
+    {
+      "id": "connections",
+      "files": ["clawd_server/admin_connections.py", "apps/panel/src/react/pages/settings/connections-section.tsx"],
+      "does": "平台启用与掩码状态。不做配对流。"
+    },
+    {
+      "id": "plugins",
+      "files": ["clawd_server/admin_plugins.py", "apps/panel/src/react/pages/settings/plugins-tab.tsx"],
+      "does": "已安装插件的非秘密配置。不加热加载，不写安装器。"
+    },
+    {
+      "id": "jobs",
+      "files": ["apps/panel/src/react/pages/settings/jobs-tab.tsx"],
+      "does": "创建/编辑补 deliver、skills、repeat。不新造路由。"
+    },
+    {
+      "id": "update",
+      "files": ["apps/panel/src/react/pages/settings/update-tab.tsx"],
+      "does": "禁用态不再出现立即更新。不调用 start_update。"
+    },
+    {
+      "id": "logs",
+      "files": ["clawd_server/admin_logs.py", "apps/panel/src/react/pages/settings/logs-tab.tsx"],
+      "does": "文件日志保留。journal 源返回 501，不读 systemd。"
+    }
+  ],
+  "notTasks": [
+    "投递记录保持 501，webhooks-tab 已显示错误，不要改成空列表",
+    "不新增设置顶层 tab",
+    "不改 routes.ts",
+    "不实现宿主更新、重启、进程级配置档切换、插件热加载、环境明文查看、插件安装器、记忆 setup 命令、电脑控制授权"
+  ]
+}

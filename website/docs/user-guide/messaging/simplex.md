@@ -2,12 +2,12 @@
 
 [SimpleX Chat](https://simplex.chat/) is a private, decentralised messaging platform where users own their contacts and groups. Unlike other platforms, SimpleX assigns no persistent user IDs — every contact is identified by an opaque internal ID generated at connection time, which makes it one of the most private messengers available.
 
-> Run `hermes gateway setup` and pick **SimpleX** for a guided walk-through.
+> Run `clawd gateway setup` and pick **SimpleX** for a guided walk-through.
 
 ## Prerequisites
 
 - The **simplex-chat** CLI installed and running as a daemon
-- Python package **websockets** (`hermes pm repair`)
+- Python package **websockets** (`clawd pm repair`)
 
 ## Install simplex-chat
 
@@ -29,19 +29,19 @@ simplex-chat -p 5225
 
 The daemon listens on WebSocket at `ws://127.0.0.1:5225` by default.
 
-## Configure Hermes
+## Configure clawd
 
 ### Via setup wizard
 
 ```bash
-hermes gateway setup
+clawd gateway setup
 ```
 
 Select **SimpleX Chat** and follow the prompts.
 
 ### Via environment variables
 
-Add these to `~/.hermes/.env`:
+Add these to `~/.clawd/.env`:
 
 ```
 SIMPLEX_WS_URL=ws://127.0.0.1:5225
@@ -69,7 +69,7 @@ After starting the daemon, open a conversation with your agent contact. The nume
 By default **all contacts are denied**. You must either:
 
 1. Set `SIMPLEX_ALLOWED_USERS` to a comma-separated list of numeric `contactId`s (e.g. `SIMPLEX_ALLOWED_USERS=4,9`), or
-2. Use **DM pairing** — send any message to the bot and it will reply with a pairing code. Enter that code via `hermes pairing approve simplex <CODE>`.
+2. Use **DM pairing** — send any message to the bot and it will reply with a pairing code. Enter that code via `clawd pairing approve simplex <CODE>`.
 
 ## Group chats
 
@@ -83,22 +83,22 @@ SIMPLEX_GROUP_ALLOWED=*              # any group the bot is in
 ```
 
 Address groups by prefixing the chat ID with `group:`, e.g.
-`simplex:group:12` as a cron `deliver=` target or in a `hermes send` call.
+`simplex:group:12` as a cron `deliver=` target or in a `clawd send` call.
 
-## Sending with `hermes send`
+## Sending with `clawd send`
 
 SimpleX works as a standalone send target — the daemon must be running,
 but a live gateway is not required for plain text:
 
 ```bash
-hermes send --to simplex:alice "hello"          # DM by contact display name
-hermes send --to simplex:group:12 "hello"       # group by numeric ID
-hermes send --to simplex "hello"                # SIMPLEX_HOME_CHANNEL
+clawd send --to simplex:alice "hello"          # DM by contact display name
+clawd send --to simplex:group:12 "hello"       # group by numeric ID
+clawd send --to simplex "hello"                # SIMPLEX_HOME_CHANNEL
 ```
 
 While the gateway is running, the adapter enumerates your contacts and
 allowed groups into the channel directory (refreshed every 5 minutes), so
-`hermes send --list` shows them by name. Before the first gateway run the
+`clawd send --list` shows them by name. Before the first gateway run the
 platform still appears in `--list` with a "no channels discovered yet"
 hint — direct targets like the ones above work regardless.
 
@@ -130,22 +130,22 @@ cronjob(
 )
 ```
 
-Or target a specific contact via the cron job's `deliver:` field, or from a shell script with the [`hermes send` CLI](../../guides/pipe-script-output.md):
+Or target a specific contact via the cron job's `deliver:` field, or from a shell script with the [`clawd send` CLI](../../guides/pipe-script-output.md):
 
 ```bash
-hermes send simplex:<contact-id> "Done!"
+clawd send simplex:<contact-id> "Done!"
 ```
 
 ## Privacy notes
 
 - SimpleX never reveals phone numbers or email addresses — contacts use opaque IDs
-- The connection between Hermes and the daemon is local WebSocket (`ws://127.0.0.1:5225`) — no data leaves your machine
+- The connection between clawd and the daemon is local WebSocket (`ws://127.0.0.1:5225`) — no data leaves your machine
 - Messages are end-to-end encrypted by the SimpleX protocol before reaching the daemon
 
 ## Troubleshooting
 
 **"Cannot reach daemon"** — Ensure `simplex-chat -p 5225` is running and the port matches `SIMPLEX_WS_URL`.
 
-**"websockets not installed"** — Run `hermes pm repair`.
+**"websockets not installed"** — Run `clawd pm repair`.
 
 **Messages not received** — Check that the contact's ID is in `SIMPLEX_ALLOWED_USERS` or approve them via DM pairing.

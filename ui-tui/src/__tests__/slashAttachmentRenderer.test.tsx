@@ -308,3 +308,72 @@ it('`/queue` with an image journals its attachment in the first durable write', 
       [expect.objectContaining({ mime: 'image/png' })]])
   } finally { save.mockRestore(); h.close() }
 })
+
+const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl2nL8AAAAASUVORK5CYII=', 'base64')
+
+// These three tests mock `savePendingInput` itself. A thrown "disk full" here does not
+// reach `writeFileSync`/`renameSync`, so it is not evidence that ENOSPC or EACCES was handled.
+// Replacement coverage for those errors is `queueJournalReplacement.test.tsx`.
+it('a non-permission journal error keeps the caption and image, then retries once', async () => {
+  const h = mount(true)
+  vi.stubEnv('HERMES_TUI_GATEWAY_URL', '')
+  const path = join(h.home, 'shot.png')
+  writeFileSync(path, png)
+  const real = pendingInputs.savePendingInput
+  const save = vi.spyOn(pendingInputs, 'savePendingInput')
+
+  try {
+    await h.submit(`/image ${path}`)
+    await vi.waitFor(() => expect(h.composer.state.input).toContain('[[ Image 1 ]]'))
+    save.mockImplementation(() => { throw new Error('disk full') })
+    await h.submit('caption [[ Image 1 ]]')
+    expect(h.request.mock.calls.some(([method]) => method === 'prompt.submit')).toBe(false)
+    expect(h.composer.state.input).toBe('caption [[ Image 1 ]]')
+    expect(h.composer.refs.tokensRef.current).toEqual([expect.objectContaining({ kind: 'image', mime: 'image/png' })])
+    expect(getUiState().status).toBe('input not saved')
+    save.mockImplementation(item => real(item))
+    await h.submit('caption [[ Image 1 ]]')
+    await vi.waitFor(() => expect(h.request.mock.calls.filter(([method]) => method === 'prompt.submit')).toHaveLength(1))
+    expect(h.request.mock.calls.find(([method]) => method === 'prompt.submit')![1].attachments).toHaveLength(1)
+    expect(h.composer.refs.tokensRef.current).toEqual([])
+  } finally { save.mockRestore(); h.close() }
+})
+
+it('a non-permission journal error keeps `/queue` text until the retry write holds it', async () => {
+  const h = mount(true)
+  const real = pendingInputs.savePendingInput
+  const save = vi.spyOn(pendingInputs, 'savePendingInput').mockImplementation(() => { throw new Error('disk full') })
+
+  try {
+    await h.submit('/queue later please')
+    expect(h.composer.state.input).toBe('/queue later please')
+    expect(h.composer.refs.queueRef.current).toEqual([])
+    expect(getUiState().status).toBe('input not saved')
+    save.mockImplementation(item => real(item))
+    await h.submit('/queue later please')
+    expect(h.composer.state.input).toBe('')
+    expect(h.composer.refs.queueRef.current.map(item => item.text)).toEqual(['later please'])
+  } finally { save.mockRestore(); h.close() }
+})
+
+it('a non-permission attempt write leaves the same queue head claimable for one retry', async () => {
+  const h = mount(true)
+  const real = pendingInputs.savePendingInput
+
+  try {
+    h.composer.actions.enqueue('later please')
+    const save = vi.spyOn(pendingInputs, 'savePendingInput').mockImplementation(() => { throw new Error('disk full') })
+
+    try {
+      expect(h.composer.actions.dequeue()).toBeUndefined()
+      expect(h.composer.refs.queueRef.current).toHaveLength(1)
+      expect(h.composer.refs.queueRef.current[0]).toMatchObject({ text: 'later please' })
+      expect(h.composer.refs.queueRef.current[0]!.inFlight).toBeFalsy()
+      save.mockImplementation(item => real(item))
+      const claimed = h.composer.actions.dequeue()
+      expect(claimed).toMatchObject({ text: 'later please', inFlight: true })
+      expect(h.composer.refs.queueRef.current.filter(item => item.text === 'later please')).toHaveLength(1)
+      expect(typeof claimed!.settle).toBe('function')
+    } finally { save.mockRestore() }
+  } finally { h.close() }
+})

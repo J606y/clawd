@@ -11,26 +11,26 @@ The API server exposes hermes-agent as an OpenAI-compatible HTTP endpoint. Any f
 Your agent handles requests with its full toolset (terminal, file operations, web search, memory, skills) and returns the final response. When streaming, tool progress indicators appear inline so frontends can show what the agent is doing.
 
 :::tip One backend covers models + tools
-Hermes itself needs a configured provider and tool backends for the API server to be useful. A [Nous Portal](./tool-gateway.md) subscription handles both — 300+ models plus web/image/TTS/browser via the Tool Gateway. Run `hermes setup --portal` once before starting the API server and frontends like Open WebUI or LobeChat get a fully tool-equipped backend.
+clawd itself needs a configured provider and tool backends for the API server to be useful. A [Nous Portal](./tool-gateway.md) subscription handles both — 300+ models plus web/image/TTS/browser via the Tool Gateway. Run `clawd setup --portal` once before starting the API server and frontends like Open WebUI or LobeChat get a fully tool-equipped backend.
 :::
 
 ## Quick Start
 
 ### 1. Enable the API server
 
-Add to `~/.hermes/.env`:
+Add to `~/.clawd/.env`:
 
 ```bash
 API_SERVER_ENABLED=true
 API_SERVER_KEY=change-me-local-dev
-# Optional: only if a browser must call Hermes directly
+# Optional: only if a browser must call clawd directly
 # API_SERVER_CORS_ORIGINS=http://localhost:3000
 ```
 
 ### 2. Start the gateway
 
 ```bash
-hermes gateway
+clawd gateway
 ```
 
 You'll see:
@@ -211,13 +211,13 @@ Standard OpenAI Chat Completions format. Stateless — the full conversation is 
 
 Uploaded files (`file` / `input_file` / `file_id`) and non-image `data:` URLs return `400 unsupported_content_type`.
 
-**Streaming** (`"stream": true`): Returns Server-Sent Events (SSE) with token-by-token response chunks. For **Chat Completions**, the stream uses standard `chat.completion.chunk` events plus Hermes' custom `hermes.tool.progress` event for tool-start UX. For **Responses**, the stream uses OpenAI Responses event types such as `response.created`, `response.output_text.delta`, `response.output_item.added`, `response.output_item.done`, and `response.completed`.
+**Streaming** (`"stream": true`): Returns Server-Sent Events (SSE) with token-by-token response chunks. For **Chat Completions**, the stream uses standard `chat.completion.chunk` events plus clawd's custom `hermes.tool.progress` event for tool-start UX. For **Responses**, the stream uses OpenAI Responses event types such as `response.created`, `response.output_text.delta`, `response.output_item.added`, `response.output_item.done`, and `response.completed`.
 
 All SSE streams (Chat Completions, Responses, `/api/sessions/{id}/chat/stream`, `/v1/runs/{id}/events`) emit a `: keepalive` comment line whenever no event has been sent for 10 seconds, so long tool calls do not trip client idle timeouts. Standard SSE clients ignore comment lines; custom parsers must skip lines that start with `:`.
 
 **Tool progress in streams**:
-- **Chat Completions**: Hermes emits `event: hermes.tool.progress` for tool-start visibility without polluting persisted assistant text. Strict OpenAI clients that choke on named SSE events can turn these frames off with `gateway.platforms.api_server.tool_progress_events: false` (default `true`); content chunks are unaffected. The opt-out applies only to Chat Completions — `/v1/runs/{id}/events` always emits tool events, which is what the `tool_progress_events` feature in `/v1/capabilities` describes.
-- **Responses**: Hermes emits spec-native `function_call` and `function_call_output` output items during the SSE stream, so clients can render structured tool UI in real time.
+- **Chat Completions**: clawd emits `event: hermes.tool.progress` for tool-start visibility without polluting persisted assistant text. Strict OpenAI clients that choke on named SSE events can turn these frames off with `gateway.platforms.api_server.tool_progress_events: false` (default `true`); content chunks are unaffected. The opt-out applies only to Chat Completions — `/v1/runs/{id}/events` always emits tool events, which is what the `tool_progress_events` feature in `/v1/capabilities` describes.
+- **Responses**: clawd emits spec-native `function_call` and `function_call_output` output items during the SSE stream, so clients can render structured tool UI in real time.
 
 **Model reasoning** (emitted only when the model actually produces reasoning and the resolved `reasoning` config allows it; the input-side opt-out is `model_options.reasoning.enabled: false`):
 - **Chat Completions**: reasoning deltas arrive as `choices[0].delta.reasoning_content` chunks (the DeepSeek-style field Open WebUI, opencode and the Vercel AI SDK render as a thinking block); answer text stays in `delta.content`.
@@ -256,7 +256,7 @@ OpenAI Responses API format. Supports server-side conversation state via `previo
 }
 ```
 
-Tool calls in the `output` array were already executed server-side by the Hermes agent — they are replayed with `"status": "completed"` for structured tool UI, never as pending calls for the client to execute.
+Tool calls in the `output` array were already executed server-side by the clawd agent — they are replayed with `"status": "completed"` for structured tool UI, never as pending calls for the client to execute.
 
 With `"stream": true`, mid-turn assistant commentary (the `openai-codex` backend's `phase="commentary"` progress preambles, or text a model writes alongside its tool calls) arrives as its own completed `message` output item carrying `"phase": "commentary"` (`response.output_item.added` + `response.output_item.done`, also listed in `response.completed`). It is never merged into the final answer item, so clients can render it as live progress and skip it when assembling the reply. Private reasoning never reaches this item. `display.interim_assistant_messages: false` (or the `display.platforms.api_server` override) suppresses it on every API-server surface.
 
@@ -292,7 +292,7 @@ Chain responses to maintain full context (including tool calls) across turns:
 
 The server reconstructs the full conversation from the stored response chain — all previous tool calls and results are preserved. Chained requests also share the same session, so multi-turn conversations appear as a single entry in the dashboard and session history.
 
-Each response's `output` lists only that turn's items (its `function_call` / `function_call_output` entries and final `message`), never earlier turns' tool calls — including when Hermes repaired the supplied history before the call (merged consecutive `assistant` or `user` items, dropped orphan tool results) or compacted it mid-chain. The stored chain is that repaired transcript, so the history does not grow by a second copy on every turn.
+Each response's `output` lists only that turn's items (its `function_call` / `function_call_output` entries and final `message`), never earlier turns' tool calls — including when clawd repaired the supplied history before the call (merged consecutive `assistant` or `user` items, dropped orphan tool results) or compacted it mid-chain. The stored chain is that repaired transcript, so the history does not grow by a second copy on every turn.
 
 #### Named conversations
 
@@ -319,7 +319,7 @@ Delete a stored response.
 Lists the agent as an available model. The advertised model name defaults to the [profile](../profiles.md) name (or `hermes-agent` for the default profile). Required by most frontends for model discovery.
 
 `/v1/models` is intentionally the cheap OpenAI-compat surface. It does **not**
-enumerate every authenticated provider/model combination Hermes can route to,
+enumerate every authenticated provider/model combination clawd can route to,
 and it does not do pricing or capability enrichment.
 
 ### GET /api/model/options
@@ -339,7 +339,7 @@ That payload is the same substrate the dashboard Models page and the TUI
 `model.options` RPC use. It returns authenticated providers, curated model
 lists, per-model pricing, and model capability hints.
 
-Normal opens are intentionally conservative for custom providers: Hermes probes
+Normal opens are intentionally conservative for custom providers: clawd probes
 only the **currently selected** custom endpoint so a stale or offline saved
 endpoint does not block the picker. An explicit refresh flips to full probing
 and busts the provider model cache:
@@ -376,7 +376,7 @@ Returns a machine-readable description of the API server's stable surface for ex
 }
 ```
 
-Use this endpoint when integrating dashboards, browser UIs, or control planes so they can discover whether the running Hermes version supports runs, streaming, cancellation, and session continuity without depending on private Python internals.
+Use this endpoint when integrating dashboards, browser UIs, or control planes so they can discover whether the running clawd version supports runs, streaming, cancellation, and session continuity without depending on private Python internals.
 
 ## Browser-extension control (removed)
 
@@ -385,18 +385,18 @@ The browser-extension controller protocol (`POST /v1/browser-control/register`,
 `browser.controller.*` RPCs and the `browser.extension_control` config key) has
 been removed. It routed the old `browser_navigate`/`browser_click`/… tools,
 which no longer exist: browser automation is now `browser_exec` over CDP. To let
-Hermes drive a browser you already run, point it at that browser's DevTools
+clawd drive a browser you already run, point it at that browser's DevTools
 endpoint with `browser.cdp_url` in `config.yaml` or `/browser connect` — see
 [Your own browser via CDP](./browser#your-own-browser-via-cdp-browser-connect).
 Upgrading drops a leftover `browser.extension_control` block from `config.yaml`.
 
 ## Per-request model selection
 
-Authenticated clients can override Hermes' default model selection per request
+Authenticated clients can override clawd's default model selection per request
 by sending:
 
 - `model` — the target model id for this turn
-- `provider` — the Hermes provider slug to resolve credentials/runtime for this turn
+- `provider` — the clawd provider slug to resolve credentials/runtime for this turn
 - `model_options` — request-scoped reasoning / service-tier controls
 
 The same request fields are accepted on:
@@ -417,7 +417,7 @@ Precedence is deterministic:
 
 `model_options` stays request-scoped regardless of which model/provider wins.
 If a request sends a `provider` that conflicts with a configured `model_routes`
-alias, Hermes rejects the request with `400` instead of silently remixing route
+alias, clawd rejects the request with `400` instead of silently remixing route
 credentials with another provider.
 
 **Bare `model` values on the OpenAI-compatible endpoints are opt-in.** Generic
@@ -484,9 +484,9 @@ Create a new agent run. Returns a `run_id` that can be used to subscribe to prog
 }
 ```
 
-Runs accept a simple `input` string and optional `session_id`, `instructions`, `conversation_history`, or `previous_response_id`. When `session_id` is provided, Hermes surfaces it in the run status so external UIs can correlate runs with their own conversation IDs.
+Runs accept a simple `input` string and optional `session_id`, `instructions`, `conversation_history`, or `previous_response_id`. When `session_id` is provided, clawd surfaces it in the run status so external UIs can correlate runs with their own conversation IDs.
 
-For safely retryable creation, send an `Idempotency-Key` header (1–255 visible ASCII characters). Hermes durably reserves the key before starting work. An identical retry returns the original `run_id` with HTTP 202 and `Idempotency-Replayed: true`, including after a gateway restart and after the run has completed, failed, or been cancelled. Reusing the same key with a different JSON payload returns HTTP 409 with code `idempotency_key_conflict`. Keys are isolated by authenticated API profile/credential and retained for 24 hours after their last status update; clients should use unique, unguessable keys and must not reuse them for unrelated operations. Requests without the header retain the legacy behavior and always create a new run.
+For safely retryable creation, send an `Idempotency-Key` header (1–255 visible ASCII characters). clawd durably reserves the key before starting work. An identical retry returns the original `run_id` with HTTP 202 and `Idempotency-Replayed: true`, including after a gateway restart and after the run has completed, failed, or been cancelled. Reusing the same key with a different JSON payload returns HTTP 409 with code `idempotency_key_conflict`. Keys are isolated by authenticated API profile/credential and retained for 24 hours after their last status update; clients should use unique, unguessable keys and must not reuse them for unrelated operations. Requests without the header retain the legacy behavior and always create a new run.
 
 A run the gateway could not admit keeps no reservation, so an exact retry is safe. While the profile is
 draining or retiring, or when the state database stays locked past the write timeout, `POST /v1/runs`
@@ -494,7 +494,7 @@ and the run controls answer HTTP 503 (`runtime_draining` or `storage_unavailable
 a malformed control body answers 400 `invalid_params`; ownership, generation and identity refusals
 stay 409.
 
-When `session_id` identifies an existing Hermes session and no explicit
+When `session_id` identifies an existing clawd session and no explicit
 `conversation_history` or `previous_response_id` is supplied, the run loads
 that session's active transcript. Session turn leases serialize concurrent
 writers and refresh the transcript after a contended wait.
@@ -532,7 +532,7 @@ Poll the current run state. This is useful for dashboards that need status witho
 
 Statuses are retained briefly after terminal states (`completed`, `failed`, `cancelled`, or `interrupted`) for polling and UI reconciliation. When the gateway shuts down while a run is active, the run is persisted as `interrupted` (error `Gateway shutdown interrupted the run.`, terminal event `run.interrupted`) before the agent is asked to stop, so a durable run never survives a restart as `running`; a late result from the interrupted turn cannot overwrite it. A canonical run whose owner restarted mid-turn reports `unknown` instead, which is not terminal: later turns in that session wait until it is acknowledged with `POST /v1/runs/{run_id}/resolve-unknown` (below).
 
-While the gateway is still draining (a `hermes gateway stop`/`restart` or SIGTERM with a turn in flight), every non-terminal run additionally carries `shutdown_requested_at` (Unix seconds) from the moment new turns are refused. `status` stays `running` because the turn is still being served; a poller that sees the field knows the process is on its way out and the run will end `interrupted` at the latest when the drain budget expires. Terminal runs never gain the field.
+While the gateway is still draining (a `clawd gateway stop`/`restart` or SIGTERM with a turn in flight), every non-terminal run additionally carries `shutdown_requested_at` (Unix seconds) from the moment new turns are refused. `status` stays `running` because the turn is still being served; a poller that sees the field knows the process is on its way out and the run will end `interrupted` at the latest when the drain budget expires. Terminal runs never gain the field.
 
 ### GET /v1/runs/\{run_id\}/events
 
@@ -601,7 +601,7 @@ subscriber continues draining normally.
 
 After an authority-owner restart, a turn that was already claimed has an
 unknown execution outcome, and `GET /v1/runs/{run_id}` reports it as
-`"status": "unknown"` (not terminal). Hermes pauses later work in that session
+`"status": "unknown"` (not terminal). clawd pauses later work in that session
 rather than risk replaying the lost head. Read the exact `admission_id` and
 `execution_generation` from that body, then acknowledge that the
 lost execution will not finish:
@@ -648,7 +648,7 @@ this recovery control does not promise global exactly-once execution.
 
 ### POST /v1/runs/\{run_id\}/stop
 
-Interrupt a running agent turn. The endpoint returns immediately with `{"status": "stopping"}` while Hermes asks the active agent to stop at the next safe interruption point.
+Interrupt a running agent turn. The endpoint returns immediately with `{"status": "stopping"}` while clawd asks the active agent to stop at the next safe interruption point.
 The run stays tracked as `stopping` until the executor-backed work exits, then
 settles as `cancelled`; requesting stop never hides a worker that is still
 running.
@@ -686,7 +686,7 @@ List all scheduled jobs.
 
 ### POST /api/jobs
 
-Create a new scheduled job. Body accepts the same shape as `hermes cron` — prompt, schedule, skills, provider override, delivery target.
+Create a new scheduled job. Body accepts the same shape as `clawd cron` — prompt, schedule, skills, provider override, delivery target.
 
 ### GET /api/jobs/\{job_id\}
 
@@ -714,7 +714,7 @@ Trigger the job to run immediately, out of schedule.
 
 ## Sessions API (session control over REST)
 
-External UIs can manage Hermes sessions over REST without standing up the dashboard. All endpoints are gated by `API_SERVER_KEY` and live under `/api/sessions/*`.
+External UIs can manage clawd sessions over REST without standing up the dashboard. All endpoints are gated by `API_SERVER_KEY` and live under `/api/sessions/*`.
 
 | Method | Path | Description |
 |--------|------|-------------|
@@ -761,7 +761,7 @@ curl http://localhost:8642/v1/toolsets \
 
 ## Long-term memory scoping (`X-Hermes-Session-Key`)
 
-Multi-user frontends like Open WebUI need a stable per-channel identifier for long-term memory (Honcho, etc.) that is **independent** of the transcript-scoped `X-Hermes-Session-Id` (which rotates on `/new`). Pass `X-Hermes-Session-Key` on `/v1/chat/completions`, `/v1/responses`, or `/v1/runs` and Hermes threads it through to `AIAgent(gateway_session_key=...)`, where the Honcho memory provider uses it to derive a stable scope.
+Multi-user frontends like Open WebUI need a stable per-channel identifier for long-term memory (Honcho, etc.) that is **independent** of the transcript-scoped `X-Hermes-Session-Id` (which rotates on `/new`). Pass `X-Hermes-Session-Key` on `/v1/chat/completions`, `/v1/responses`, or `/v1/runs` and clawd threads it through to `AIAgent(gateway_session_key=...)`, where the Honcho memory provider uses it to derive a stable scope.
 
 ```http
 POST /v1/chat/completions HTTP/1.1
@@ -770,7 +770,7 @@ X-Hermes-Session-Id: transcript-alpha
 X-Hermes-Session-Key: agent:main:webui:dm:user-42
 ```
 
-Rules: max 256 chars, control characters (`\r`, `\n`, `\x00`) are rejected, and the value is echoed back on responses (JSON + SSE). `/v1/capabilities` advertises support via `"session_key_header": "X-Hermes-Session-Key"`. Without the key, Honcho's `per-session` strategy produces a different scope per `session_id` — exactly the behavior Hermes had before.
+Rules: max 256 chars, control characters (`\r`, `\n`, `\x00`) are rejected, and the value is echoed back on responses (JSON + SSE). `/v1/capabilities` advertises support via `"session_key_header": "X-Hermes-Session-Key"`. Without the key, Honcho's `per-session` strategy produces a different scope per `session_id` — exactly the behavior clawd had before.
 
 Automatic recall follows the **transcript**: the memory provider is initialised once per session and kept across requests, so a continued session (`X-Hermes-Session-Id`, `previous_response_id`, or a declared `X-Hermes-Session-Key` conversation) receives the recall the provider prepared after the previous turn, exactly like a Telegram or Discord chat does. A request without any continuation starts a fresh session and, like the first turn of any new CLI session, has nothing queued yet. Idle sessions release their provider after the same idle TTL as the gateway agent cache (`agent.agent_cache.idle_ttl_secs`, default one hour).
 
@@ -790,7 +790,7 @@ Bearer token auth via the `Authorization` header:
 Authorization: Bearer ***
 ```
 
-Configure the key via `API_SERVER_KEY` env var. If you need a browser to call Hermes directly, also set `API_SERVER_CORS_ORIGINS` to an explicit allowlist.
+Configure the key via `API_SERVER_KEY` env var. If you need a browser to call clawd directly, also set `API_SERVER_CORS_ORIGINS` to an explicit allowlist.
 
 ### Multi-profile routing (`/p/<profile>/…`)
 
@@ -800,7 +800,7 @@ profile through a `/p/<profile>/` URL prefix — and **authentication is bound
 to the routed profile**:
 
 - Requests to `/p/<profile>/v1/...` must present that profile's own
-  `API_SERVER_KEY` (from `~/.hermes/profiles/<profile>/.env`). The default
+  `API_SERVER_KEY` (from `~/.clawd/profiles/<profile>/.env`). The default
   listener's key is rejected on named-profile prefixes.
 - Unprefixed routes and `/p/default/...` keep using the default profile's key.
 - A named profile with no `API_SERVER_KEY` of its own fails closed — its
@@ -836,7 +836,7 @@ The API server gives full access to hermes-agent's toolset, **including terminal
 
 ### config.yaml
 
-The same settings can live in `~/.hermes/config.yaml` under a nested `gateway.api_server:` section:
+The same settings can live in `~/.clawd/config.yaml` under a nested `gateway.api_server:` section:
 
 ```yaml
 gateway:
@@ -905,30 +905,30 @@ Any frontend that supports the OpenAI API format works. Tested/documented integr
 
 ## Multi-User Setup with Profiles
 
-To give multiple users their own isolated Hermes instance (separate config, memory, skills), use [profiles](../profiles.md):
+To give multiple users their own isolated clawd instance (separate config, memory, skills), use [profiles](../profiles.md):
 
 ```bash
 # Create a profile per user
-hermes profile create alice
-hermes profile create bob
+clawd profile create alice
+clawd profile create bob
 
 # Configure each profile's API server on a different port. API_SERVER_* are env
 # vars (not config.yaml keys), so write them to each profile's .env:
-cat >> ~/.hermes/profiles/alice/.env <<EOF
+cat >> ~/.clawd/profiles/alice/.env <<EOF
 API_SERVER_ENABLED=true
 API_SERVER_PORT=8643
 API_SERVER_KEY=alice-secret
 EOF
 
-cat >> ~/.hermes/profiles/bob/.env <<EOF
+cat >> ~/.clawd/profiles/bob/.env <<EOF
 API_SERVER_ENABLED=true
 API_SERVER_PORT=8644
 API_SERVER_KEY=bob-secret
 EOF
 
 # Start each profile's gateway
-hermes -p alice gateway &
-hermes -p bob gateway &
+clawd -p alice gateway &
+clawd -p bob gateway &
 ```
 
 Each profile's API server automatically advertises the profile name as the model ID:
@@ -936,18 +936,18 @@ Each profile's API server automatically advertises the profile name as the model
 - `http://localhost:8643/v1/models` → model `alice`
 - `http://localhost:8644/v1/models` → model `bob`
 
-In Open WebUI, add each as a separate connection. The model dropdown shows `alice` and `bob` as distinct models, each backed by a fully isolated Hermes instance. See the [Open WebUI guide](../messaging/open-webui.md#multi-user-setup-with-profiles) for details.
+In Open WebUI, add each as a separate connection. The model dropdown shows `alice` and `bob` as distinct models, each backed by a fully isolated clawd instance. See the [Open WebUI guide](../messaging/open-webui.md#multi-user-setup-with-profiles) for details.
 
 ## Limitations
 
 - **Response storage** — stored responses (for `previous_response_id`) are persisted in SQLite and survive gateway restarts. Max 100 stored responses (LRU eviction).
 - **No file upload** — inline images are supported on both `/v1/chat/completions` and `/v1/responses`, but uploaded files (`file`, `input_file`, `file_id`) and non-image document inputs are not supported through the API.
 - **Simple OpenAI clients still see an alias** — `/v1/models` advertises the
-  stable Hermes alias (`hermes-agent` or the active profile name). Richer
+  stable clawd alias (`hermes-agent` or the active profile name). Richer
   clients can send explicit `provider` / `model_options` overrides on requests.
 
 ## Proxy Mode
 
-The API server also serves as the backend for **gateway proxy mode**. When another Hermes gateway instance is configured with `GATEWAY_PROXY_URL` pointing at this API server, it forwards all messages here instead of running its own agent. This enables split deployments — for example, a Docker container handling Matrix E2EE that relays to a host-side agent.
+The API server also serves as the backend for **gateway proxy mode**. When another clawd gateway instance is configured with `GATEWAY_PROXY_URL` pointing at this API server, it forwards all messages here instead of running its own agent. This enables split deployments — for example, a Docker container handling Matrix E2EE that relays to a host-side agent.
 
 See [Matrix Proxy Mode](../messaging/matrix.md#proxy-mode-e2ee-on-macos) for the full setup guide.

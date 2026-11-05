@@ -4,7 +4,6 @@ import { copyFileSync, existsSync, readFileSync, statSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, join, relative, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { parseArgs } from 'node:util'
 
 // Do not require('electron'): Electron 42's entry point can acquire a binary.
 // Only this explicit preparation phase may execute the installed installer.
@@ -57,9 +56,6 @@ export function prepareElectronRuntime({ source, install = true, env = process.e
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  const { values } = parseArgs({ options: {
-    source: { type: 'string' }, 'no-install': { type: 'boolean', default: false },
-  } })
-  if (!values.source) throw new Error('--source is required')
-  prepareElectronRuntime({ source: values.source, install: !values['no-install'] })
+  console.error('refused: clawd does not install the official Electron runtime. This entry is unsupported.')
+  process.exit(2)
 }

@@ -47,4 +47,8 @@ def main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:]))
+    print(
+        "refused: clawd does not build the official desktop app. This entry is unsupported.",
+        file=sys.stderr,
+    )
+    raise SystemExit(2)

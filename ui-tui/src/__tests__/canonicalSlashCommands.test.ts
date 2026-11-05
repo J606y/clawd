@@ -217,7 +217,7 @@ it('/undo and /retry while a turn runs print main\'s stop-first text, not the ba
     slash(`/${command}`)
     await flush()
     expect(sys).toHaveBeenLastCalledWith(
-      `session busy — Hermes is still replying. Stop the current reply first (Stop button, or Ctrl+C in a terminal), then run /${command}.`
+      `session busy — clawd is still replying. Stop the current reply first (Stop button, or Ctrl+C in a terminal), then run /${command}.`
     )
   }
 

@@ -124,6 +124,11 @@ let
   # and changing a .py file should NOT trigger a TUI/Web/Desktop rebuild.
 
   # Python source: everything except JS/TS/docs/infra directories.
+  # apps/ is excluded because apps/shared is an npm workspace. Do not re-add
+  # apps/panel here: that would pull host node_modules into the wheel source.
+  # Built panel files come from panelResources, consumed at wheel-build time
+  # via CLAWD_PANEL_RESOURCE_ROOT (see docs/clawd/distribution-implementation.md).
+  # A pre-staged clawd_server/bundled is gitignored and is not a Nix input.
   pythonSrc = lib.cleanSourceWith {
     src = repoRoot;
     name = "hermes-python-source";
@@ -201,8 +206,46 @@ let
         false
       else if builtins.elem topComponent excludedDirs then
         false
+      # Defense if a later edit stops excluding apps/: never ship node_modules
+      # or a pre-placed bundle through the Python source filter.
+      else if lib.hasInfix "/node_modules/" relPath || lib.hasSuffix "/node_modules" relPath then
+        false
+      else if relPath == "clawd_server/bundled" || lib.hasPrefix "clawd_server/bundled/" relPath then
+        false
+      else if relPath == "clawd_server/bundled.partial" || lib.hasPrefix "clawd_server/bundled.partial/" relPath then
+        false
+      else if relPath == "clawd_server/bundled.prev" || lib.hasPrefix "clawd_server/bundled.prev/" relPath then
+        false
+      else if lib.hasPrefix "clawd_server/.bundled." relPath then
+        false
+      # Official UI/Desktop only, as repo-relative prefixes. `web/` is the
+      # dashboard source root, not a path component: plugins/web (search
+      # providers) and hermes_cli/web_routers stay. Top-level web/ is not an
+      # npm workspace in this checkout, so this prefix is the prune. In-tree
+      # build/ and egg-info are caches, not source.
+      else if relPath == "web" || lib.hasPrefix "web/" relPath then
+        false
+      else if relPath == "hermes_cli/web_dist" || lib.hasPrefix "hermes_cli/web_dist/" relPath then
+        false
+      else if relPath == "apps/desktop" || lib.hasPrefix "apps/desktop/" relPath then
+        false
+      else if topComponent == "build" || lib.hasSuffix ".egg-info" topComponent then
+        false
+      else if lib.any (part: lib.hasSuffix ".egg-info" part) components then
+        false
       else
         true;
+  };
+
+  # Separate derivation so pythonSrc stays readable at evaluation time.
+  # Splicing this output into pythonSrc would force import-from-derivation
+  # inside uv2nix.loadWorkspace. hermes-agent.nix passes it to python.nix as
+  # panelResourceRoot. python.nix sets CLAWD_PANEL_RESOURCE_ROOT only on the
+  # wheel-build derivation. The runtime wrapper must not receive that path.
+  panelResources = callPackage ./panel-resources.nix {
+    inherit importNpmLock;
+    nodejs = nodejs;
+    npmConfigHook = patchedNpmConfigHook;
   };
 
   # Common npm workspace resolution files needed by all npm builds.
@@ -308,7 +351,7 @@ let
     buildNpmPackage finalAttrs;
 in
 {
-  inherit pythonSrc nodejs;
+  inherit pythonSrc nodejs panelResources;
   node-gyp = node_gyp_11_4_0;
 
   # Regenerate the shared root lockfile from scratch and verify all npm

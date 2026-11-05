@@ -1,0 +1,882 @@
+/* 壳与会话列表。数值按 f852fac hp-shell.ts / hp-session-list.ts，不取整。
+   选择器加 .shell / .session-list，因为 React 没有 Shadow DOM，避免 .menu / ul 漏到主区。 */
+
+.shell {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
+  height: 100%;
+}
+
+.shell[data-live] {
+  grid-template-columns: var(--sidebar-w) minmax(360px, 1fr) minmax(360px, 46vw);
+}
+
+.shell[data-live-mode="task"] .side-dock[data-kind="task"] {
+  height: 100%;
+  min-height: 0;
+}
+
+.shell[data-agent] {
+  grid-template-columns: var(--sidebar-w) minmax(360px, 1fr) minmax(340px, 40vw);
+}
+
+.shell .topbar h2 {
+  flex: 1;
+  min-width: 0;
+}
+
+.shell .icon-btn[aria-pressed="true"] {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+.shell aside {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--bg-sidebar);
+  border-right: 1px solid var(--border);
+  padding-top: var(--safe-top);
+}
+
+.shell .brand {
+  height: var(--topbar-h);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+.shell .brand .dot {
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-l);
+  display: grid;
+  place-items: center;
+}
+
+.shell .brand .dot svg {
+  display: block;
+  width: 22px;
+  height: 22px;
+}
+
+.shell .brand .spacer {
+  flex: 1;
+}
+
+.shell .icon-btn {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: var(--radius-s);
+  background: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.shell .icon-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.shell aside > .session-list {
+  flex: 1;
+}
+
+.shell aside nav {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 0 8px 10px;
+}
+
+.shell aside nav button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--text-secondary);
+  background: none;
+  border: none;
+  border-radius: var(--radius-s);
+  padding: 6px 10px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.shell aside nav button:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.shell aside nav button[aria-current="page"] {
+  background: var(--bg-active);
+  color: var(--text);
+  font-weight: 500;
+}
+
+.shell aside nav svg {
+  flex: none;
+}
+
+.shell .stage {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+}
+
+.shell .pane {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  background: var(--bg);
+}
+
+.shell .pane[hidden] {
+  display: none !important;
+}
+
+.shell .pane > * {
+  flex: 1;
+  min-height: 0;
+}
+
+.shell .side-dock {
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  animation: dock-in var(--nav-ms, 350ms) var(--ease-nav, cubic-bezier(0.32, 0.72, 0, 1)) both;
+}
+
+.shell[data-dock-leave] .side-dock[data-leaving] {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 25;
+  width: min(46vw, 720px);
+  min-width: 340px;
+  pointer-events: none;
+  animation: dock-out var(--nav-ms, 350ms) var(--ease-nav, cubic-bezier(0.32, 0.72, 0, 1)) both;
+}
+
+.shell[data-dock-leave] .side-dock[data-leaving][data-kind="agent"] {
+  width: min(40vw, 640px);
+}
+
+@keyframes dock-in {
+  from { transform: translate3d(100%, 0, 0); }
+  to { transform: translate3d(0, 0, 0); }
+}
+
+@keyframes dock-out {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(100%, 0, 0); }
+}
+
+.shell aside footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px calc(10px + var(--safe-bottom));
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.shell .link {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+}
+
+.shell .link i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--success);
+  flex: none;
+}
+
+.shell .link[data-state="offline"] i {
+  background: var(--danger);
+}
+
+.shell aside footer button {
+  font: inherit;
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: none;
+  border: none;
+  border-radius: var(--radius-s);
+  padding: 4px 6px;
+  cursor: pointer;
+}
+
+.shell aside footer button:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.shell .offline {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 6px 12px;
+  font-size: 13px;
+  color: var(--accent-text);
+  background: var(--warning);
+}
+
+.shell .offline button {
+  font: inherit;
+  font-size: 12px;
+  color: inherit;
+  background: rgba(255, 255, 255, 0.2);
+  border: none;
+  border-radius: var(--radius-l);
+  padding: 2px 10px;
+  cursor: pointer;
+}
+
+.shell main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  padding-top: var(--safe-top);
+}
+
+.shell .topbar {
+  height: var(--topbar-h);
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.shell .topbar h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.shell .topbar .menu {
+  display: none;
+}
+
+.shell .scrim {
+  display: none;
+}
+
+.shell dialog[open] {
+  transform-origin: center bottom;
+  animation: sheet-in var(--pop-ms, 280ms) var(--ease-nav, cubic-bezier(0.32, 0.72, 0, 1)) both;
+}
+
+.shell dialog[open]::backdrop {
+  animation: sheet-backdrop-in var(--pop-ms, 280ms) var(--ease-nav, cubic-bezier(0.32, 0.72, 0, 1)) both;
+}
+
+.shell dialog[open][data-leave] {
+  animation: sheet-out var(--pop-ms, 280ms) var(--ease-nav, cubic-bezier(0.32, 0.72, 0, 1)) both;
+}
+
+.shell dialog[open][data-leave]::backdrop {
+  animation: sheet-backdrop-out var(--pop-ms, 280ms) var(--ease-nav, cubic-bezier(0.32, 0.72, 0, 1)) both;
+}
+
+@keyframes sheet-in {
+  from { opacity: 0; transform: translateY(16px) scale(0.96); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes sheet-out {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translateY(16px) scale(0.96); }
+}
+
+@keyframes sheet-backdrop-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes sheet-backdrop-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+.shell aside button,
+.shell .topbar .icon-btn,
+.shell .offline button,
+.session-list button {
+  transition:
+    background-color 180ms var(--ease-nav, cubic-bezier(0.32, 0.72, 0, 1)),
+    color 180ms var(--ease-nav, cubic-bezier(0.32, 0.72, 0, 1)),
+    border-color 180ms var(--ease-nav, cubic-bezier(0.32, 0.72, 0, 1)),
+    box-shadow 180ms var(--ease-nav, cubic-bezier(0.32, 0.72, 0, 1)),
+    opacity 180ms var(--ease-nav, cubic-bezier(0.32, 0.72, 0, 1));
+}
+
+.shell aside,
+.shell aside *,
+.shell .topbar,
+.shell .topbar *,
+.shell .offline,
+.shell .offline *,
+.session-list,
+.session-list * {
+  touch-action: manipulation;
+}
+
+@media (max-width: 768px) {
+  .shell,
+  .shell[data-live],
+  .shell[data-agent] {
+    grid-template-columns: 1fr;
+  }
+
+  .shell aside {
+    position: fixed;
+    inset: 0 auto 0 0;
+    width: min(86vw, 320px);
+    z-index: 20;
+    transform: translateX(-100%);
+    transition: transform 0.32s var(--ease-nav, cubic-bezier(0.32, 0.72, 0, 1));
+    box-shadow: var(--shadow);
+  }
+
+  .shell[data-drawer] aside {
+    transform: none;
+  }
+
+  .shell aside > .session-list {
+    order: 1;
+    min-height: 0;
+  }
+
+  .shell aside footer {
+    order: 2;
+    flex: none;
+    padding: 10px 12px 4px;
+  }
+
+  .shell aside nav {
+    order: 3;
+    flex: none;
+    flex-direction: row;
+    gap: 4px;
+    padding: 4px 8px calc(8px + var(--safe-bottom));
+  }
+
+  .shell aside nav button {
+    flex: 1;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 0;
+    justify-content: center;
+  }
+
+  .shell aside nav .nav-label {
+    display: none;
+  }
+
+  .shell aside nav svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .shell .scrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    background: rgba(0, 0, 0, 0.32);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.32s var(--ease-nav, cubic-bezier(0.32, 0.72, 0, 1));
+  }
+
+  .shell[data-drawer] .scrim {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .shell .topbar .menu {
+    display: grid;
+    margin-left: -8px;
+  }
+
+  .shell .side-dock[data-kind="live"],
+  .shell .side-dock[data-kind="task"] {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    height: 100dvh;
+    z-index: 40;
+  }
+
+  .shell .side-dock[data-kind="live"] .dock-live,
+  .shell .side-dock[data-kind="task"] .dock-task {
+    border-left: none;
+  }
+
+  .shell[data-dock-leave] .side-dock[data-leaving] {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    min-width: 0;
+    max-width: none;
+    z-index: 40;
+  }
+
+  .shell .agent-modal {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    max-height: none;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    overflow: visible;
+    color: var(--text);
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .shell .agent-modal[open],
+  .shell .agent-modal[open][data-leave] {
+    animation: none;
+    transform: none;
+    opacity: 1;
+  }
+
+  .shell .agent-modal .agent-sheet {
+    position: fixed;
+    inset: max(24px, env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) max(24px, env(safe-area-inset-bottom, 0px)) max(16px, env(safe-area-inset-left, 0px));
+    margin: auto;
+    width: calc(100% - max(16px, env(safe-area-inset-left, 0px)) - max(16px, env(safe-area-inset-right, 0px)));
+    max-width: 640px;
+    height: min(82dvh, 760px);
+    max-height: calc(100dvh - max(24px, env(safe-area-inset-top, 0px)) - max(24px, env(safe-area-inset-bottom, 0px)));
+    padding: 0;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-l);
+    overflow: hidden;
+    color: var(--text);
+    background: var(--bg-sidebar);
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.3);
+    transform-origin: center center;
+  }
+
+  .shell .agent-modal::backdrop {
+    background: rgba(0, 0, 0, 0.4);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+  }
+
+  .shell .agent-modal .agent-sheet > .dock-agent {
+    width: 100%;
+    height: 100%;
+    border: none;
+    padding-top: 0;
+  }
+
+  .shell .topbar {
+    padding: 0 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shell .side-dock,
+  .shell[data-dock-leave] .side-dock[data-leaving],
+  .shell dialog[open],
+  .shell dialog[open]::backdrop,
+  .shell aside button,
+  .shell .topbar .icon-btn,
+  .shell .offline button,
+  .session-list button,
+  .session-list .presence > * {
+    animation: none;
+    transition: none;
+    transform: none;
+  }
+}
+
+/* hp-session-list.ts styles，501–741。 */
+
+.session-list {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.session-list .folders {
+  margin: 0 8px 8px;
+  max-height: 45%;
+  flex-shrink: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  font-size: 12px;
+}
+
+.session-list .folders button {
+  font: inherit;
+  color: var(--text-secondary);
+  background: none;
+  border: none;
+  border-radius: var(--radius-l);
+  min-height: 32px;
+  padding: 4px 6px;
+  cursor: pointer;
+}
+
+.session-list .folders button:hover { background: var(--bg-hover); }
+
+.session-list .folders button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.session-list .folders button:disabled { opacity: .5; cursor: default; }
+
+.session-list .folders form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 4px;
+}
+
+.session-list .folders input {
+  min-width: 0;
+  flex: 1 1 100%;
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  padding: 8px;
+  color: var(--text);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-l);
+}
+
+.session-list .folder {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: start;
+}
+
+.session-list .folder-toggle {
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.session-list .folder > ul {
+  grid-column: 1 / -1;
+  padding: 0 0 4px 8px;
+  overflow: visible;
+}
+
+.session-list .folder-empty { padding: 8px; color: var(--text-tertiary); }
+
+.session-list .folder-confirm {
+  grid-column: 1 / -1;
+  padding: 8px;
+  background: var(--bg-hover);
+  border-radius: var(--radius-l);
+}
+
+.session-list .folder-confirm p { margin: 0 0 4px; overflow-wrap: anywhere; }
+
+.session-list .folders [role="alert"] { padding: 8px; color: var(--danger); overflow-wrap: anywhere; }
+
+.session-list .folders .menu { position: static; margin: 4px 0; }
+
+.session-list .menu {
+  max-height: 260px;
+  overflow: hidden;
+  max-width: calc(100% - 12px);
+  overflow-wrap: anywhere;
+}
+.session-list .menu .sheet {
+  max-height: calc(260px - 2px);
+  overflow-y: auto;
+  padding: 4px;
+}
+
+.session-list .seg {
+  display: flex;
+  margin: 0 12px 8px;
+  padding: 2px;
+  border-radius: var(--radius-l);
+  background: var(--bg-hover);
+}
+
+.session-list .seg button {
+  flex: 1;
+  font: inherit;
+  font-size: 12px;
+  color: var(--text-secondary);
+  background: none;
+  border: none;
+  border-radius: var(--radius-l);
+  padding: 4px 0;
+  cursor: pointer;
+}
+
+.session-list .seg button[aria-pressed="true"] {
+  color: var(--text);
+  background: var(--bg-elevated);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.session-list .search {
+  margin: 0 12px 8px;
+}
+
+.session-list .search input {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--bg-hover);
+  border: 1px solid transparent;
+  border-radius: var(--radius-l);
+  padding: 6px 10px;
+}
+
+.session-list .search input:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.session-list ul {
+  list-style: none;
+  margin: 0;
+  padding: 0 8px 8px;
+  overflow-y: auto;
+  flex: 1;
+  overscroll-behavior: contain;
+}
+
+.session-list li {
+  position: relative;
+}
+
+.session-list li .item {
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  border-radius: var(--radius-s);
+  padding: 8px 38px 8px 10px;
+  cursor: pointer;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 8px;
+}
+
+.session-list li .item:hover {
+  background: var(--bg-hover);
+}
+
+.session-list li .item[aria-current="true"] {
+  background: var(--bg-active);
+}
+
+.session-list li .item:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.session-list .more-btn {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  color: var(--text-secondary);
+  background: none;
+  border: none;
+  border-radius: var(--radius-l);
+  cursor: pointer;
+  opacity: 0;
+}
+
+.session-list li:hover .more-btn,
+.session-list .more-btn:focus-visible,
+.session-list .more-btn[aria-expanded="true"] {
+  opacity: 1;
+  background: var(--bg-hover);
+}
+
+@media (hover: none) {
+  .session-list .more-btn {
+    opacity: 1;
+  }
+}
+
+.session-list .presence {
+  display: contents;
+}
+
+.session-list .presence[data-kind="drop"] > * {
+  transform-origin: center top;
+  animation: presence-drop-in var(--pop-ms, 280ms) var(--ease-nav, cubic-bezier(0.32, 0.72, 0, 1)) both;
+}
+
+@keyframes presence-drop-in {
+  from { opacity: 0; transform: translateY(-8px) scale(0.96); }
+  to { opacity: 1; transform: none; }
+}
+
+.session-list .menu {
+  position: absolute;
+  transform-origin: top right;
+  z-index: 5;
+  top: 36px;
+  right: 6px;
+  min-width: 132px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+}
+
+.session-list li .menu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  font-size: 13px;
+  color: var(--text);
+  background: none;
+  border: none;
+  border-radius: var(--radius-l);
+  padding: 8px 10px;
+  cursor: pointer;
+}
+
+.session-list li .menu button:hover {
+  background: var(--bg-hover);
+}
+
+.session-list li .menu button.danger {
+  color: var(--danger);
+}
+
+.session-list input.rename {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  font-size: 14px;
+  color: var(--text);
+  background: var(--bg-elevated);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-s);
+  padding: 7px 9px;
+  margin: 1px 0;
+}
+
+.session-list .title {
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.session-list .time {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.session-list .meta {
+  grid-column: 1 / -1;
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.session-list .badge {
+  display: inline-block;
+  font-size: 11px;
+  padding: 0 5px;
+  margin-right: 6px;
+  border-radius: var(--radius-l);
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+}
+
+.session-list .pin {
+  color: var(--warning);
+  margin-right: 4px;
+}
+
+.session-list .status {
+  padding: 16px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.session-list .status button,
+.session-list li .more {
+  font: inherit;
+  font-size: 13px;
+  color: var(--accent);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+}
+
+.session-list li .more {
+  width: 100%;
+}
+.session-list li .menu {
+  background-color: var(--glass-solid);
+  background-image: var(--glass-fill);
+  backdrop-filter: var(--glass-filter);
+  -webkit-backdrop-filter: var(--glass-filter);
+  isolation: isolate;
+  border-color: var(--glass-border);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18), var(--glass-inset);
+}

@@ -14,10 +14,10 @@ Delegate coding to OpenHands CLI (model-agnostic, LiteLLM).
 
 | | |
 |---|---|
-| Source | Optional — install with `hermes skills install official/autonomous-ai-agents/openhands` |
+| Source | Optional — install with `clawd skills install official/autonomous-ai-agents/openhands` |
 | Path | `optional-skills/autonomous-ai-agents/openhands` |
 | Version | `0.1.0` |
-| Author | Tim Koepsel (xzessmedia), Hermes Agent |
+| Author | Tim Koepsel (xzessmedia), clawd |
 | License | MIT |
 | Platforms | linux, macos |
 | Tags | `Coding-Agent`, `OpenHands`, `Model-Agnostic`, `LiteLLM` |
@@ -26,14 +26,14 @@ Delegate coding to OpenHands CLI (model-agnostic, LiteLLM).
 ## Reference: full SKILL.md
 
 :::info
-The following is the complete skill definition that Hermes loads when this skill is triggered. This is what the agent sees as instructions when the skill is active.
+The following is the complete skill definition that clawd loads when this skill is triggered. This is what the agent sees as instructions when the skill is active.
 :::
 
 # OpenHands CLI
 
 Delegate coding tasks to the [OpenHands CLI](https://github.com/All-Hands-AI/OpenHands) via the `terminal` tool. OpenHands is model-agnostic: any LiteLLM-supported provider (OpenAI, Anthropic, OpenRouter, DeepSeek, Ollama, vLLM, etc.).
 
-This skill is the headless-mode wrapper for batch / one-shot delegation. The interactive textual UI is not used from Hermes.
+This skill is the headless-mode wrapper for batch / one-shot delegation. The interactive textual UI is not used from clawd.
 
 ## When to Use
 
@@ -153,7 +153,7 @@ The cli prints all stderr from LiteLLM/Authlib first — see Pitfalls. Parse onl
 ```
 terminal(
   command="OPENHANDS_SUPPRESS_BANNER=1 LLM_MODEL=openrouter/openai/gpt-4o-mini LLM_API_KEY=$OPENROUTER_API_KEY LLM_BASE_URL=https://openrouter.ai/api/v1 openhands --headless --json --override-with-envs --exit-without-confirmation -t 'Print the string OPENHANDS_OK to stdout via the terminal tool.'",
-  workdir="~/.hermes/cache/scratch",
+  workdir="~/.clawd/cache/scratch",
   timeout=120
 )
 ```
@@ -164,4 +164,4 @@ If the JSONL stream ends with a `FinishAction` whose `action.message` mentions `
 
 - [OpenHands GitHub](https://github.com/All-Hands-AI/OpenHands)
 - [OpenHands CLI command reference](https://docs.openhands.dev/openhands/usage/cli/command-reference)
-- Sibling skills: `claude-code` (Anthropic-only), `codex` (OpenAI-only), `opencode` (multi-provider via OpenCode), `hermes-agent` (Hermes subagents via `delegate_task`).
+- Sibling skills: `claude-code` (Anthropic-only), `codex` (OpenAI-only), `opencode` (multi-provider via OpenCode), `hermes-agent` (clawd subagents via `delegate_task`).

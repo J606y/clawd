@@ -56,7 +56,7 @@ def _notify_session_boundary(event_type: str, session_id: str | None, platform: 
     return []
 
 
-_SESSION_OWNERSHIP_UNAVAILABLE = "Hermes could not safely reserve this session. Try again."
+_SESSION_OWNERSHIP_UNAVAILABLE = "clawd could not safely reserve this session. Try again."
 _AUTOMATIC_SESSION_END_REASONS = frozenset({"ws_orphan_reap", "ws_disconnect", "idle_timeout", "lru_evict", "tui_shutdown"})
 
 

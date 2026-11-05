@@ -1,7 +1,7 @@
 ---
 sidebar_position: 8
 title: "MCP Config Reference"
-description: "Reference for Hermes Agent MCP configuration keys, filtering semantics, and utility-tool policy"
+description: "Reference for clawd MCP configuration keys, filtering semantics, and utility-tool policy"
 ---
 
 # MCP Config Reference
@@ -10,7 +10,7 @@ This page is the compact reference companion to the main MCP docs.
 
 For conceptual guidance, see:
 - [MCP (Model Context Protocol)](../user-guide/features/mcp.md)
-- [Use MCP with Hermes](../guides/use-mcp-with-hermes.md)
+- [Use MCP with clawd](../guides/use-mcp-with-hermes.md)
 
 ## Root config shape
 
@@ -68,7 +68,7 @@ mcp_servers:
 | `auth` | string | HTTP | Authentication method. Set to `oauth` to enable OAuth 2.1 with PKCE |
 | `sampling` | mapping | both | Server-initiated LLM request policy (see MCP guide) |
 | `elicitation` | mapping | both | Server-initiated user-input requests. `enabled` (default `true`) and `timeout` in seconds (default `300`). Form-mode requests route through the approval surface; URL-mode is declined (see MCP guide) |
-| `events` | bool | both | Experimental MCP events client with webhook delivery (default: `false`). Registers `list_event_types`, `subscribe_event` and `unsubscribe_event` for this server. Needs `platforms.webhook.extra.public_url` (HTTPS) and a running gateway. Hermes refreshes subscriptions only while it is connected to the server, so with `lazy: true` or `idle_timeout_seconds` a subscription can lapse until the next connection resubscribes it. See [MCP Events](../user-guide/features/mcp.md#mcp-events-experimental) |
+| `events` | bool | both | Experimental MCP events client with webhook delivery (default: `false`). Registers `list_event_types`, `subscribe_event` and `unsubscribe_event` for this server. Needs `platforms.webhook.extra.public_url` (HTTPS) and a running gateway. clawd refreshes subscriptions only while it is connected to the server, so with `lazy: true` or `idle_timeout_seconds` a subscription can lapse until the next connection resubscribes it. See [MCP Events](../user-guide/features/mcp.md#mcp-events-experimental) |
 | `trust` | string | both | Trust tier: `full` (default) or `untrusted`. On an `untrusted` server, every write-capable tool call (any tool without a `readOnlyHint: true` annotation) requires user approval through the standard approval surface before it runs. The prompt offers Allow Once, Session (that tool, for the rest of the chat) and Always (written to `command_allowlist` as `mcp:<server>/<tool>`; deleting the entry revokes it for every other chat, while the chat that answered Always keeps it until that chat ends); each covers one tool, never the server's others. [YOLO](../user-guide/security.md#yolo-mode) and `approvals.mode: off` skip this prompt (`/yolo` for that chat, `--yolo` for that process, `approvals.mode: off` for that profile); a declared `spend_limit` still asks. `readOnlyHint` is a server-supplied *hint* — a lying server can at most skip approval for tools it claims are read-only, never gain extra access — so mark any server you don't fully control as `untrusted`. The same hint decides whether a call is transparently retried after the transport session expires mid-call: only `readOnlyHint: true` tools are replayed, while unannotated (write-capable) tools return an `outcome_uncertain` error — on a Streamable-HTTP server that expires idle sessions this means the first unannotated call after an idle period may fail and must be verified before re-invoking. Unrecognized values are treated as `untrusted` (fail-closed) A portable package can request `untrusted` for its own server in `plugin.json` (see [Portable Agent Plugins](../developer-guide/plugins/index.md#portable-agent-plugins-v1-packages)); a `config.yaml` entry with the same name always wins |
 | `tool_costs` | mapping | both | What each tool spends, keyed by the MCP tool name: a non-negative number, a `[min, max]` range, or `{credits: <number or range>, note: "per animation"}`. The approval prompt names the cost and the chat's running total. Undeclared and zero-cost tools are unaffected. See [Tool costs and spend limits](../user-guide/features/mcp.md#tool-costs-and-spend-limits) |
 | `spend_limit` | number | both | Per-chat budget for this server's costed tools (`0`/absent = no limit). A costed call that would take the chat past it asks first, even on a `trust: full` server, and is refused where nobody can answer (cron, `chat -q`) |
@@ -87,7 +87,7 @@ mcp_servers:
       GITHUB_PERSONAL_ACCESS_TOKEN: "${env:GITHUB_TOKEN}"   # same as "${GITHUB_TOKEN}"
 ```
 
-Values resolve from the active profile's secret scope (falling back to the process environment), so put the secret in `~/.hermes/.env`. An unset (or empty) variable keeps its literal placeholder, with two exceptions. A stdio server's `env` entry whose whole value is one reference to an unset variable (`GHIDRA_INSTALL_DIR: "${GHIDRA_INSTALL_DIR}"`) is treated as if the entry weren't there: the server doesn't get the placeholder, and the variable keeps whatever value the server would have without that line (usually unset; basics such as `PATH`, `HOME` or `TERM` keep the value Hermes passes every server). So a config or plugin can forward an optional variable safely. A variable that is set is always passed as is, even if its value happens to look like `${...}`; a value that only contains a reference (`"${OPT_DIR}/bin"`) is still passed with the placeholder. And in a remote server's `url` or `headers`: sending a literal `${VAR}` there is a guaranteed 401 that reads as a bad credential, so the connect fails closed instead, with the variable named in the server's status (`MCP server 'name': ${VAR} in url/headers is not set in this profile's .env or secret source`). Fix the profile's `.env` (or its secret source); the next connect attempt renders the reference afresh.
+Values resolve from the active profile's secret scope (falling back to the process environment), so put the secret in `~/.clawd/.env`. An unset (or empty) variable keeps its literal placeholder, with two exceptions. A stdio server's `env` entry whose whole value is one reference to an unset variable (`GHIDRA_INSTALL_DIR: "${GHIDRA_INSTALL_DIR}"`) is treated as if the entry weren't there: the server doesn't get the placeholder, and the variable keeps whatever value the server would have without that line (usually unset; basics such as `PATH`, `HOME` or `TERM` keep the value clawd passes every server). So a config or plugin can forward an optional variable safely. A variable that is set is always passed as is, even if its value happens to look like `${...}`; a value that only contains a reference (`"${OPT_DIR}/bin"`) is still passed with the placeholder. And in a remote server's `url` or `headers`: sending a literal `${VAR}` there is a guaranteed 401 that reads as a bad credential, so the connect fails closed instead, with the variable named in the server's status (`MCP server 'name': ${VAR} in url/headers is not set in this profile's .env or secret source`). Fix the profile's `.env` (or its secret source); the next connect attempt renders the reference afresh.
 
 ### Context variables
 
@@ -156,7 +156,7 @@ Result:
 
 ## Utility-tool policy
 
-Hermes may register these utility wrappers per MCP server:
+clawd may register these utility wrappers per MCP server:
 
 Resources:
 - `list_resources`
@@ -187,7 +187,7 @@ tools:
 
 ### Capability-aware registration
 
-Even when `resources: true` or `prompts: true`, Hermes only registers those utility tools if the MCP session actually exposes the corresponding capability.
+Even when `resources: true` or `prompts: true`, clawd only registers those utility tools if the MCP session actually exposes the corresponding capability.
 
 So this is normal:
 - you enable prompts
@@ -195,7 +195,7 @@ So this is normal:
 - because the server does not support prompts
 
 The event utilities are the exception. The MCP SDK drops a server's `events` capability while parsing
-it, so Hermes cannot check for it and registers them whenever `events: true` is set.
+it, so clawd cannot check for it and registers them whenever `events: true` is set.
 
 ## `enabled: false`
 
@@ -214,7 +214,7 @@ Behavior:
 
 ## Empty result behavior
 
-If filtering removes all server-native tools and no utility tools are registered, Hermes does not create an empty MCP runtime toolset for that server.
+If filtering removes all server-native tools and no utility tools are registered, clawd does not create an empty MCP runtime toolset for that server.
 
 ## Example configs
 
@@ -344,9 +344,9 @@ mcp_servers:
 ```
 
 Behavior:
-- Hermes uses the MCP SDK's OAuth 2.1 PKCE flow (metadata discovery, client identification, token exchange, and refresh)
+- clawd uses the MCP SDK's OAuth 2.1 PKCE flow (metadata discovery, client identification, token exchange, and refresh)
 - On first connect, a browser window opens for authorization
-- Tokens are persisted to `~/.hermes/mcp-tokens/<server>.json` (a named profile uses `~/.hermes/profiles/<name>/mcp-tokens/`) and reused across sessions
+- Tokens are persisted to `~/.clawd/mcp-tokens/<server>.json` (a named profile uses `~/.clawd/profiles/<name>/mcp-tokens/`) and reused across sessions
 - Token refresh is automatic; re-authorization only happens when refresh fails
 - Only applies to HTTP/StreamableHTTP transport (`url`-based servers)
 - Under a [multiplexed gateway](../user-guide/multi-profile-gateways.md), an OAuth connection is never shared across profiles: each profile authenticates with its own token and opens its own connection, even when the `mcp_servers` entries are identical
@@ -357,11 +357,11 @@ For an authorization server advertising `device_authorization_endpoint`, explici
 device authorization from a terminal on the machine running Hermes:
 
 ```bash
-hermes mcp login protected_api --flow device
+clawd mcp login protected_api --flow device
 ```
 
 Open the printed verification URL on any device and enter the displayed user code.
-Hermes polls for approval, respects `authorization_pending` and `slow_down`, and stops
+clawd polls for approval, respects `authorization_pending` and `slow_down`, and stops
 on denial or expiry. No browser is launched and no callback listener is needed.
 `oauth.timeout` bounds the approval wait (default 300 seconds), also limited by the code's lifetime.
 When the server's protected-resource metadata lists several authorization servers, device
@@ -371,7 +371,7 @@ the only accepted difference is the path-scoped shape described under "OAuth-aut
 in the MCP feature guide (a server advertised as `https://host/path` whose document at
 `/.well-known/oauth-authorization-server/path` names `https://host`).
 
-Set `oauth.flow: device` on the server to make `hermes mcp login` and `hermes mcp reauth`
+Set `oauth.flow: device` on the server to make `clawd mcp login` and `clawd mcp reauth`
 (including `reauth --all`) use device authorization. `login --flow browser` overrides that
 setting for one login; browser PKCE remains the default. Unsupported metadata produces
 an actionable error rather than silently falling back to a different flow.
@@ -391,28 +391,28 @@ another explicit login.
 
 ### Client identification: CIMD and DCR
 
-Hermes identifies itself to authorization servers with a **Client ID Metadata Document** (CIMD), the mechanism the MCP `2026-07-28` spec adopted in place of Dynamic Client Registration. The document is published at
-`https://nousresearch.github.io/hermes-agent/docs/oauth/client-metadata.json`, and that URL *is* the `client_id` — the authorization server fetches it to learn Hermes' name, logo, and permitted redirect URIs. Nothing is registered per install, and nothing is user-specific.
+clawd identifies itself to authorization servers with a **Client ID Metadata Document** (CIMD), the mechanism the MCP `2026-07-28` spec adopted in place of Dynamic Client Registration. The document is published at
+`https://nousresearch.github.io/hermes-agent/docs/oauth/client-metadata.json`, and that URL *is* the `client_id` — the authorization server fetches it to learn clawd's name, logo, and permitted redirect URIs. Nothing is registered per install, and nothing is user-specific.
 
 The final choice belongs to the authorization server: the SDK sends the document URL as the `client_id` only when the server advertises `client_id_metadata_document_supported: true` in its metadata, and otherwise registers via DCR exactly as before. DCR is deprecated in the MCP spec but still what almost every deployed server uses today.
 
 #### Callback ports
 
-The document declares a fixed set of loopback redirect URIs, and the spec requires the redirect URI in an authorization request to be an *exact string match* against one of them — so a CIMD flow cannot use the random high port Hermes normally picks. Hermes therefore pins the callback to one of ports `27890`–`27894`.
+The document declares a fixed set of loopback redirect URIs, and the spec requires the redirect URI in an authorization request to be an *exact string match* against one of them — so a CIMD flow cannot use the random high port clawd normally picks. clawd therefore pins the callback to one of ports `27890`–`27894`.
 
-That pin has to be chosen before the server's capabilities are known, because the redirect URI is fixed at the start of the flow while the server's metadata only arrives partway through. So Hermes pins the port for any flow that *could* end up using CIMD, and reverts to a random port for the rest:
+That pin has to be chosen before the server's capabilities are known, because the redirect URI is fixed at the start of the flow while the server's metadata only arrives partway through. So clawd pins the port for any flow that *could* end up using CIMD, and reverts to a random port for the rest:
 
-- A server Hermes has connected to before, whose cached metadata does not advertise CIMD, keeps the random port it has always used.
-- A server Hermes has never reached gets a pinned port on that first login, since guessing is the only way CIMD can ever be used.
+- A server clawd has connected to before, whose cached metadata does not advertise CIMD, keeps the random port it has always used.
+- A server clawd has never reached gets a pinned port on that first login, since guessing is the only way CIMD can ever be used.
 - Anything that would move the callback elsewhere reverts too: a pre-registered `oauth.client_id`, an `oauth.client_secret`, a custom `oauth.client_name` or `oauth.token_endpoint_auth_method`, an `oauth.redirect_uri` or `oauth.redirect_port` override, a dashboard- or desktop-driven login, an existing client registration on disk, or all five ports being held by other processes.
 
 Each pinned port is bound as soon as it is chosen and held until the browser redirect arrives, so two concurrent logins — a second profile, or another server in the same process — cannot land on the same listener.
 
 #### When a server rejects the document
 
-If a server fetches the document and refuses it at the *token* endpoint (`invalid_client`), Hermes logs the rejection, records it under `~/.hermes/mcp-tokens/<server>.cimd-off`, and uses DCR for that server from then on.
+If a server fetches the document and refuses it at the *token* endpoint (`invalid_client`), clawd logs the rejection, records it under `~/.clawd/mcp-tokens/<server>.cimd-off`, and uses DCR for that server from then on.
 
-A server that cannot fetch or validate the document at all aborts at the *authorization* endpoint instead, before any redirect happens. There is no signal Hermes can observe there, so the browser shows an invalid-client error and the login times out after five minutes. The timeout message names the document and points at `cimd: false`. Running `hermes mcp login <server>` clears the recorded rejection, so a corrected document gets another chance.
+A server that cannot fetch or validate the document at all aborts at the *authorization* endpoint instead, before any redirect happens. There is no signal clawd can observe there, so the browser shows an invalid-client error and the login times out after five minutes. The timeout message names the document and points at `cimd: false`. Running `clawd mcp login <server>` clears the recorded rejection, so a corrected document gets another chance.
 
 #### Optional per-server keys
 
@@ -427,15 +427,15 @@ mcp_servers:
       user_agent: "My-MCP-Client/1.0"                          # token-request User-Agent
 ```
 
-`client_metadata_url` must be an HTTPS URL with a path (no bare origin, no fragment, no userinfo, no `.`/`..` segments) that returns `200` and `Content-Type: application/json` with **no redirect** — authorization servers are forbidden from following redirects when fetching it. Hermes still pins its callback to the same `27890`–`27894` range, so a self-hosted document must declare all ten loopback URIs (`http://127.0.0.1:<port>/callback` and `http://localhost:<port>/callback` for each port), and its `client_id` must be its own URL.
+`client_metadata_url` must be an HTTPS URL with a path (no bare origin, no fragment, no userinfo, no `.`/`..` segments) that returns `200` and `Content-Type: application/json` with **no redirect** — authorization servers are forbidden from following redirects when fetching it. clawd still pins its callback to the same `27890`–`27894` range, so a self-hosted document must declare all ten loopback URIs (`http://127.0.0.1:<port>/callback` and `http://localhost:<port>/callback` for each port), and its `client_id` must be its own URL.
 
-`user_agent` replaces the default `User-Agent` on **token-endpoint requests only** (authorization-code exchange, refresh and the device-flow token poll). Without it Hermes sends `Hermes-Agent/<version>` — never a header-less request, which WAF-fronted authorization servers answer with `403`. It never applies to MCP traffic, and no other token-request headers are configurable. Empty or null values are ignored. A failed exchange reports the status plus a short, redacted excerpt of the error body (a WAF's "Request blocked" page vs the issuer's `invalid_grant`), so the cause is visible without packet captures. `hermes mcp login` clears the stale grant and client registration before re-authorizing but keeps the cached authorization-server metadata, so the announced authorize URL stays the discovered one even when the metadata document cannot be re-fetched.
+`user_agent` replaces the default `User-Agent` on **token-endpoint requests only** (authorization-code exchange, refresh and the device-flow token poll). Without it clawd sends `Hermes-Agent/<version>` — never a header-less request, which WAF-fronted authorization servers answer with `403`. It never applies to MCP traffic, and no other token-request headers are configurable. Empty or null values are ignored. A failed exchange reports the status plus a short, redacted excerpt of the error body (a WAF's "Request blocked" page vs the issuer's `invalid_grant`), so the cause is visible without packet captures. `clawd mcp login` clears the stale grant and client registration before re-authorizing but keeps the cached authorization-server metadata, so the announced authorize URL stays the discovered one even when the metadata document cannot be re-fetched.
 
 OAuth discovery and dynamic-client-registration requests (the `/.well-known/...` metadata documents and the `registration_endpoint` POST) always carry `User-Agent: Hermes-Agent/<version>`. The MCP SDK builds those requests without any client default headers, and WAF-fronted authorization servers answer a header-less request with `403` — the metadata document then looks unreadable, registration falls back to a guessed `/register` on the MCP host, and the login fails with `Registration failed: 404`. When every metadata fetch does fail, the error now leads with those statuses (`Could not read authorization-server metadata (403 from https://…/.well-known/oauth-authorization-server; …)`) before the registration fallback's own error.
 
-## Add to Hermes link
+## Add to clawd link
 
-MCP vendors and docs can offer a one-click **"Add to Hermes"** button that opens the Hermes desktop app with a pre-filled server config, mirroring Cursor's `cursor://anysphere.cursor-deeplink/mcp/install` scheme:
+MCP vendors and docs can offer a one-click **"Add to clawd"** button that opens the Hermes desktop app with a pre-filled server config, mirroring Cursor's `cursor://anysphere.cursor-deeplink/mcp/install` scheme:
 
 ```text
 hermes://mcp/install?name=NAME&config=BASE64

@@ -6,6 +6,12 @@ description: "Install Hermes Agent on Android from its signed Termux APT reposit
 
 # Hermes on Android with Termux
 
+<!-- clawd-docs-note -->
+:::warning Not this checkout
+The installers, packages, and download links on this page are upstream Hermes Agent. They do not install clawd. This checkout does not publish an installer URL. From this checkout, run `./clawd`. Setup spelling is `clawd setup`. `clawd` refuses `update`, `desktop`, `dashboard`, `gui`, and `webapp`. The web UI here is `clawd panel`.
+:::
+
+
 :::danger Termux is currently broken
 The Termux package does not work right now. A fix is in progress and will
 ship soon. Until then, the steps below may fail or install a package that

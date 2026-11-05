@@ -198,7 +198,7 @@ def _warn_if_unsupervised_pid1(pid: int | None = None) -> None:
     if (pid if pid is not None else os.getpid()) != 1:
         return
     print(
-        "[hermes] WARNING: this process is PID 1 with no init above it "
+        "[clawd] WARNING: this process is PID 1 with no init above it "
         "(entrypoint override?). Orphaned child processes will not be "
         "reaped and will accumulate as zombies. Use the image's default "
         "ENTRYPOINT (docker/entrypoint-dispatch.sh) instead of overriding "
@@ -217,7 +217,7 @@ def _set_process_title() -> None:
     try:
         import setproctitle  # type: ignore[import-untyped]
 
-        setproctitle.setproctitle("hermes")
+        setproctitle.setproctitle("clawd")
         return
     except ImportError:
         pass
@@ -229,10 +229,10 @@ def _set_process_title() -> None:
         system = platform.system()
         if system == "Linux":
             libc = ctypes.CDLL("libc.so.6", use_errno=True)
-            libc.prctl(15, b"hermes", 0, 0, 0)  # PR_SET_NAME = 15
+            libc.prctl(15, b"clawd", 0, 0, 0)  # PR_SET_NAME = 15
         elif system == "Darwin":
             libc = ctypes.CDLL("libc.dylib", use_errno=True)
-            libc.pthread_setname_np(b"hermes")
+            libc.pthread_setname_np(b"clawd")
     except Exception:
         pass
 
@@ -410,8 +410,9 @@ from hermes_cli.subcommands.completion import build_completion_parser
 def _require_tty(command_name: str) -> None:
     """Exit 1 if stdin is not a terminal: curses/input() prompts spin at 100% CPU on a pipe."""
     if not sys.stdin.isatty():
+        from hermes_cli._parser import cli_command_name
         print(
-            f"Error: 'hermes {command_name}' requires an interactive terminal.\n"
+            f"Error: '{cli_command_name()} {command_name}' requires an interactive terminal.\n"
             f"It cannot be run through a pipe or non-interactive subprocess.\n"
             f"Run it directly in your terminal instead.",
             file=sys.stderr,
@@ -461,7 +462,7 @@ def _exit_invalid_profile_name(value: str) -> None:
     from hermes_cli.profiles import _invalid_profile_name_error
 
     print(f"Error: {_invalid_profile_name_error(value)}", file=sys.stderr)
-    print("Run `hermes profile list` to see your profiles.", file=sys.stderr)
+    print("Run `clawd profile list` to see your profiles.", file=sys.stderr)
     sys.exit(2)
 
 
@@ -1437,7 +1438,7 @@ def _resolve_continue_arg(args, *, use_tui: bool) -> None:
             else:
                 print(f"No session found matching '{continue_val}'.", file=sys.stderr)
                 print(
-                    "Use 'hermes sessions list' to see available sessions, or "
+                    "Use 'clawd sessions list' to see available sessions, or "
                     "pass --create-if-missing to start a new session with that title.",
                     file=sys.stderr,
                 )
@@ -1470,7 +1471,7 @@ def _resolve_continue_arg(args, *, use_tui: bool) -> None:
                     kind = "TUI" if use_tui else "CLI"
                     print(
                         f"No previous {kind} session to continue. Start a new one with "
-                        "`hermes`, or list sessions with `hermes sessions list`.",
+                        "`clawd`, or list sessions with `clawd sessions list`.",
                         file=sys.stderr,
                     )
                     sys.exit(1)
@@ -1528,7 +1529,7 @@ def _resolve_chat_session_args(args, use_tui: bool) -> None:
         else:
             kind = "TUI" if use_tui else "CLI"
             print(f"No previous {kind} session found to resume.")
-            print("Use 'hermes sessions list' to see available sessions.")
+            print("Use 'clawd sessions list' to see available sessions.")
             sys.exit(1)
 
     _resolve_continue_arg(args, use_tui=use_tui)
@@ -1579,7 +1580,7 @@ def _warn_retired_xai_models() -> None:
             for _ref in _retired_xai_refs:
                 sys.stderr.write(f"  \033[33m⚠\033[0m {format_issue(_ref)}\n")
             sys.stderr.write(f"  \033[2mMigration guide: {MIGRATION_GUIDE_URL}\033[0m\n")
-            sys.stderr.write("  \033[2mRun 'hermes doctor' for details.\033[0m\n\n")
+            sys.stderr.write("  \033[2mRun 'clawd doctor' for details.\033[0m\n\n")
     except Exception:
         pass
 
@@ -1639,10 +1640,10 @@ def _first_run_setup_guard(args) -> None:
     """No provider configured: offer `hermes setup` (TTY) or exit 1 with guidance."""
     print()
     print(
-        "It looks like Hermes isn't configured yet -- no API keys or providers found."
+        "It looks like clawd isn't configured yet -- no API keys or providers found."
     )
     print()
-    print("  Run:  hermes setup")
+    print("  Run:  clawd setup")
     print()
 
     from hermes_cli.setup import (
@@ -1664,7 +1665,7 @@ def _first_run_setup_guard(args) -> None:
         cmd_setup(args)
         return
     print()
-    print("You can run 'hermes setup' at any time to configure.")
+    print("You can run 'clawd setup' at any time to configure.")
     sys.exit(1)
 
 
@@ -1931,8 +1932,8 @@ def _resolve_active_provider(config, model_cfg, effective_provider, custom_provi
                 )
         else:
             from hermes_cli.left_core_migration import provider_install_hint
-            hint = provider_install_hint(effective_provider) or ("Check 'hermes model' for available providers, or run "
-                                                                  "'hermes doctor' to diagnose config issues.")
+            hint = provider_install_hint(effective_provider) or ("Check 'clawd model' for available providers, or run "
+                                                                  "'clawd doctor' to diagnose config issues.")
             print(f"Warning: Unknown provider '{effective_provider}'. {hint} Falling back to auto provider detection.")
     if not active:
         try:
@@ -2347,6 +2348,13 @@ from hermes_cli.update_receipt import update_receipt_scope
 @update_receipt_scope()
 def cmd_update(args):
     """Update Hermes Agent: hangup protection + update lock around ``_cmd_update_impl``."""
+    if os.environ.get("CLAWD_CLI") == "1" or (PROJECT_ROOT / "clawd_cli" / "__init__.py").is_file():
+        print(
+            "refused: clawd does not run the upstream Hermes update. "
+            "That path would restore the official UI or overwrite an existing Hermes install.",
+            file=sys.stderr,
+        )
+        sys.exit(2)
     # Marks this frame as the CURRENT updater for
     # _old_updater.in_historical_update(); historical on-disk updaters do not
     # declare this local, so only they hand off through retired shims.
@@ -2482,7 +2490,7 @@ def _dashboard_lifecycle_flags(args, token_file) -> None:
 
         own_home = str(get_hermes_home())
         if not _find_stale_dashboard_pids(scope_home=own_home):
-            print("No hermes dashboard processes running for this profile.")
+            print("No clawd dashboard processes running for this profile.")
             sys.exit(0)
         # Reuse the same SIGTERM-grace-SIGKILL path used after `hermes update`;
         # it prints outcomes itself. Exit 1 only if a pid was unkillable — judged
@@ -2656,6 +2664,15 @@ def _dashboard_prepare_runtime(args, headless_backend) -> bool:
 
 def cmd_dashboard(args):
     """Start the web UI server, or (with --stop/--status) manage running ones."""
+    if not getattr(args, "headless_backend", False) and (
+        os.environ.get("CLAWD_CLI") == "1"
+        or not (PROJECT_ROOT / "web" / "package.json").is_file()
+    ):
+        print(
+            "refused: the official web dashboard is not part of clawd. Use `clawd panel`.",
+            file=sys.stderr,
+        )
+        sys.exit(2)
     _token_file = getattr(args, "ssh_session_token_file", None)
     _dashboard_lifecycle_flags(args, _token_file)
 
@@ -2710,6 +2727,18 @@ def cmd_dashboard(args):
         # The validated token file lives in desktop-ssh/<ownershipId>/, next to the Desktop's lock.
         ssh_lock_path=Path(_token_file).parent / BACKEND_LOCK_NAME if _token_file else None,
     )
+
+
+def _cmd_clawd_panel(args) -> None:
+    """Fallback if ``panel`` reaches the shared parser. clawd_cli intercepts first."""
+    del args
+    from clawd_cli.main import dispatch_panel
+
+    try:
+        idx = sys.argv.index("panel")
+    except ValueError:
+        idx = 0
+    dispatch_panel(sys.argv[idx + 1:])
 
 
 def cmd_completion(args, parser=None):
@@ -3379,12 +3408,19 @@ def _build_cli_parser():
     build_acp_parser(subparsers, cmd_acp=cmd_acp)
     build_profile_parser(subparsers, cmd_profile=cmd_profile)
     build_completion_parser(subparsers, cmd_completion=cmd_completion, parser=parser)
-    build_dashboard_parser(
-        subparsers, cmd_dashboard=cmd_dashboard, cmd_dashboard_register=cmd_dashboard_register)
-    build_webapp_parser(subparsers, cmd_webapp=cmd_webapp)
-    # "desktop" is canonical (Hermes-Setup.exe tells users to run it, so it
-    # must be the name --help shows); "gui" is a deprecated alias.
-    build_gui_parser(subparsers, cmd_gui=cmd_gui)
+    if os.environ.get("CLAWD_CLI") == "1":
+        from hermes_cli.subcommands.dashboard import attach_serve_parser
+        attach_serve_parser(subparsers, cmd_dashboard=cmd_dashboard)
+        panel_parser = subparsers.add_parser(
+            "panel", help="Start the clawd panel (the only web UI)")
+        panel_parser.set_defaults(func=_cmd_clawd_panel)
+    else:
+        build_dashboard_parser(
+            subparsers, cmd_dashboard=cmd_dashboard, cmd_dashboard_register=cmd_dashboard_register)
+        build_webapp_parser(subparsers, cmd_webapp=cmd_webapp)
+        # "desktop" is canonical (Hermes-Setup.exe tells users to run it, so it
+        # must be the name --help shows); "gui" is a deprecated alias.
+        build_gui_parser(subparsers, cmd_gui=cmd_gui)
     build_logs_parser(subparsers, cmd_logs=cmd_logs)
     build_prompt_size_parser(subparsers, cmd_prompt_size=cmd_prompt_size)
     return parser, subparsers

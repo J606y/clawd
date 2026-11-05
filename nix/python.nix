@@ -9,6 +9,12 @@
   # Filtered Python source (see lib.nix pythonSrc) — keeps JS/docs/skills
   # edits from invalidating the venv derivation.
   pythonSrc,
+  # Built panel root (dist/, sidecar/, plugins/). Wheel-build input only.
+  # Referencing the derivation adds a build dependency via string context.
+  # It is not read during evaluation, and it must not be copied into the
+  # installed runtime wrapper: stage_distribution copies file bytes into
+  # clawd_server/bundled, and the installed layout reads that bundle.
+  panelResourceRoot ? null,
   dependency-groups ? [ "all" ],
 }:
 let
@@ -137,9 +143,14 @@ let
           # variable, not a devShell variable: ``nix develop -c uv build``
           # must remain blocked.
           (final: prev: {
-            hermes-agent = prev.hermes-agent.overrideAttrs (_old: {
-              HERMES_NIX_BUILD = "1";
-            });
+            clawd = prev.clawd.overrideAttrs (
+              _old: {
+                HERMES_NIX_BUILD = "1";
+              }
+              // lib.optionalAttrs (panelResourceRoot != null) {
+                CLAWD_PANEL_RESOURCE_ROOT = panelResourceRoot;
+              }
+            );
           })
         ]
       );
@@ -160,7 +171,7 @@ let
     lib.composeManyExtensions [
       editableOverlay
       (final: prev: {
-        hermes-agent = prev.hermes-agent.overrideAttrs (old: {
+        clawd = prev.clawd.overrideAttrs (old: {
           # point straight at the real source instead of the filtered nix store copy
           src = workspaceRoot;
           nativeBuildInputs = old.nativeBuildInputs ++ final.resolveBuildSystem { editables = [ ]; };
@@ -172,10 +183,11 @@ in
 {
   inherit python;
 
-  venv = pythonSet.mkVirtualEnv "hermes-agent-env" {
-    hermes-agent = dependency-groups;
+  # uv2nix attribute must match [project].name = clawd.
+  venv = pythonSet.mkVirtualEnv "clawd-env" {
+    clawd = dependency-groups;
   };
-  editableVenv = editableSet.mkVirtualEnv "hermes-agent-editable-env" {
-    hermes-agent = dependency-groups;
+  editableVenv = editableSet.mkVirtualEnv "clawd-editable-env" {
+    clawd = dependency-groups;
   };
 }

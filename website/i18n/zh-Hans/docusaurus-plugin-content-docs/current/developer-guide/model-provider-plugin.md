@@ -1,12 +1,12 @@
 ---
 sidebar_position: 10
 title: "模型提供商插件"
-description: "如何为 Hermes Agent 构建模型提供商（推理后端）插件"
+description: "如何为 clawd 构建模型提供商（推理后端）插件"
 ---
 
 # 构建模型提供商插件
 
-模型提供商插件声明一个推理后端——兼容 OpenAI 的端点、Anthropic Messages 服务器、Codex 风格的 Responses API，或 Bedrock 原生接口——Hermes 可通过这些后端路由 `AIAgent` 调用。每个内置提供商（OpenRouter、Anthropic、GMI、DeepSeek、Nvidia……）都以此类插件形式提供。第三方可通过在 `$HERMES_HOME/plugins/model-providers/` 下放置一个目录来添加自己的提供商，无需对仓库做任何修改。
+模型提供商插件声明一个推理后端——兼容 OpenAI 的端点、Anthropic Messages 服务器、Codex 风格的 Responses API，或 Bedrock 原生接口——clawd 可通过这些后端路由 `AIAgent` 调用。每个内置提供商（OpenRouter、Anthropic、GMI、DeepSeek、Nvidia……）都以此类插件形式提供。第三方可通过在 `$HERMES_HOME/plugins/model-providers/` 下放置一个目录来添加自己的提供商，无需对仓库做任何修改。
 
 :::tip
 模型提供商插件是**提供商插件**的第三种类型。其他两种分别是 [Memory Provider 插件](./memory-provider-plugin.md)（跨会话知识）和 [Context Engine 插件](./context-engine-plugin.md)（上下文压缩策略）。三者均遵循相同的"放入目录、声明 profile、无需编辑仓库"模式。
@@ -16,7 +16,7 @@ description: "如何为 Hermes Agent 构建模型提供商（推理后端）插�
 
 `providers/__init__.py._discover_providers()` 在任何代码首次调用 `get_provider_profile()` 或 `list_providers()` 时懒加载执行。发现顺序：
 
-1. **内置插件** — `<repo>/plugins/model-providers/<name>/` — 随 Hermes 一同发布
+1. **内置插件** — `<repo>/plugins/model-providers/<name>/` — 随 clawd 一同发布
 2. **用户插件** — `$HERMES_HOME/plugins/model-providers/<name>/` — 放入任意目录；后续会话无需重启即可生效
 3. **旧版单文件** — `<repo>/providers/<name>.py` — 为树外可编辑安装提供向后兼容
 
@@ -31,7 +31,7 @@ plugins/model-providers/my-provider/
 └── README.md         # 安装说明（可选）
 ```
 
-唯一必需的文件是 `__init__.py`。`plugin.yaml` 供 `hermes plugins` 用于自省，以及供通用 PluginManager 将插件路由到正确的加载器；若缺少该文件，通用加载器会回退到源码文本启发式检测。
+唯一必需的文件是 `__init__.py`。`plugin.yaml` 供 `clawd plugins` 用于自省，以及供通用 PluginManager 将插件路由到正确的加载器；若缺少该文件，通用加载器会回退到源码文本启发式检测。
 
 ## 最简示例——一个简单的 API key 提供商
 
@@ -75,9 +75,9 @@ author: Your Name
 |---|---|---|
 | 凭据解析 | `hermes_cli/auth.py` | `PROVIDER_REGISTRY["acme-inference"]` 从 profile 填充 |
 | `--provider` CLI 标志 | `hermes_cli/main.py` | 接受 `acme-inference` |
-| `hermes model` 选择器 | `hermes_cli/models.py` | 出现在 `CANONICAL_PROVIDERS` 中，从 `{base_url}/models` 获取模型列表 |
-| `hermes doctor` | `hermes_cli/doctor.py` | 对 `ACME_API_KEY` 及 `{base_url}/models` 进行健康检查 |
-| `hermes setup` | `hermes_cli/config.py` | `ACME_API_KEY` 出现在 `OPTIONAL_ENV_VARS` 和设置向导中 |
+| `clawd model` 选择器 | `hermes_cli/models.py` | 出现在 `CANONICAL_PROVIDERS` 中，从 `{base_url}/models` 获取模型列表 |
+| `clawd doctor` | `hermes_cli/doctor.py` | 对 `ACME_API_KEY` 及 `{base_url}/models` 进行健康检查 |
+| `clawd setup` | `hermes_cli/config.py` | `ACME_API_KEY` 出现在 `OPTIONAL_ENV_VARS` 和设置向导中 |
 | URL 反向映射 | `agent/model_metadata.py` | 主机名 → 提供商名称，用于自动检测 |
 | 辅助模型 | `agent/auxiliary_client.py` | 使用 `default_aux_model` 进行压缩/摘要 |
 | 运行时解析 | `hermes_cli/runtime_provider.py` | 返回正确的 `base_url`、`api_key`、`api_mode` |
@@ -92,7 +92,7 @@ author: Your Name
 | `name` | str | 规范 ID——与 `config.yaml` 中的 `model.provider` 及 `--provider` 标志匹配 |
 | `aliases` | `tuple[str, ...]` | 由 `get_provider_profile()` 解析的别名（如 `grok` → `xai`） |
 | `api_mode` | str | `chat_completions` \| `codex_responses` \| `anthropic_messages` \| `bedrock_converse` |
-| `display_name` | str | 在 `hermes model` 选择器中显示的人类可读标签 |
+| `display_name` | str | 在 `clawd model` 选择器中显示的人类可读标签 |
 | `description` | str | 选择器副标题 |
 | `signup_url` | str | 首次运行设置时显示（"在此获取 API key"） |
 | `env_vars` | `tuple[str, ...]` | 按优先级排列的 API key 环境变量；最后一个 `*_BASE_URL` 条目用作用户 base URL 覆盖 |
@@ -160,9 +160,9 @@ class AcmeProfile(ProviderProfile):
 | `models_url` | Explicit models endpoint (else `{base_url}/models`) | `""` |
 | `auth_type` | `api_key` \| `oauth_device_code` \| `oauth_external` \| `external_process` \| `aws_sdk` \| plugin-defined | `"api_key"` |
 | `supports_streaming` | `None` keeps transport defaults, `True` opts a process client into streaming, `False` disables it | `None` |
-| `supports_health_check` | `False`: `hermes doctor` skips the `/models` probe | `True` |
+| `supports_health_check` | `False`: `clawd doctor` skips the `/models` probe | `True` |
 | `supports_model_listing` | `False`: `fetch_models()` returns `None` without a network call | `True` |
-| `auth_handler` | Provider-owned `hermes auth add\|status\|logout\|refresh <name>`; truthy return = handled | `None` |
+| `auth_handler` | Provider-owned `clawd auth add\|status\|logout\|refresh <name>`; truthy return = handled | `None` |
 | `refresh_credential` | Rotates a pooled OAuth row and returns the rotated fields | `None` |
 | `classify_api_error` | Error classification for this provider's failures, before the built-in pipeline | `None` |
 | `supports_vision` | API accepts images inside tool-result messages | `False` |
@@ -187,7 +187,7 @@ class AcmeProfile(ProviderProfile):
 | `start_device_login` | In-app device-code sign-in: returns `{user_code, verification_url, expires_in, interval, state}` | `None` |
 | `poll_device_login` | One poll of that login: `{status, interval?, credential?, message?}` | `None` |
 | `save_device_login` | Persists the approved credential (core calls it in the session's profile scope) | `None` |
-| `model_setup_flow` | The provider's own `hermes model` step (credential prompt, catalog, persist) | `None` (generic flow for `auth_type`) |
+| `model_setup_flow` | The provider's own `clawd model` step (credential prompt, catalog, persist) | `None` (generic flow for `auth_type`) |
 | `setup_reasoning_efforts` | Effort levels the setup picker offers for a model; `()` = no reasoning control | `None` (generic ladder) |
 | `fetch_account_usage()` | `/usage` snapshot when no built-in usage fetcher owns the provider | `None` |
 | `resolve_aux_model()` | Live cheap-model id for auxiliary tasks; cached, never raises | `""` (use `default_aux_model`) |
@@ -221,7 +221,7 @@ class AcmeProfile(ProviderProfile):
 | `runtime_base_url()` | Base URL derived from the credential | `None` (env or default) |
 | `prepare_pool_entry()` | Turns the selected pool row's secret into the runtime key | the secret as-is |
 | `seed_pool_credentials(suppressed_sources, explicitly_configured)` | Pool rows `{source, access_token, base_url, label}` the provider seeds itself, skipping sources in `suppressed_sources` | `None` (generic env seeding) |
-| `remove_credential_source()` | `hermes auth remove`: `(sources_to_suppress, hints)` | `None` (generic removal) |
+| `remove_credential_source()` | `clawd auth remove`: `(sources_to_suppress, hints)` | `None` (generic removal) |
 | `refresh_runtime_credentials()` | Re-mints `(api_key, base_url)` on `unauthorized` \| `stale` \| `auxiliary_unauthorized`; error path only | `None` |
 | `is_stale_credential_error()` | A non-auth error really means the credential went stale (pure) | `False` |
 | `credential_refresh_notice()` | Status line after a successful runtime refresh | `""` (generic wording) |
@@ -270,7 +270,7 @@ class AcmeProfile(ProviderProfile):
 
 ## 用户覆盖——不修改仓库替换内置提供商
 
-假设你想将 `gmi` 指向私有测试端点进行测试。创建 `~/.hermes/plugins/model-providers/gmi/__init__.py`：
+假设你想将 `gmi` 指向私有测试端点进行测试。创建 `~/.clawd/plugins/model-providers/gmi/__init__.py`：
 
 ```python
 from providers import register_provider
@@ -290,7 +290,7 @@ register_provider(ProviderProfile(
 
 ## api_mode 选择
 
-系统识别四个值。Hermes 的选择依据：
+系统识别四个值。clawd 的选择依据：
 
 1. 用户显式覆盖（`config.yaml` 中设置了 `model.api_mode`）
 2. OpenCode 的按模型分发（Zen 和 Go 的 `opencode_model_api_mode`）
@@ -311,14 +311,14 @@ register_provider(ProviderProfile(
 | `aws_sdk` | AWS SDK 凭据链（IAM role、profile、env） | 仅 `bedrock` 插件 |
 | `external_process` | 认证由 agent 启动的子进程处理 | 树外 ACP 插件（例如 `github-copilot` labs 插件中的 `copilot-acp`） |
 
-`auth_type` 控制哪些代码路径将你的提供商视为"简单 api-key 提供商"——若不是 `api_key`，PluginManager 仍会记录 manifest，但 Hermes CLI 层面的自动化（doctor 检查、`--provider` 标志、设置向导委托）可能会跳过它。
+`auth_type` 控制哪些代码路径将你的提供商视为"简单 api-key 提供商"——若不是 `api_key`，PluginManager 仍会记录 manifest，但 clawd CLI 层面的自动化（doctor 检查、`--provider` 标志、设置向导委托）可能会跳过它。
 
 ## 发现时机
 
 提供商发现是**懒加载**的——由进程中首次调用 `get_provider_profile()` 或 `list_providers()` 触发。实际上这在启动早期就会发生（`auth.py` 模块加载时会主动扩展 `PROVIDER_REGISTRY`）。若需验证插件是否已加载，运行：
 
 ```bash
-hermes doctor
+clawd doctor
 ```
 
 ——成功的 `auth_type="api_key"` profile 会出现在 Provider Connectivity 部分，并附带 `/models` 探测结果。
@@ -350,16 +350,16 @@ register_provider(ProviderProfile(
 EOF
 
 export MY_API_KEY=your-test-key
-hermes -z "hello" --provider my-provider -m some-model
+clawd -z "hello" --provider my-provider -m some-model
 ```
 
 ## 通用 PluginManager 集成
 
-通用 `PluginManager`（即 `hermes plugins` 操作的对象）**能看到**模型提供商插件，但不会导入它们——`providers/__init__.py` 负责管理其生命周期。Manager 记录 manifest 用于自省，并按 `kind: model-provider` 分类。当你将一个未标记的用户插件放入 `$HERMES_HOME/plugins/`，而该插件恰好调用了带 `ProviderProfile` 的 `register_provider`，Manager 会通过源码文本启发式检测自动将其归类为 `kind: model-provider`——因此即使没有 `plugin.yaml`，插件仍能正确路由。
+通用 `PluginManager`（即 `clawd plugins` 操作的对象）**能看到**模型提供商插件，但不会导入它们——`providers/__init__.py` 负责管理其生命周期。Manager 记录 manifest 用于自省，并按 `kind: model-provider` 分类。当你将一个未标记的用户插件放入 `$HERMES_HOME/plugins/`，而该插件恰好调用了带 `ProviderProfile` 的 `register_provider`，Manager 会通过源码文本启发式检测自动将其归类为 `kind: model-provider`——因此即使没有 `plugin.yaml`，插件仍能正确路由。
 
 ## 通过 pip 分发
 
-与所有 Hermes 插件一样，模型提供商可以作为 pip 包发布。在你的 `pyproject.toml` 中添加入口点：
+与所有 clawd 插件一样，模型提供商可以作为 pip 包发布。在你的 `pyproject.toml` 中添加入口点：
 
 ```toml
 [project.entry-points."hermes_agent.plugins"]
@@ -368,7 +368,7 @@ acme-inference = "acme_hermes_plugin:register"
 
 ……其中 `acme_hermes_plugin:register` 是一个调用 `register_provider(profile)` 的函数。通用 PluginManager 在 `discover_and_load()` 期间会拾取入口点插件。对于 `kind: model-provider` 的 pip 插件，你仍需在 manifest 中声明 kind（或依赖源码文本启发式检测）。
 
-完整的入口点设置请参阅 [构建 Hermes 插件](./plugins/index.md#distribute-via-pip)。
+完整的入口点设置请参阅 [构建 clawd 插件](./plugins/index.md#distribute-via-pip)。
 
 ## 相关页面
 
@@ -376,4 +376,4 @@ acme-inference = "acme_hermes_plugin:register"
 - [添加提供商](./adding-providers.md) — 新推理后端的端到端检查清单（涵盖快速插件路径和完整 CLI/auth 集成）
 - [Memory Provider 插件](./memory-provider-plugin.md)
 - [Context Engine 插件](./context-engine-plugin.md)
-- [构建 Hermes 插件](./plugins/index.md) — 通用插件编写指南
+- [构建 clawd 插件](./plugins/index.md) — 通用插件编写指南

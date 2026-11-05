@@ -3,7 +3,15 @@ from __future__ import annotations
 
 import argparse
 import os
+import sys
 from pathlib import Path
+
+if __name__ == "__main__":
+    print(
+        "refused: clawd does not build the official desktop app. This entry is unsupported.",
+        file=sys.stderr,
+    )
+    raise SystemExit(2)
 
 from scripts.bundles.desktop_prepare import PreparedDesktop
 from scripts.ci.setup_toolchain import add_path, file_commands
@@ -42,4 +50,8 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    print(
+        "refused: clawd does not build the official desktop app. This entry is unsupported.",
+        file=sys.stderr,
+    )
+    raise SystemExit(2)

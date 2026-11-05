@@ -3,18 +3,18 @@ label: Weixin / WeChat
 kind: platform
 version: 1.0.0
 description: >
-  Weixin (personal WeChat) gateway adapter for Hermes Agent over Tencent's
+  Weixin (personal WeChat) gateway adapter for clawd over Tencent's
   iLink Bot API. Long-polls getupdates for inbound messages, echoes each
   peer's context_token on replies, and moves media through the AES-128-ECB
-  encrypted CDN. `hermes gateway setup` performs the iLink QR login.
+  encrypted CDN. `clawd gateway setup` performs the iLink QR login.
 author: NousResearch
 requires_env:
   - name: WEIXIN_ACCOUNT_ID
-    description: "iLink Bot account ID obtained through QR login in hermes gateway setup"
+    description: "iLink Bot account ID obtained through QR login in clawd gateway setup"
     prompt: "iLink Bot account ID"
     password: false
   - name: WEIXIN_TOKEN
-    description: "iLink Bot token obtained through QR login in hermes gateway setup"
+    description: "iLink Bot token obtained through QR login in clawd gateway setup"
     prompt: "iLink Bot token"
     password: true
 optional_env:

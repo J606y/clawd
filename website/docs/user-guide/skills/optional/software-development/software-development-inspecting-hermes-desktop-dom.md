@@ -14,10 +14,10 @@ Read the live Hermes desktop DOM/CSS over CDP.
 
 | | |
 |---|---|
-| Source | Optional — install with `hermes skills install official/software-development/inspecting-hermes-desktop-dom` |
+| Source | Optional — install with `clawd skills install official/software-development/inspecting-hermes-desktop-dom` |
 | Path | `optional-skills/software-development/inspecting-hermes-desktop-dom` |
 | Version | `1.0.0` |
-| Author | Hermes Agent |
+| Author | clawd |
 | License | MIT |
 | Platforms | linux, macos, windows |
 | Tags | `desktop`, `electron`, `cdp`, `dom`, `ui-verification`, `self-inspection` |
@@ -26,7 +26,7 @@ Read the live Hermes desktop DOM/CSS over CDP.
 ## Reference: full SKILL.md
 
 :::info
-The following is the complete skill definition that Hermes loads when this skill is triggered. This is what the agent sees as instructions when the skill is active.
+The following is the complete skill definition that clawd loads when this skill is triggered. This is what the agent sees as instructions when the skill is active.
 :::
 
 # Inspecting the live Hermes desktop DOM

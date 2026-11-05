@@ -1,4 +1,4 @@
-"""``hermes config`` / ``hermes config show``: the read-only configuration summary.
+"""``clawd config`` / ``clawd config show``: the read-only configuration summary.
 
 Split out of ``hermes_cli.config``; config names are read through the module at call time
 (``_cfg.<name>``) so ``hermes_cli.config.<name>`` patch seams hold.
@@ -58,7 +58,7 @@ def _show_model_section(config: dict[str, Any]) -> None:
         env_ghost = None
     if env_ghost is not None and str(env_ghost).strip() != str(cfg_max_turns).strip():
         print(color(f"                ⚠ .env has stale HERMES_MAX_ITERATIONS={env_ghost} "
-                    f"(run 'hermes doctor --fix' to remove)", Colors.YELLOW))
+                    f"(run 'clawd doctor --fix' to remove)", Colors.YELLOW))
 
 
 def _show_display_section(config: dict[str, Any]) -> None:
@@ -169,7 +169,7 @@ def show_config():
 
     print()
     print(color("┌─────────────────────────────────────────────────────────┐", Colors.CYAN))
-    print(color("│              ☤ Hermes Configuration                    │", Colors.CYAN))
+    print(color("│              ☤ clawd Configuration                    │", Colors.CYAN))
     print(color("└─────────────────────────────────────────────────────────┘", Colors.CYAN))
     _show_managed_banner()
 
@@ -204,7 +204,7 @@ def show_config():
 
     print()
     print(color("─" * 60, Colors.DIM))
-    print(color("  hermes config edit     # Edit config file", Colors.DIM))
-    print(color("  hermes config set <key> <value>", Colors.DIM))
-    print(color("  hermes setup           # Run setup wizard", Colors.DIM))
+    print(color("  clawd config edit     # Edit config file", Colors.DIM))
+    print(color("  clawd config set <key> <value>", Colors.DIM))
+    print(color("  clawd setup           # Run setup wizard", Colors.DIM))
     print()

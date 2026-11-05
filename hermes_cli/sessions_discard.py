@@ -1,7 +1,7 @@
-"""``hermes sessions discard``: acknowledge a turn lost across a gateway crash, without a REPL.
+"""``clawd sessions discard``: acknowledge a turn lost across a gateway crash, without a REPL.
 
 After an owner restart mid-turn, the session's ``started`` admission is fenced ``unknown`` and
-everything queued behind it waits. A finite ``hermes chat --resume <id> -q`` refuses (exit 3)
+everything queued behind it waits. A finite ``clawd chat --resume <id> -q`` refuses (exit 3)
 rather than queue behind it. Interactively, ``/discard <admission>`` clears it. This is the same
 fenced control (``prompt.resolve_unknown`` with the generation the owner stamped) for scripts.
 The lost input is not replayed; it stays in the transcript to resend.
@@ -12,7 +12,7 @@ import sys
 
 
 async def _resume(client, name):
-    """Exact session id first, then title, as ``hermes chat --resume`` / ``-c`` resolve it."""
+    """Exact session id first, then title, as ``clawd chat --resume`` / ``-c`` resolve it."""
     from hermes_cli.gateway_client import GatewayClientError
     for key in ("session_id", "title"):
         try:
@@ -20,7 +20,7 @@ async def _resume(client, name):
         except GatewayClientError as exc:
             if str(exc) != "not_found":
                 raise
-    raise GatewayClientError(f"No session found matching '{name}'. Use 'hermes sessions list' to see available sessions.")
+    raise GatewayClientError(f"No session found matching '{name}'. Use 'clawd sessions list' to see available sessions.")
 
 
 def _confirm(session_id, rows):
@@ -68,7 +68,7 @@ def add_discard_parser(sessions_subparsers) -> None:
     parser = sessions_subparsers.add_parser(
         "discard", help="Acknowledge turns lost in a gateway crash (unknown admissions) so the session runs again",
         description="After a gateway crash mid-turn, the lost turn is fenced 'unknown' and blocks the "
-            "session: `hermes chat --resume <id> -q` exits 3 until it is acknowledged. This is the "
+            "session: `clawd chat --resume <id> -q` exits 3 until it is acknowledged. This is the "
             "non-interactive form of `/discard <admission>`. The lost input is not replayed.")
     parser.add_argument("session", help="Session ID or title")
     parser.add_argument("--admission", action="append", metavar="ID",

@@ -91,6 +91,14 @@ def prepare_source_dependencies(project_root: Path, workspaces: tuple[str, ...],
 
 def prepare_launch_dependencies(project_root: Path, *, env: dict) -> None:
     """A launch rebuild must not prune another installed source frontend."""
+    if os.environ.get("CLAWD_CLI") == "1":
+        # Official web and desktop are not clawd products. Preparing them would
+        # npm-install those workspaces back.
+        names = ["ui-tui"]
+        if (project_root / "apps" / "shared" / "package.json").is_file():
+            names.append("apps/shared")
+        prepare_source_dependencies(project_root, tuple(names), env=env)
+        return
     from hermes_cli.main_desktop import _desktop_dist_exists, _desktop_packaged_executable
 
     desktop_dir = project_root / "apps/desktop"
@@ -104,6 +112,12 @@ def build_source_tui(project_root: Path, *, env: dict) -> None:
 
 
 def build_source_web(project_root: Path, *, env: dict, icons: Path | None = None) -> None:
+    if os.environ.get("CLAWD_CLI") == "1" or (
+        (project_root / "clawd_cli").is_dir() and not (project_root / "web" / "package.json").is_file()
+    ):
+        raise RuntimeError(
+            "refused: clawd does not build the official web UI. Use `clawd panel`."
+        )
     # Bounded build (#63338): the Vite/Rolldown dashboard build saturates small
     # hosts; cap the V8 heap and the native bundler's rayon thread pool.
     from hermes_cli.web_build_limits import apply_web_build_limits
@@ -118,6 +132,10 @@ def build_source_web(project_root: Path, *, env: dict, icons: Path | None = None
 
 def build_source_webapp(project_root: Path, *, env: dict, explicit: bool = False) -> None:
     """Browser renderer; its dependencies live in a private workspace, never the checkout's."""
+    if os.environ.get("CLAWD_CLI") == "1" or (
+        (project_root / "clawd_cli").is_dir() and not (project_root / "apps" / "desktop" / "package.json").is_file()
+    ):
+        raise RuntimeError("refused: clawd does not build the official desktop webapp.")
     run_source_script(project_root, "apps/desktop/scripts/build-webapp.mjs", *_install_args(explicit),
                       env=env, label="Building the Webapp renderer")
 
@@ -153,6 +171,14 @@ def build_update_products(project_root: Path, *, desktop: bool) -> None:
     A failed product never skips the next one (a broken web build must not leave the TUI or the
     desktop app stale); the failures are raised together at the end as ``ProductBuildError``.
     """
+    if os.environ.get("CLAWD_CLI") == "1" or (
+        desktop and (project_root / "clawd_cli").is_dir()
+        and not (project_root / "apps" / "desktop" / "package.json").is_file()
+    ):
+        raise RuntimeError(
+            "refused: clawd does not build the official web or desktop UI, "
+            "and will not republish an update that overwrites Hermes."
+        )
     # Both current updates and historical takeover reach this in a fresh target
     # interpreter, never in the updater's pre-sync import graph.
     from hermes_cli.main_install_repair import _install_configured_features_missing_deps

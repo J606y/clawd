@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>subagent card size</title>
+</head>
+<body>
+  <div id="chat" class="hp-chat" style="width:320px;position:relative"></div>
+  <div id="activity" class="activity-page" style="width:280px"></div>
+  <script type="module">
+    import { createElement } from "react";
+    import { createRoot } from "react-dom/client";
+    import { flushSync } from "react-dom";
+    import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+    import { ChatStyles } from "/src/react/pages/chat/chat-styles.tsx";
+    import { SubagentsBar } from "/src/react/pages/chat/subagents-bar.tsx";
+    import { ActivitySubagents } from "/src/react/pages/activity/subagents.tsx";
+    import "/src/react/pages/activity/activity.css";
+
+    const long = "甲".repeat(80);
+    const agents = [
+      {
+        id: "short", parentId: "s1", parentTitle: null, title: "短", model: null,
+        startedAt: 1, endedAt: 2, endReason: null, status: "done",
+        messages: 1, toolCalls: 1, apiCalls: 1, tokens: 1, lastActivityAt: 2,
+        lastTool: null, snippet: "",
+      },
+      {
+        id: "long", parentId: "s1", parentTitle: null, title: `【角色】${long}`, model: "grok-4.7",
+        startedAt: 1, endedAt: null, endReason: null, status: "running",
+        messages: 4, toolCalls: 67, apiCalls: 3, tokens: 9, lastActivityAt: 2,
+        lastTool: { name: "terminal", args: { command: `npm run typecheck ${long}` } },
+        snippet: `改动已落上。${long}`,
+      },
+    ];
+    const original = window.fetch.bind(window);
+    window.fetch = (input, init) => {
+      const url = String(input);
+      if (url.includes("subagents")) {
+        const parsed = new URL(url, location.href);
+        const limit = Number(parsed.searchParams.get("limit") || 50);
+        const offset = Number(parsed.searchParams.get("offset") || 0);
+        const page = agents.slice(offset, offset + limit);
+        return Promise.resolve(new Response(JSON.stringify({
+          data: page, running: 1, stalled: 0, total: agents.length, now: Date.now() / 1000, limit, offset,
+        }), {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        }));
+      }
+      return original(input, init);
+    };
+
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    flushSync(() => {
+      createRoot(document.querySelector("#chat")).render(createElement(QueryClientProvider, { client },
+        createElement(ChatStyles),
+        createElement(SubagentsBar, { sessionId: "s1", active: false }),
+      ));
+      createRoot(document.querySelector("#activity")).render(createElement(QueryClientProvider, { client: new QueryClient({ defaultOptions: { queries: { retry: false } } }) },
+        createElement(ActivitySubagents),
+      ));
+    });
+
+    const box = (el) => {
+      const rect = el.getBoundingClientRect();
+      return { width: rect.width, height: rect.height };
+    };
+    window.motion = {
+      async measure() {
+        for (let n = 0; n < 40 && document.querySelectorAll("#chat .card").length < 2; n += 1) {
+          await new Promise((resolve) => setTimeout(resolve, 50));
+        }
+        const chatList = document.querySelector("#chat .list");
+        const activityList = document.querySelector("#activity .list");
+        const cards = (root) => [...root.querySelectorAll(".card")].map(box);
+        return {
+          chat: cards(document.querySelector("#chat")),
+          activity: cards(document.querySelector("#activity")),
+          chatList: chatList ? chatList.clientWidth : 0,
+          activityList: activityList ? activityList.clientWidth : 0,
+          chatScroll: chatList ? chatList.scrollWidth : 0,
+          activityScroll: activityList ? activityList.scrollWidth : 0,
+        };
+      },
+    };
+    window.ready = true;
+  </script>
+</body>
+</html>

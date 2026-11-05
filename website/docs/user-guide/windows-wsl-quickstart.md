@@ -7,6 +7,12 @@ sidebar_position: 2
 
 # Windows (WSL2) Guide
 
+<!-- clawd-docs-note -->
+:::warning Not this checkout
+The installers, packages, and download links on this page are upstream Hermes Agent. They do not install clawd. This checkout does not publish an installer URL. From this checkout, run `./clawd`. Setup spelling is `clawd setup`. `clawd` refuses `update`, `desktop`, `dashboard`, `gui`, and `webapp`. The web UI here is `clawd panel`.
+:::
+
+
 Hermes Agent now supports **both** native Windows and WSL2.  This page covers the WSL2 path; for the native PowerShell install see the dedicated **[Windows (Native) Guide](./windows-native.md)**.
 
 **When to pick WSL2 over native:**

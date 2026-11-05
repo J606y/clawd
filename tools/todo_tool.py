@@ -7,6 +7,13 @@ import json
 from typing import Any, Dict, List, Optional
 
 VALID_STATUSES = {"pending", "in_progress", "completed", "cancelled"}
+# Acceptance status stays parent-owned. These are display-only execution states.
+EXECUTION_STATUSES = frozenset({
+    "running", "stalled", "returned", "failed", "cancelled", "interrupted", "unknown",
+})
+_LINK_KEYS = ("delegation_id", "child_id")
+MAX_TODO_LINKS = 32
+MAX_TODO_LINK_CHARS = 256
 # The list is re-read after every compression (format_for_injection), so unbounded
 # content/count would defeat the compression it rides through. Caps apply equally to
 # model-authored items and caller-replayed API history.
@@ -23,9 +30,279 @@ _STATUS_MARKERS = {"completed": "[x]", "in_progress": "[>]", "pending": "[ ]", "
 _ACTIVE_STATUSES = {"pending", "in_progress"}
 
 
+def _clean_link_id(value: Any) -> str:
+    """Explicit id only. Empty, non-text, overlong, or multiline values are not links."""
+    if not isinstance(value, str):
+        return ""
+    text = value.strip()
+    if not text or len(text) > MAX_TODO_LINK_CHARS or any(ch in text for ch in "\n\r\x00"):
+        return ""
+    return text
+
+
+def _link_from_mapping(entry: Any) -> dict[str, str]:
+    if not isinstance(entry, dict):
+        return {}
+    link: dict[str, str] = {}
+    for key in _LINK_KEYS:
+        text = _clean_link_id(entry.get(key))
+        if text:
+            link[key] = text
+    return link
+
+
+def _dedupe_links(links: list[dict[str, str]]) -> list[dict[str, str]]:
+    seen: set[tuple[str, str]] = set()
+    out: list[dict[str, str]] = []
+    for link in links:
+        key = (link.get("delegation_id", ""), link.get("child_id", ""))
+        if key in seen or key == ("", ""):
+            continue
+        seen.add(key)
+        out.append(dict(link))
+        if len(out) >= MAX_TODO_LINKS:
+            break
+    return out
+
+
+def _links_from_item(item: dict[str, Any]) -> tuple[bool, list[dict[str, str]]]:
+    """``(specified, links)``. A present ``delegations`` key replaces scalars."""
+    if "delegations" in item:
+        raw = item.get("delegations")
+        links = [_link_from_mapping(entry) for entry in raw] if isinstance(raw, list) else []
+        return True, _dedupe_links([link for link in links if link])
+    if "delegation_id" not in item and "child_id" not in item:
+        return False, []
+    link = _link_from_mapping(item)
+    return True, ([link] if link else [])
+
+
+def _upsert_link(existing: list[dict[str, str]], link: dict[str, str]) -> None:
+    delegation_id = link.get("delegation_id", "")
+    child_id = link.get("child_id", "")
+    kept = [
+        old for old in existing
+        if not (
+            (delegation_id and old.get("delegation_id") == delegation_id)
+            or (child_id and old.get("child_id") == child_id)
+        )
+    ]
+    kept.append(link)
+    existing[:] = kept
+
+
+def _merge_link_scalars(cur: dict[str, Any], incoming: dict[str, Any]) -> None:
+    """Update one explicit link. Several existing links plus one scalar is left unchanged."""
+    provided: dict[str, str] = {}
+    for key in _LINK_KEYS:
+        if key not in incoming or not isinstance(incoming.get(key), str):
+            continue
+        provided[key] = str(incoming.get(key)).strip()
+    if not provided:
+        return
+    existing = [dict(link) for link in cur.get("delegations") or []]
+    if set(provided) == set(_LINK_KEYS):
+        if not provided["delegation_id"] and not provided["child_id"]:
+            cur.pop("delegations", None)
+            return
+        link = {key: _clean_link_id(value) for key, value in provided.items()}
+        link = {key: value for key, value in link.items() if value}
+        if not link:
+            return
+        _upsert_link(existing, link)
+        cur["delegations"] = _dedupe_links(existing)
+        return
+    key, raw = next(iter(provided.items()))
+    value = _clean_link_id(raw) if raw else ""
+    if len(existing) > 1:
+        return
+    if not existing:
+        if value:
+            cur["delegations"] = [{key: value}]
+        return
+    if value:
+        existing[0][key] = value
+        cur["delegations"] = _dedupe_links(existing)
+        return
+    existing[0].pop(key, None)
+    if existing[0]:
+        cur["delegations"] = existing
+    else:
+        cur.pop("delegations", None)
+
+
+def _copy_todo_item(item: dict[str, Any]) -> dict[str, Any]:
+    copied = {key: value for key, value in item.items() if key not in {"delegations", "execution"}}
+    links = item.get("delegations")
+    if links:
+        copied["delegations"] = [dict(link) for link in links if isinstance(link, dict)]
+    return copied
+
+
+def _execution_text(record: dict[str, Any], *keys: str) -> str:
+    for key in keys:
+        if key in record:
+            return _clean_link_id(record.get(key))
+    return ""
+
+
+def _fold_execution(states: list[str]) -> Optional[str]:
+    """One item, many children. Running wins; a failure never becomes acceptance."""
+    if not states:
+        return None
+    if "running" in states:
+        return "running"
+    if "failed" in states:
+        return "failed"
+    if "interrupted" in states:
+        return "interrupted"
+    if "cancelled" in states:
+        return "cancelled"
+    if "missing" in states or "unknown" in states:
+        return "unknown"
+    if "stalled" in states:
+        return "stalled"
+    if all(state == "returned" for state in states):
+        return "awaiting_acceptance"
+    return "unknown"
+
+
+def _pick_execution(matched: list[str]) -> Optional[str]:
+    """Collapse records for one link. Display names such as awaiting_acceptance are not inputs."""
+    if not matched:
+        return None
+    if "running" in matched:
+        return "running"
+    if "failed" in matched:
+        return "failed"
+    if "interrupted" in matched:
+        return "interrupted"
+    if "cancelled" in matched:
+        return "cancelled"
+    if "unknown" in matched:
+        return "unknown"
+    if "stalled" in matched:
+        return "stalled"
+    if all(state == "returned" for state in matched):
+        return "returned"
+    return "unknown"
+
+
+def _match_execution(records: list[dict[str, str]], item_id: str, delegation_id: str, child_id: str) -> Optional[str]:
+    matched: list[str] = []
+    for record in records:
+        if record.get("todo_id") and record["todo_id"] != item_id:
+            continue
+        if delegation_id and record.get("delegation_id") and record["delegation_id"] != delegation_id:
+            continue
+        if child_id and record.get("child_id") and record["child_id"] != child_id:
+            continue
+        by_delegation = bool(delegation_id and record.get("delegation_id") == delegation_id)
+        by_child = bool(child_id and record.get("child_id") == child_id)
+        if by_delegation or by_child:
+            matched.append(record.get("status") or "unknown")
+    return _pick_execution(matched)
+
+
+def project_todo_execution(
+    items: Optional[list[dict[str, Any]]],
+    executions: Any,
+    *,
+    session_id: str,
+    profile_key: str,
+) -> list[dict[str, Any]]:
+    """Overlay execution display. Does not write acceptance status or keep a cache.
+
+    Records from another session or profile are ignored. An id claimed by more
+    than one item matches nothing. Unlinked items stay as stored.
+    """
+    public = [_copy_todo_item(item) for item in items or [] if isinstance(item, dict)]
+    if not isinstance(session_id, str) or not session_id.strip():
+        return public
+    if not isinstance(profile_key, str) or not profile_key.strip():
+        return public
+    if not isinstance(executions, list):
+        return public
+    session_id = session_id.strip()
+    profile_key = profile_key.strip()
+    claims_d: dict[str, set[str]] = {}
+    claims_c: dict[str, set[str]] = {}
+    for item in public:
+        item_id = str(item.get("id") or "")
+        for link in item.get("delegations") or []:
+            if not isinstance(link, dict):
+                continue
+            delegation_id = _clean_link_id(link.get("delegation_id"))
+            child_id = _clean_link_id(link.get("child_id"))
+            if delegation_id:
+                claims_d.setdefault(delegation_id, set()).add(item_id)
+            if child_id:
+                claims_c.setdefault(child_id, set()).add(item_id)
+    ambiguous_d = {key for key, owners in claims_d.items() if len(owners) != 1}
+    ambiguous_c = {key for key, owners in claims_c.items() if len(owners) != 1}
+    scoped: list[dict[str, str]] = []
+    for raw in executions:
+        if not isinstance(raw, dict):
+            continue
+        rec_session = _execution_text(raw, "session_id", "sessionId")
+        rec_profile = _execution_text(raw, "profile_key", "profileKey")
+        if rec_session != session_id or rec_profile != profile_key:
+            continue
+        status = str(raw.get("executionStatus") or raw.get("status") or "").strip().lower()
+        scoped.append({
+            "delegation_id": _execution_text(raw, "delegation_id", "delegationId"),
+            "child_id": _execution_text(raw, "child_id", "childId"),
+            "todo_id": _execution_text(raw, "todo_id", "todoId"),
+            "status": status if status in EXECUTION_STATUSES else "unknown",
+        })
+    for item in public:
+        if item.get("status") in {"completed", "cancelled"}:
+            continue
+        links = [link for link in item.get("delegations") or [] if isinstance(link, dict)]
+        if not links:
+            continue
+        states: list[str] = []
+        item_id = str(item.get("id") or "")
+        for link in links:
+            delegation_id = _clean_link_id(link.get("delegation_id"))
+            child_id = _clean_link_id(link.get("child_id"))
+            if (delegation_id and delegation_id in ambiguous_d) or (child_id and child_id in ambiguous_c):
+                states.append("unknown")
+                continue
+            states.append(_match_execution(scoped, item_id, delegation_id, child_id) or "missing")
+        folded = _fold_execution(states)
+        if folded:
+            item["execution"] = folded
+    return public
+
+
+_LINK_SUFFIX_CAP = 512
+
+
+def _link_suffix(item: dict[str, Any]) -> str:
+    parts: list[str] = []
+    for link in item.get("delegations") or []:
+        if not isinstance(link, dict):
+            continue
+        bits = []
+        if link.get("delegation_id"):
+            bits.append(f"delegation_id={link['delegation_id']}")
+        if link.get("child_id"):
+            bits.append(f"child_id={link['child_id']}")
+        if bits:
+            parts.append(" ".join(bits))
+    if not parts:
+        return ""
+    suffix = " [" + "; ".join(parts) + "]"
+    if len(suffix) > _LINK_SUFFIX_CAP:
+        return suffix[:_LINK_SUFFIX_CAP - 1] + "…]"
+    return suffix
+
+
 class TodoStore:
     """In-memory todo list, one per AIAgent. List position is priority; items are
-    ``{id, content, status, parent?}`` — ``parent`` nests a subtask."""
+    ``{id, content, status, parent?, delegations?}``. ``parent`` nests a subtask.
+    ``delegations`` is an explicit todo-to-child link, not an acceptance status."""
 
     def __init__(self):
         self._items: list[dict[str, str]] = []
@@ -76,12 +353,20 @@ class TodoStore:
                     cur["parent"] = parent
                 else:
                     cur.pop("parent", None)
+            if "delegations" in t:
+                _specified, links = _links_from_item({"delegations": t.get("delegations")})
+                if links:
+                    cur["delegations"] = links
+                else:
+                    cur.pop("delegations", None)
+            elif "delegation_id" in t or "child_id" in t:
+                _merge_link_scalars(cur, t)
         # Rebuild preserving original order for existing items (first occurrence wins).
         rebuilt = {item["id"]: existing.get(item["id"], item) for item in self._items}
         self._items = self._normalize_order(list(rebuilt.values()))
 
-    def read(self) -> list[dict[str, str]]:
-        return [item.copy() for item in self._items]
+    def read(self) -> list[dict[str, Any]]:
+        return [_copy_todo_item(item) for item in self._items]
 
     def has_items(self) -> bool:
         return bool(self._items)
@@ -120,7 +405,7 @@ class TodoStore:
             if keep:
                 marker = _STATUS_MARKERS.get(item["status"], "[?]")
                 out.append(f"{'  ' * depth}- {marker} {item['id']}. "
-                           f"{item['content']} ({item['status']})")
+                           f"{item['content']} ({item['status']}){_link_suffix(item)}")
                 out.extend(kid_lines)
             return keep
 
@@ -156,6 +441,9 @@ class TodoStore:
         parent = str(item.get("parent") or "").strip()
         if parent and parent != item_id:
             result["parent"] = parent
+        _specified, links = _links_from_item(item)
+        if links:
+            result["delegations"] = links
         return result
 
     @staticmethod
@@ -235,7 +523,12 @@ TODO_SCHEMA = {
         "For 'all N items' tasks, enumerate every instance as its own checklist "
         "item so none are silently dropped. "
         "Call with no parameters to read the current list.\n"
-        "List order is priority. Only ONE item in_progress at a time. "
+        "List order is priority. When several subagents each do their own item, "
+        "merge status in_progress on each of those ids; do not mark an unlinked sibling. "
+        "A parent item may stay in_progress while its children remain pending until you "
+        "update those child ids. Record delegation_id and/or child_id from the dispatch "
+        "result on that same item id; never infer a link from goal or title. "
+        "A returned child is not completed. "
         "Break large phases into subtasks via parent. "
         "Mark an item completed only after the work is verified done, never "
         "based on intent. If something fails, cancel it and add a revised "
@@ -264,6 +557,25 @@ TODO_SCHEMA = {
                         "parent": {
                             "type": "string",
                             "description": "Optional id of another item, making this a nested subtask. Omit for top-level."
+                        },
+                        "delegation_id": {
+                            "type": "string",
+                            "description": "Explicit delegation id for the subagent doing THIS item. Omit on merge to keep the current link. Empty string clears a single link. Do not infer from text. Several existing links plus only this field are left unchanged."
+                        },
+                        "child_id": {
+                            "type": "string",
+                            "description": "Explicit child session id for the subagent doing THIS item. Same merge rules as delegation_id. This is not the subagent registry id unless that id is the session id."
+                        },
+                        "delegations": {
+                            "type": "array",
+                            "description": "Explicit links when several children share THIS item. If present, replaces delegation_id/child_id. Empty array clears every link. Each entry needs delegation_id and/or child_id.",
+                            "items": {
+                                "type": "object",
+                                "properties": {
+                                    "delegation_id": {"type": "string"},
+                                    "child_id": {"type": "string"}
+                                }
+                            }
                         }
                     },
                     "required": ["id", "content", "status"]

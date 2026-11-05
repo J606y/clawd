@@ -1,0 +1,414 @@
+{
+  "schema_version": 1,
+  "document": "dependency-source-inventory-snapshot",
+  "generator_executed": false,
+  "lock_rows_emitted": false,
+  "security_scan": false,
+  "advisory_status": "not_scanned",
+  "compliance_conclusion": "not_determined",
+  "note": "只读核对后的库存说明，不是 scripts/clawd_inventory/generate.py 的输出。生成器已实现离线提取，但本次未执行，所以没有逐条锁来源/完整性行。第三方 license 判定为 unknown；锁里的 license 字符串未抄入本文件，也不填 MIT。不下载，不扫描 node_modules/venv。内部包许可证仍未知，须用户确认。",
+  "inputs": [
+    {
+      "path": "LICENSE",
+      "status": "read",
+      "sha256": "821556e6336796450ab852d375117b48a4887e71d255794fd6318d99982a5ab6",
+      "bytes": 1070
+    },
+    {
+      "path": "NOTICE",
+      "status": "absent"
+    },
+    {
+      "path": "pyproject.toml",
+      "status": "read",
+      "sha256": "f4f054a31e188587c0abe88f284aef4f1280b2ecf3fe6645025cee416bf9c703",
+      "bytes": 47223,
+      "coverage": "本快照未逐条转写 optional-dependencies。生成器执行时会读该表与 uv.lock 的 package.optional-dependencies；本次未执行。"
+    },
+    {
+      "path": "uv.lock",
+      "status": "read_structure_only",
+      "sha256": "e7314b3489730fd1832e53d79979bb01986246e657058766ed09372fb30fbf70",
+      "bytes": 1244771,
+      "coverage": "只做 stdlib 结构计数，并抽读 hermes-agent 直接依赖块、psutil、misaki、kittentts。未逐条提取。生成器已能离线提取，本次未执行，本文件不补行。"
+    },
+    {
+      "path": "package.json",
+      "status": "read",
+      "sha256": "800b554712d93509cea3c4b09e078733e51ecfa84d8d2ce837253f1e0d8b85a4",
+      "bytes": 2791
+    },
+    {
+      "path": "package-lock.json",
+      "status": "read_structure_only",
+      "sha256": "e70767480951f0747ddb0005cf2d3a4de4b58fa48ae65e56f3ace63a0dffd6aa",
+      "bytes": 249956
+    },
+    {
+      "path": "apps/panel/package.json",
+      "status": "read",
+      "sha256": "8d1f583311497518f87ebad2849efe68870bd8402e44f93ec1b3eba83022e21a",
+      "bytes": 1884
+    },
+    {
+      "path": "apps/panel/package-lock.json",
+      "status": "read_structure_only",
+      "sha256": "dae066f2ed97f9051e76e4a0c03e71eebe8db0d11987475248c7842b9481a4c0",
+      "bytes": 150282
+    },
+    {
+      "path": "apps/panel/sidecar/requirements.txt",
+      "status": "read",
+      "sha256": "228960abe2055602b6f3c3b947751cbf1aee793133834dae06cd0489181cea4b",
+      "bytes": 6347
+    },
+    {
+      "path": "ui-tui/package.json",
+      "status": "read",
+      "sha256": "30458fd81748d3d844fa97906efa5c2baefa1f84dd64992e5c06a17d19c48f3e",
+      "bytes": 1513
+    },
+    {
+      "path": "ui-tui/packages/hermes-ink/package.json",
+      "status": "read",
+      "sha256": "9fbbbe9f3447de6a1b509e27be985b3edc14bac42c37b5f88aef5c7bd639c55b",
+      "bytes": 1492
+    },
+    {
+      "path": "apps/shared/package.json",
+      "status": "read",
+      "sha256": "b9ae25a2a7f088a1f2d4083f19bd10c4432c1e451022d885c59b0f1996cee85e",
+      "bytes": 1211
+    }
+  ],
+  "components": [
+    {
+      "id": "core",
+      "distribution_name": "hermes-agent",
+      "npm_name": "hermes-agent",
+      "license": "MIT",
+      "license_basis": "根 LICENSE 标题与正文；pyproject license 字段；根 package.json license 字段。三处一致，且已读 LICENSE 全文。",
+      "copyright": "Copyright (c) 2025 Nous Research",
+      "authors": ["Nous Research"],
+      "repository": "git+https://github.com/NousResearch/Hermes-Agent.git",
+      "notice": "absent",
+      "do_not_rebrand_license": true
+    },
+    {
+      "id": "panel",
+      "npm_name": "hermes-panel",
+      "version": "0.1.0",
+      "license": "unknown",
+      "license_basis": "package.json 无 license 字段；apps/panel/LICENSE 不存在",
+      "copyright": "unknown",
+      "notice": "absent"
+    },
+    {
+      "id": "tui",
+      "npm_name": "hermes-tui",
+      "version": "0.0.1",
+      "description": "clawd terminal UI",
+      "license": "unknown",
+      "license_basis": "package.json 无 license 字段；ui-tui/LICENSE 不存在",
+      "copyright": "unknown",
+      "notice": "absent",
+      "internal_names_not_renamed": ["@hermes/ink", "@hermes/shared"]
+    },
+    {
+      "id": "hermes-ink",
+      "npm_name": "@hermes/ink",
+      "version": "0.0.1",
+      "license": "unknown",
+      "copyright": "unknown"
+    },
+    {
+      "id": "hermes-shared",
+      "npm_name": "@hermes/shared",
+      "version": "0.0.0",
+      "license": "unknown",
+      "copyright": "unknown"
+    }
+  ],
+  "readonly_structure_census": {
+    "method": "python stdlib json/tomllib 计数。不是 generate.py，不是安全扫描。",
+    "uv_lock": {
+      "packages": 356,
+      "source_types": {"registry": 352, "editable": 1, "url": 1, "git": 2},
+      "packages_without_hash": ["hermes-agent@0.0.0", "misaki@0.9.4", "psutil@8.0.0"]
+    },
+    "root_package_lock": {
+      "lockfileVersion": 3,
+      "entries": 506,
+      "license_string_present": 498,
+      "license_string_absent": 8,
+      "integrity_present": 497,
+      "integrity_absent": 9,
+      "dev_true": 426,
+      "dev_not_true": 80,
+      "link": 4,
+      "license_absent_samples": [
+        "apps/shared",
+        "node_modules/@hermes/ink",
+        "node_modules/@hermes/root-tests",
+        "node_modules/@hermes/shared",
+        "node_modules/hermes-tui",
+        "tests-js"
+      ],
+      "license_absent_samples_note": "8 条里只打印了 6 条。抽样都是工作区或链接，不是第三方许可判定。"
+    },
+    "panel_package_lock": {
+      "lockfileVersion": 3,
+      "entries": 266,
+      "installed_with_license_string_and_integrity": 265,
+      "root_license": "absent",
+      "root_integrity": "absent"
+    }
+  },
+  "declarations": {
+    "common": {
+      "license": "unknown",
+      "packaged": "unknown",
+      "lock_source": "unknown",
+      "lock_integrity": "unknown",
+      "note": "下列只是清单里声明的名称和版本约束。没有连接锁的 source/integrity。有环境标记的不能当成所有平台都会安装。"
+    },
+    "python_runtime": [
+      "openai==2.54.0; python_version >= '3.14'",
+      "certifi==2026.10.19; python_version >= '3.14'",
+      "truststore==0.10.5; python_version >= '3.14'",
+      "python-dotenv==1.2.4; python_version >= '3.14'",
+      "fire==0.7.1; python_version >= '3.14'",
+      "httpx[socks]==0.28.1; python_version >= '3.14'",
+      "rich==14.3.4; python_version >= '3.14'",
+      "tenacity==9.2.1; python_version >= '3.14'",
+      "tomli-w==1.2.0; python_version >= '3.14'",
+      "ruamel.yaml==0.18.16; python_version >= '3.14'",
+      "ruamel.yaml.clib==0.2.15; python_version >= '3.14' and platform_python_implementation == 'CPython' and (sys_platform == 'darwin' or (sys_platform == 'linux' and platform_machine in 'x86_64 aarch64 i686') or (sys_platform == 'win32' and platform_machine in 'AMD64 x86'))",
+      "requests==2.34.2; python_version >= '3.14'",
+      "jinja2==3.1.6; python_version >= '3.14'",
+      "firecrawl-anydoc==0.2.4; python_version >= '3.14'",
+      "pydantic==2.14.1; python_version >= '3.14'",
+      "prompt_toolkit==3.0.53; python_version >= '3.14'",
+      "croniter==6.2.4; python_version >= '3.14'",
+      "snowballstemmer==3.1.1; python_version >= '3.14'",
+      "packaging==26.3; python_version >= '3.14'",
+      "Markdown==3.11.2; python_version >= '3.14'",
+      "PyJWT[crypto]==2.15.1; python_version >= '3.14'",
+      "urllib3>=2.8.0,<3; python_version >= '3.14'",
+      "cryptography==50.0.2; python_version >= '3.14'",
+      "tzdata==2025.3; sys_platform == 'win32' and python_version >= '3.14'",
+      "psutil==7.2.2; sys_platform != 'android' and python_version >= '3.14'",
+      "psutil @ git+https://github.com/giampaolo/psutil.git@380bd2b59c67b0e1b04bbf3a90b11744f4f96644 ; sys_platform == 'android' and python_version >= '3.14'",
+      "websockets==15.0.1; python_version >= '3.14'",
+      "browser-harness==0.1.13; python_version >= '3.14'",
+      "pathspec==1.1.1; python_version >= '3.14'",
+      "fastapi>=0.104.0,<1; python_version >= '3.14'",
+      "uvicorn>=0.31.0,<1; python_version >= '3.14'",
+      "httptools>=0.6.3,<0.9; python_version >= '3.14'",
+      "watchfiles>=0.20,<2; python_version >= '3.14'",
+      "python-multipart>=0.0.9,<1; python_version >= '3.14'",
+      "ptyprocess>=0.7.0,<1; sys_platform != 'win32' and python_version >= '3.14'",
+      "pywinpty>=3.0.5,<4; sys_platform == 'win32' and python_version >= '3.14'",
+      "pywin32>=306,<312; sys_platform == 'win32' and python_version >= '3.14'",
+      "winrt-windows-applicationmodel>=3.2.1,<4; sys_platform == 'win32' and python_version >= '3.14'",
+      "winrt-windows-foundation>=3.2.1,<4; sys_platform == 'win32' and python_version >= '3.14'",
+      "winrt-windows-foundation-collections>=3.2.1,<4; sys_platform == 'win32' and python_version >= '3.14'",
+      "winrt-windows-services-store>=3.2.1,<4; sys_platform == 'win32' and python_version >= '3.14'",
+      "Pillow==13.0.0; python_version >= '3.14'",
+      "pillow-heif>=1.4.0,<2; python_version >= '3.14'",
+      "resvg-py==0.5.0; python_version >= '3.14'",
+      "concurrent-log-handler==0.9.30; sys_platform == 'win32' and python_version >= '3.14'",
+      "nemo-relay>=0.11,<0.12; ((sys_platform == 'darwin' and platform_machine == 'arm64') or (sys_platform == 'linux' and platform_machine == 'x86_64' and 'android' not in platform_release) or (sys_platform == 'linux' and platform_machine == 'aarch64' and 'android' not in platform_release) or (sys_platform == 'win32' and platform_machine == 'AMD64') or (sys_platform == 'win32' and platform_machine == 'ARM64')) and python_version >= '3.14'"
+    ],
+    "python_optional_dependencies": "not_transcribed_generator_not_executed",
+    "python_dependency_groups": {
+      "dev": [
+        "debugpy==1.8.22",
+        "pytest==9.1.1",
+        "pytest-asyncio==1.4.0",
+        "mcp==2.3.0",
+        "httpx2==2.15.1",
+        "starlette==1.9.0",
+        "ty==0.0.89",
+        "ruff==0.15.22",
+        "setuptools==83.0.0"
+      ],
+      "test": [
+        "distlib==0.4.4; sys_platform == 'win32'",
+        "anthropic==0.125.0"
+      ],
+      "install_class": "development",
+      "packaged": "unknown"
+    },
+    "python_build_system_requires": ["setuptools==83.0.0", "wheel"],
+    "npm": {
+      "root_runtime": [
+        {"name": "js-yaml", "spec": "4.3.2"},
+        {"name": "semver", "spec": "7.7.4"}
+      ],
+      "root_development": [
+        {"name": "@eslint/js", "spec": "9.39.5"},
+        {"name": "eslint", "spec": "10.12.0"},
+        {"name": "eslint-plugin-perfectionist", "spec": "5.12.1"},
+        {"name": "eslint-plugin-react-hooks", "spec": "7.1.1"},
+        {"name": "eslint-plugin-unused-imports", "spec": "4.4.1"},
+        {"name": "globals", "spec": "17.13.0"},
+        {"name": "lefthook", "spec": "2.2.1"},
+        {"name": "typescript", "spec": "6.0.3"},
+        {"name": "typescript-eslint", "spec": "8.71.1"}
+      ],
+      "panel_runtime": [
+        {"name": "@radix-ui/react-dialog", "spec": "^1.3.1"},
+        {"name": "@radix-ui/react-dropdown-menu", "spec": "^2.2.1"},
+        {"name": "@radix-ui/react-popover", "spec": "^1.3.1"},
+        {"name": "@radix-ui/react-slot", "spec": "^1.5.0"},
+        {"name": "@radix-ui/react-tabs", "spec": "^1.2.1"},
+        {"name": "@tanstack/react-query", "spec": "^5.105.0"},
+        {"name": "@tanstack/react-virtual", "spec": "^3.14.23"},
+        {"name": "class-variance-authority", "spec": "^0.7.1"},
+        {"name": "clsx", "spec": "^2.1.1"},
+        {"name": "dompurify", "spec": "3.4.17"},
+        {"name": "highlight.js", "spec": "^11.12.0"},
+        {"name": "lucide-react", "spec": "^1.64.0"},
+        {"name": "marked", "spec": "^18.1.0"},
+        {"name": "motion", "spec": "^14.7.1"},
+        {"name": "react", "spec": "^19.3.1"},
+        {"name": "react-dom", "spec": "^19.3.1"},
+        {"name": "react-router", "spec": "^7.18.5"},
+        {"name": "tailwind-merge", "spec": "^3.7.0"},
+        {"name": "zustand", "spec": "^5.0.16"}
+      ],
+      "panel_development": [
+        {"name": "@babel/core", "spec": "^7.29.7"},
+        {"name": "@babel/runtime", "spec": "^7.28.6"},
+        {"name": "@rolldown/plugin-babel", "spec": "^0.2.4"},
+        {"name": "@tailwindcss/vite", "spec": "^4.3.3"},
+        {"name": "@types/react", "spec": "^19.3.0"},
+        {"name": "@types/react-dom", "spec": "^19.3.0"},
+        {"name": "@vitejs/plugin-react", "spec": "^6.1.2"},
+        {"name": "babel-plugin-react-compiler", "spec": "^1.0.0"},
+        {"name": "react-compiler-healthcheck", "spec": "^1.0.0"},
+        {"name": "tailwindcss", "spec": "^4.3.3"},
+        {"name": "typescript", "spec": "^7.0.2"},
+        {"name": "vite", "spec": "^8.3.3"}
+      ],
+      "tui_runtime": [
+        {"name": "@hermes/ink", "spec": "file:./packages/hermes-ink"},
+        {"name": "@hermes/shared", "spec": "file:../apps/shared"},
+        {"name": "@nanostores/react", "spec": "1.1.0"},
+        {"name": "ink-text-input", "spec": "6.0.0"},
+        {"name": "nanostores", "spec": "1.4.2"},
+        {"name": "react", "spec": "19.3.0"},
+        {"name": "undici", "spec": "6.29.0"},
+        {"name": "unicode-animations", "spec": "1.0.3"}
+      ],
+      "tui_development": [
+        {"name": "@types/node", "spec": "22.20.5"},
+        {"name": "@types/react", "spec": "19.3.0"},
+        {"name": "esbuild", "spec": "0.28.2"},
+        {"name": "prettier", "spec": "3.9.9"},
+        {"name": "tsx", "spec": "4.23.15"},
+        {"name": "typescript", "spec": "6.0.3"},
+        {"name": "vitest", "spec": "4.1.12"}
+      ],
+      "ink_runtime": [
+        {"name": "@alcalzone/ansi-tokenize", "spec": "0.1.3"},
+        {"name": "auto-bind", "spec": "5.0.1"},
+        {"name": "bidi-js", "spec": "1.1.0"},
+        {"name": "chalk", "spec": "5.6.2"},
+        {"name": "cli-boxes", "spec": "3.0.0"},
+        {"name": "code-excerpt", "spec": "4.0.0"},
+        {"name": "emoji-regex", "spec": "10.6.0"},
+        {"name": "get-east-asian-width", "spec": "1.7.0"},
+        {"name": "indent-string", "spec": "5.0.0"},
+        {"name": "lodash-es", "spec": "4.18.1"},
+        {"name": "react", "spec": "19.3.0"},
+        {"name": "react-reconciler", "spec": "0.33.0"},
+        {"name": "semver", "spec": "7.8.5"},
+        {"name": "signal-exit", "spec": "4.1.0"},
+        {"name": "stack-utils", "spec": "2.0.6"},
+        {"name": "strip-ansi", "spec": "7.2.0"},
+        {"name": "supports-hyperlinks", "spec": "3.2.0"},
+        {"name": "type-fest", "spec": "4.41.0"},
+        {"name": "usehooks-ts", "spec": "3.1.1"},
+        {"name": "wrap-ansi", "spec": "9.0.2"}
+      ],
+      "ink_peer": [
+        {"name": "ink-text-input", "spec": "6.0.0"},
+        {"name": "react", "spec": "19.3.0"}
+      ],
+      "ink_development": [
+        {"name": "esbuild", "spec": "0.28.2"},
+        {"name": "typescript", "spec": "6.0.3"}
+      ],
+      "shared_development": [
+        {"name": "typescript", "spec": "6.0.3"}
+      ]
+    },
+    "sidecar_requirements": {
+      "name": "PyYAML",
+      "version": "6.0.3",
+      "relation": "direct",
+      "install_class": "sidecar_pin",
+      "source": "unknown",
+      "integrity": "present_in_file_not_copied",
+      "hash_count": 73,
+      "hash_file": "apps/panel/sidecar/requirements.txt",
+      "license": "unknown",
+      "packaged": "unknown"
+    }
+  },
+  "observed_lock_sources_not_a_full_extract": [
+    {
+      "name": "psutil",
+      "version": "8.0.0",
+      "source_type": "git",
+      "source": "https://github.com/giampaolo/psutil.git?rev=380bd2b59c67b0e1b04bbf3a90b11744f4f96644#380bd2b59c67b0e1b04bbf3a90b11744f4f96644",
+      "integrity": "unknown",
+      "license": "unknown"
+    },
+    {
+      "name": "misaki",
+      "version": "0.9.4",
+      "source_type": "git",
+      "source": "https://github.com/NousResearch/misaki.git?rev=f03fd2be7346952a83d3d4845c217fc7667f322d#f03fd2be7346952a83d3d4845c217fc7667f322d",
+      "integrity": "unknown",
+      "license": "unknown"
+    },
+    {
+      "name": "kittentts",
+      "version": "0.8.1",
+      "source_type": "url",
+      "source": "https://github.com/KittenML/KittenTTS/releases/download/0.8.1/kittentts-0.8.1-py3-none-any.whl",
+      "integrity": "present_not_transcribed",
+      "license": "unknown"
+    }
+  ],
+  "unknowns": [
+    "根 NOTICE 不存在",
+    "面板、TUI、@hermes/ink、@hermes/shared 的许可证与版权人",
+    "第三方许可证判定；锁内 license 字符串未核验，本文件不采用",
+    "除上面三条抽读来源外，锁条目的 source/integrity 未逐条提取；本文件不手造全量",
+    "直接、传递、只开发、optional 与实际打包的逐包分类未由生成器跑出；无法判断的保持 unknown",
+    "optional-dependencies 全量成员未转写",
+    "面板、TUI、@hermes/ink、@hermes/shared 许可证仍未知，须用户确认，不制造授权",
+    "仓库 npm 锁未观察到 git resolved；解析器前缀分类未对仓库锁执行",
+    "安全公告与合规结论"
+  ],
+  "offline_entry": {
+    "acceptance": "python3 scripts/clawd_inventory --offline",
+    "alias": "python3 scripts/clawd_inventory --local-only",
+    "explicit": "python3 scripts/clawd_inventory/generate.py --offline --checkout <检出> --output <新文件>",
+    "stdout_only_by_default": true,
+    "do_not_overwrite": "docs/clawd/dependency-source-inventory.json",
+    "network_audit": false,
+    "executed": false
+  },
+  "tests": {
+    "path": "scripts/clawd_inventory/test_generate.py",
+    "command": "python3 -m unittest scripts/clawd_inventory/test_generate.py",
+    "executed": false,
+    "in_pyproject_testpaths": false,
+    "schema": "scripts/clawd_inventory/SCHEMA.md"
+  }
+}

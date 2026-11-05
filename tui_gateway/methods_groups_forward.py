@@ -130,7 +130,7 @@ def _call(server, rid, home, endpoint, method: str, params: dict) -> dict:
         return server._err(rid, exc.code if isinstance(exc.code, int) else 5000, str(exc), exc.data or None)
     except Exception as exc:  # health: allow BLE001 -- transport boundary: any dial/IO failure is one refusal
         logger.warning("Group Chat %s: the gateway that owns it did not answer: %s", method, exc)
-        return server._err(rid, OWNER_LOST_CODE, "The Hermes gateway did not answer. Try again.")
+        return server._err(rid, OWNER_LOST_CODE, "The clawd gateway did not answer. Try again.")
     result = result if isinstance(result, dict) else {}
     if method == "groups.capabilities" and isinstance(result.get("methods"), list):
         # Advertise only what this wire can carry: the room methods it forwards.
@@ -141,7 +141,7 @@ def _call(server, rid, home, endpoint, method: str, params: dict) -> dict:
 
 def _busy(server, rid, why) -> dict:
     return server._err(rid, OWNER_LOST_CODE,
-                       f"The Hermes gateway is not ready yet ({why}). Try again in a moment.")
+                       f"The clawd gateway is not ready yet ({why}). Try again in a moment.")
 
 
 def forward(server, rid, method: str, params: dict) -> dict | None:
@@ -171,7 +171,7 @@ def forward(server, rid, method: str, params: dict) -> dict | None:
         if holder == "gateway":
             # Only the gateway's store holds this room; the standalone copy is frozen and never
             # imported again, so a local call would acknowledge a change the owner never sees.
-            return server._err(rid, OWNER_LOST_CODE, "The Hermes gateway that holds this Group Chat "
+            return server._err(rid, OWNER_LOST_CODE, "The clawd gateway that holds this Group Chat "
                                "is not running. Start it and try again.")
         return None
     return _call(server, rid, home, endpoint, method, params)

@@ -724,7 +724,11 @@ def _context_files_part(agent: Any, ctx_len: Optional[int], soul_loaded: bool) -
     if agent.skip_context_files:
         return []
     launch_artifact = getattr(agent, "_context_cwd_is_launch_artifact", False)
-    cwd = resolve_context_cwd(include_session_override=not launch_artifact)
+    cwd = None
+    if not launch_artifact and getattr(agent, "session_cwd", None):
+        cwd = Path(agent.session_cwd)
+    if cwd is None:
+        cwd = resolve_context_cwd(include_session_override=not launch_artifact)
     return [_pb.build_context_files_prompt(
         cwd=cwd, skip_soul=soul_loaded, context_length=ctx_len,
         allow_install_tree_fallback=agent.platform in ("cli", "tui"), home_override=_agent_home(agent))]

@@ -106,7 +106,7 @@ in `pm/environments.py`.
 
 - A separate fresh bundled MSIX was produced from payload tree `60c9fb44...`.
   The unpacked artifact's own CLI ran, imports resolved inside its payload,
-  and `hermes serve` answered HTTP 200. The Sandbox deployment attempt failed
+  and `clawd serve` answered HTTP 200. The Sandbox deployment attempt failed
   on an incorrect unpacked path. It does not prove bundled installation.
 - Plugin checks now run from the first housekeeping tick, with the configured
   interval gate controlling network checks. A real isolated gateway wrote two

@@ -1,4 +1,4 @@
-"""Hermes Agent Uninstaller."""
+"""clawd Uninstaller."""
 
 import os
 import shutil
@@ -70,11 +70,11 @@ def get_project_root() -> Path:
 def code_removal_refusal() -> str | None:
     """Why the uninstaller must not remove this tree's code, or ``None``.
 
-    A git checkout (the install.sh / install.ps1 / `hermes desktop` layout)
+    A git checkout (the install.sh / install.ps1 / `clawd desktop` layout)
     is ours to remove. A sealed tree (no ``.git``) belongs to a steward —
     the Nix store, the bundled desktop app, a Docker image — and only the
     steward removes it. Returns the user-facing refusal text for sealed
-    trees; the text always points at ``hermes uninstall --data`` for the
+    trees; the text always points at ``clawd uninstall --data`` for the
     user-data cleanup that IS allowed everywhere.
     """
     from hermes_cli.steward import sealed_steward, steward_uninstall_message
@@ -117,14 +117,14 @@ def find_shell_configs() -> list:
 
 
 def remove_path_from_shell_configs():
-    """Remove Hermes PATH entries from shell configuration files."""
+    """Remove clawd PATH entries from shell configuration files."""
     removed_from = []
     for config_path in find_shell_configs():
         try:
             content = config_path.read_text(encoding="utf-8-sig")
             original_content = content
             
-            # Remove lines containing hermes-agent or hermes PATH entries
+            # Remove lines containing hermes-agent or clawd PATH entries
             new_lines = []
             skip_next = False
             
@@ -138,7 +138,7 @@ def remove_path_from_shell_configs():
                     continue
                 skip_next = False
                 
-                # Remove any PATH line containing hermes
+                # Remove any PATH line containing clawd
                 if 'hermes' in line.lower() and ('PATH=' in line or 'path=' in line.lower()):
                     continue
                     
@@ -163,7 +163,7 @@ def remove_path_from_shell_configs():
 
 
 def remove_wrapper_script():
-    """Remove the hermes wrapper script if it exists."""
+    """Remove the clawd wrapper script if it exists."""
     wrapper_paths = [
         Path.home() / ".local" / "bin" / "hermes",
         Path.home() / ".local" / "bin" / "hermes-acp",
@@ -209,7 +209,7 @@ def remove_node_symlinks(hermes_home: Path) -> list:
     We check all candidate directories so that uninstall works regardless of
     how the install was done (e.g. a root FHS install that placed links in
     ``/usr/local/bin``, or an older install that used ``~/.local/bin`` before
-    the FHS fix).  Only symlinks that resolve into this Hermes home's ``node``
+    the FHS fix).  Only symlinks that resolve into this clawd home's ``node``
     directory are removed — links the user has repointed elsewhere (nvm, fnm,
     etc.) are left untouched.
     """
@@ -238,7 +238,7 @@ def uninstall_gateway_service():
     - Linux: user + system systemd services (with proper DBUS env setup)
     - macOS: launchd plists
     - Windows: Scheduled Task + Startup-folder fallback, via ``gateway_windows``
-    - All platforms: standalone ``hermes gateway run`` processes
+    - All platforms: standalone ``clawd gateway run`` processes
     """
     import platform
     stopped_something = False
@@ -367,7 +367,7 @@ _GATEWAY_SERVICE_REMOVERS = {
 
 
 def _hermes_path_markers(hermes_home: Path, *, include_managed_bin: bool = False) -> list[str]:
-    r"""Prefixes identifying Hermes-owned User-PATH entries (prefix match sweeps git\cmd, git\bin,
+    r"""Prefixes identifying clawd-owned User-PATH entries (prefix match sweeps git\cmd, git\bin,
     node...). ``include_managed_bin`` adds ``<root>\bin`` (launchers + managed uv) — only when that
     dir is about to be deleted, so a keep-data uninstall keeps the working uv resolvable."""
     root = str(hermes_home).rstrip("\\/")
@@ -376,7 +376,7 @@ def _hermes_path_markers(hermes_home: Path, *, include_managed_bin: bool = False
 
 
 def remove_path_from_windows_registry(hermes_home: Path, *, include_managed_bin: bool = False) -> list[str]:
-    """Strip Hermes-owned entries from User-scope PATH in the registry (see ``_hermes_path_markers``)."""
+    """Strip clawd-owned entries from User-scope PATH in the registry (see ``_hermes_path_markers``)."""
     markers = tuple(m.lower() for m in _hermes_path_markers(hermes_home, include_managed_bin=include_managed_bin))
 
     def edit(winreg, key, removed):
@@ -461,7 +461,7 @@ def remove_desktop_app_leftovers(*, full_uninstall: bool) -> list[Path]:
     Electron scatter, and the XDG cache dir on every platform. On a full
     uninstall the XDG data dir (``~/.local/share/hermes``) goes too.
 
-    Only well-known Hermes-named entries are touched — never a glob of the
+    Only well-known clawd-named entries are touched — never a glob of the
     whole Library.
     """
     import sys as _sys
@@ -532,7 +532,7 @@ def remove_legacy_runtime_trees(hermes_home: Path) -> list[Path]:
 
 
 def remove_windows_bin_launchers(*, windows: bool | None = None) -> list[Path]:
-    """Delete the managed binary dir (the default Hermes root's ``bin``).
+    """Delete the managed binary dir (the default clawd root's ``bin``).
 
     The dir holds only hermes-owned launcher copies (the relocatable venv's
     console scripts, staged onto PATH by first-run repair) — pm keeps uv in
@@ -610,7 +610,7 @@ def _discover_named_profiles():
 
 def _uninstall_profile(profile) -> None:
     """Fully uninstall a named profile: stop its gateway, remove its alias, wipe its home. Shells
-    out to ``hermes -p <name> gateway stop|uninstall`` because service names / unit paths derive
+    out to ``clawd -p <name> gateway stop|uninstall`` because service names / unit paths derive
     from the current HERMES_HOME and can't be switched in-process."""
     name = profile.name
     log_info(f"Uninstalling profile '{name}'...")
@@ -652,7 +652,7 @@ def run_data_uninstall(args):
         log_warn(str(exc))
         raise SystemExit(1) from exc
     if not plan.remove:
-        print(f"No Hermes user data found in {home}.")
+        print(f"No clawd user data found in {home}.")
         return
     print("Data-only removal: installed code and other profiles stay intact.")
     print("Will remove:")
@@ -678,17 +678,17 @@ def run_data_uninstall(args):
     for path in removed:
         log_success(f"Removed {path}")
     if failed:
-        print("Hermes data was only partially removed. Surviving targets:")
+        print("clawd data was only partially removed. Surviving targets:")
         for path, reason in failed:
             log_warn(f"{path}: {reason}")
         raise SystemExit(1)
-    log_success("Hermes data removed.")
+    log_success("clawd data removed.")
 
 
 def run_gui_uninstall(args):
     """GUI-only uninstall: remove the Chat GUI, leave the agent + data intact.
 
-    Mirrors ``hermes uninstall --gui``. Removes the desktop app's built
+    Mirrors ``clawd uninstall --gui``. Removes the desktop app's built
     artifacts, the packaged app bundle (best-effort), and the Electron
     userData dir — nothing under ``$HERMES_HOME`` config/sessions/.env, and
     never the Python agent or its venv.
@@ -707,15 +707,15 @@ def run_gui_uninstall(args):
     skip_confirm = bool(getattr(args, "yes", False))
 
     print()
-    _print_box("│         ☤ Hermes Chat GUI Uninstaller                  │", Colors.MAGENTA)
+    _print_box("│         ☤ clawd Chat GUI Uninstaller                  │", Colors.MAGENTA)
     print()
 
     if not summary["gui_installed"]:
-        print("No Hermes Chat GUI installation was found.")
+        print("No clawd Chat GUI installation was found.")
         print(f"  Checked: {hermes_home}, and the standard app locations for this OS.")
         return
 
-    print(color("This removes the Chat GUI only. The Hermes agent stays installed.", Colors.CYAN))
+    print(color("This removes the Chat GUI only. The clawd agent stays installed.", Colors.CYAN))
     print()
     print(color("Will remove:", Colors.YELLOW, Colors.BOLD))
     for p in (*summary["source_built_artifacts"], *summary["packaged_app_paths"]):
@@ -727,7 +727,7 @@ def run_gui_uninstall(args):
     print()
     if agent_is_installed(hermes_home):
         print(color("Kept intact:", Colors.GREEN, Colors.BOLD))
-        print(f"  • The Hermes agent at {hermes_home / 'hermes-agent'}")
+        print(f"  • The clawd agent at {hermes_home / 'hermes-agent'}")
         print(f"  • Your config, sessions, and secrets under {hermes_home}")
         if (shared_modules := hermes_home / "hermes-agent" / "node_modules").exists():
             print(f"  • Shared workspace dependencies at {shared_modules}")
@@ -748,8 +748,8 @@ def run_gui_uninstall(args):
     print()
     _print_box("│            ✓ Chat GUI Uninstalled!                      │", Colors.GREEN)
     print()
-    print("The Hermes agent is still installed. Run 'hermes' to use the CLI,")
-    print("or 'hermes uninstall' to remove the agent too.")
+    print("The clawd agent is still installed. Run 'clawd' to use the CLI,")
+    print("or 'clawd uninstall' to remove the agent too.")
     print()
 
 
@@ -758,8 +758,8 @@ def run_uninstall(args):
     Run the uninstall process.
     
     Options:
-    - Full uninstall: removes code + ~/.hermes/ (configs, data, logs)
-    - Keep data: removes code but keeps ~/.hermes/ for future reinstall
+    - Full uninstall: removes code + ~/.clawd/ (configs, data, logs)
+    - Keep data: removes code but keeps ~/.clawd/ for future reinstall
     """
     _refuse_if_steward_owned()
 
@@ -786,7 +786,7 @@ def run_uninstall(args):
         return
 
     print()
-    _print_box("│            ☤ Hermes Agent Uninstaller                  │", Colors.MAGENTA)
+    _print_box("│            ☤ clawd Uninstaller                         │", Colors.MAGENTA)
     print()
 
     # Show what will be affected
@@ -846,12 +846,12 @@ def run_uninstall(args):
     # Final confirmation
     print()
     if full_uninstall:
-        print(color("⚠️  WARNING: This will permanently delete ALL Hermes data!", Colors.RED, Colors.BOLD))
+        print(color("⚠️  WARNING: This will permanently delete ALL clawd data!", Colors.RED, Colors.BOLD))
         print(color("   Including: configs, API keys, sessions, scheduled jobs, logs", Colors.RED))
         if remove_profiles:
             print(color(f"   Plus {n_profiles} profile(s): {profile_names}", Colors.RED))
     else:
-        print("This will remove the Hermes code but keep your configuration and data.")
+        print("This will remove the clawd code but keep your configuration and data.")
 
     print()
     if not _confirm_yes("to confirm"):
@@ -869,18 +869,18 @@ def _print_uninstall_dry_run(*, project_root: Path, hermes_home: Path, full_unin
     print()
     print(color("Would inspect/remove:", Colors.YELLOW, Colors.BOLD))
     print("  • Gateway services and standalone gateway processes")
-    print("  • Hermes PATH entries from shell configs / Windows User PATH")
-    print("  • Hermes wrapper scripts and Hermes-managed node/npm/npx symlinks")
+    print("  • clawd PATH entries from shell configs / Windows User PATH")
+    print("  • clawd wrapper scripts and clawd-managed node/npm/npx symlinks")
     print("  • Desktop Chat GUI artifacts")
     print(f"  • Code checkout: {project_root}")
     from hermes_cli.gui_uninstall import desktop_userdata_dir
     userdata = desktop_userdata_dir()
     if not full_uninstall:
-        print(f"  • Keep Hermes config/data: {hermes_home}")
+        print(f"  • Keep clawd config/data: {hermes_home}")
         if userdata.exists():
             print(f"  • Keep desktop app data: {userdata}")
     else:
-        print(f"  • Hermes config/data: {hermes_home}")
+        print(f"  • clawd config/data: {hermes_home}")
         if sys.platform == "darwin":
             print("  • macOS: dashboard/serve launchd jobs, Electron + setup caches")
         if userdata.exists():
@@ -920,10 +920,10 @@ def _macos_cache_leftover_dirs() -> list[Path]:
     macOS. Chromium splits the desktop app's HTTP/script caches under ``~/Library/Caches``
     keyed by both the product name and the app id, and the Tauri setup binary does the
     same under its own pair of identifiers. ``gui_uninstall`` removes the userData dir
-    (``Application Support/Hermes``) but never these (#62209)."""
+    (``Application Support/clawd``) but never these (#62209)."""
     caches = Path.home() / "Library" / "Caches"
     return [
-        caches / "Hermes",
+        caches / "clawd",
         caches / "com.nousresearch.hermes",
         caches / "hermes-setup",
         caches / "com.nousresearch.hermes.setup",
@@ -940,7 +940,7 @@ def _rmtree_if_exists(path: Path) -> bool:
 
 def remove_dashboard_launchd_jobs() -> list[Path]:
     """macOS: boot out and delete every launchd job whose ``ProgramArguments`` runs a
-    ``hermes dashboard`` / ``hermes serve`` backend, returning the removed plist paths.
+    ``clawd dashboard`` / ``clawd serve`` backend, returning the removed plist paths.
 
     The gateway uninstall only reaches the gateway label, so a dashboard/serve
     LaunchAgent survives a full uninstall and launchd keeps respawning its backend.
@@ -948,7 +948,7 @@ def remove_dashboard_launchd_jobs() -> list[Path]:
     (``_launchd_plist_dirs`` + ``_parse_dashboard_runtime``): read each plist, match the
     arguments, ``launchctl bootout`` the job's domains (launchd takes the process down;
     booting out an already-unloaded job is fine and never checked), then delete the
-    plist — a stale, not-loaded plist is still Hermes-created and still goes. A missing,
+    plist — a stale, not-loaded plist is still clawd-created and still goes. A missing,
     unreadable, or malformed plist is skipped, never fatal. macOS only (empty list
     elsewhere)."""
     if sys.platform != "darwin":
@@ -1030,14 +1030,14 @@ def _perform_uninstall(
         (windows, "Removing PATH entries from Windows User environment...",
          lambda: remove_path_from_windows_registry(
              Path(os.path.expandvars(str(hermes_home))), include_managed_bin=sweep_managed_bin),
-         "Removed from User PATH: {}", "No Hermes-owned PATH entries in User environment"),
+         "Removed from User PATH: {}", "No clawd-owned PATH entries in User environment"),
         (windows, "Removing HERMES_HOME / HERMES_GIT_BASH_PATH User env vars...",
-         remove_hermes_env_vars_windows, "Removed User env var: {}", "No Hermes-set User env vars to remove"),
-        (True, "Removing hermes command...", remove_wrapper_script, "Removed {}", "No wrapper script found"),
-        (windows, "Removing Windows hermes launchers...",
-         remove_windows_bin_launchers, "Removed {}", "No Windows hermes launchers found"),
-        (True, "Removing Hermes-managed node/npm/npx symlinks...",
-         lambda: remove_node_symlinks(hermes_home), "Removed {}", "No Hermes-managed node/npm/npx symlinks found"),
+         remove_hermes_env_vars_windows, "Removed User env var: {}", "No clawd-set User env vars to remove"),
+        (True, "Removing clawd command...", remove_wrapper_script, "Removed {}", "No wrapper script found"),
+        (windows, "Removing Windows clawd launchers...",
+         remove_windows_bin_launchers, "Removed {}", "No Windows clawd launchers found"),
+        (True, "Removing clawd-managed node/npm/npx symlinks...",
+         lambda: remove_node_symlinks(hermes_home), "Removed {}", "No clawd-managed node/npm/npx symlinks found"),
     ):
         if on_this_platform:
             _remove_step(label, remove, success_fmt, none_msg)
@@ -1056,7 +1056,7 @@ def _perform_uninstall(
 
     # 3d. Per-user app leftovers outside HERMES_HOME: macOS Library caches/logs/
     #     browser-store/state entries, the XDG cache dir, and (full mode) the XDG
-    #     data dir. Only Hermes-named entries are touched (#62209).
+    #     data dir. Only clawd-named entries are touched (#62209).
     log_info("Removing app caches and leftovers outside the install...")
     removed_leftovers = remove_desktop_app_leftovers(full_uninstall=full_uninstall)
     if removed_leftovers:
@@ -1091,7 +1091,7 @@ def _perform_uninstall(
     else:
         log_info("No legacy runtime trees to remove")
 
-    # 5. Optionally remove ~/.hermes/ data directory (and named profiles)
+    # 5. Optionally remove ~/.clawd/ data directory (and named profiles)
     if full_uninstall:
         # 5a. Named profiles' homes live under <default>/profiles/ (swept by the rmtree below),
         #     but their services + alias scripts live OUTSIDE the default root.
@@ -1138,7 +1138,7 @@ def _perform_uninstall(
     for line, col in _RELOAD_HINT[windows]:
         print(color(line, col) if col else line)
     print()
-    print("Thank you for using Hermes Agent! ☤")
+    print("Thank you for using clawd! ☤")
     print()
 
 

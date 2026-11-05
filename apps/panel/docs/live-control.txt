@@ -1,0 +1,39 @@
+Live P0 接口与交互契约
+
+本轮只修改自研面板，交付 hk 分支，审核后由用户部署。不得修改或热补丁官方 Hermes 源码。
+
+画面和任务
+实时画面是服务器上的共享浏览器，不是每个会话的隔离浏览器或历史截图。
+聊天里的浏览器任务卡依照真实工具调用识别，仅显示当前回合，不解析用户文字猜测任务。任务结束后保留入口；历史工具步骤也能打开画面。
+收起画面只移除面板画面；旁观时不停止任务、不关闭浏览器。人工接管时释放该客户端租约。
+停止任务调用原生 run.stop；等待服务端确认终态后才允许接管。这不是 pause，不保留可原地恢复的执行器。交还控制不会自动续跑已停止的任务，用户需要回到聊天发送继续指令。
+不新增“关闭浏览器”按钮，以免误伤共享浏览器和其他会话。
+
+接管契约
+每个 Live 组件实例生成不同 clientId。客户端标识不写入持久存储，也不在状态接口泄露其他客户端标识。
+GET /live/state?client_id=...：原有 running、takenOver、url、title；新增 controlledByYou、ownerSessionId、leaseRemainingSeconds。
+POST /live/takeover：{clientId, sessionId}。同客户端、同会话续租；其他客户端不得抢占未到期租约。初次接管应确认绑定会话没有活动任务。
+POST /live/release：{clientId}。不允许释放另一客户端的有效租约；已到期释放可幂等。
+POST /live/type：{text, clientId}。必须持有有效租约；文字有长度限制，按真实可见标签页与可编辑焦点处理。
+断线、心跳失败、过期、会话切换、组件关闭后立即停止本地输入；晚到的异步结果不能恢复已交还的控制。
+接管租约是面板协作机制，不等于全局浏览器工具互斥锁；不能声称所有其他来源的代理、CDP 工具和 VNC 直连都被服务端阻断。
+
+输入与恢复
+文字请求必须串行、有序。不在网络失败后盲目补发 VNC 字符，避免重复输入；只有明确 inserted=false 的响应可进行受控降级。
+中文组合输入、移动端输入、粘贴与特殊键需要各自去重与队列边界。不可用真实中文输入法测试代替不了系统级验证，应在交接中如实记录。
+sessionStorage 只保存画面入口和会话元数据。刷新后只读旁观，控制权需要重新取得。存储损坏或被禁用时不影响聊天。
+
+部署与验证边界
+前端和 sidecar 要由审核者成套发布；新的租约请求必须携带 clientId，旧客户端不能绕过归属校验。
+本轮浏览器测试使用隔离本地夹具、真实 Chromium DOM 和原生 CDP；RFB/后端响应为明确的测试替身，不是真实远程浏览器、手机输入法或生产任务实测。
+上线后需审核者复验：桌面/手机打开与收起、真实 noVNC 中文输入、租约过期、多标签页争抢、用户导航后域名同步、停止后重新接管，以及线上 /live-browser 与 /live/ 兼容入口。
+
+已复跑的本地验证
+Python：既有 87 项 + Live 租约 32 项，共 119 项；前端 node:test 67 项；六套浏览器回归均退出 0。构建、类型检查与 git diff --check 通过。
+浏览器套件：live-dock-browser、live-shell-browser、sync-browser、edit-browser、activity-browser、artifacts-browser；Live 专项涵盖桌面 1440px、手机模拟 390px 和异步竞态。
+Live Dock 浏览器测试使用独立依赖前缀，不改项目依赖；本轮实际使用 esbuild 0.28.2、playwright-core 1.64.0 和系统 Chromium。重跑先在独立目录安装：
+npm install --prefix /path/to/live-test-deps esbuild@0.28.2 playwright-core@1.64.0
+然后指定前缀：
+LIVE_TEST_DEPS=/path/to/live-test-deps node tests/live-dock-browser.mjs
+其他浏览器套件依赖仓库已有 Vite，可分别运行 node tests/<名称>.mjs；live-shell-browser 用 node --test tests/live-shell-browser.mjs。
+没有所选会话时只能旁观；选择会话后才允许申请接管，以便确认该会话的任务状态。

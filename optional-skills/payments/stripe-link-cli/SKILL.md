@@ -13,7 +13,7 @@ metadata:
 
 # Stripe Link CLI Skill
 
-Wraps [@stripe/link-cli](https://github.com/stripe/link-cli) so Hermes can complete purchases on the user's behalf using one-time-use virtual cards or Shared Payment Tokens (SPT). Every spend is gated by an in-app approval in the Link mobile/web app — Hermes cannot self-approve.
+Wraps [@stripe/link-cli](https://github.com/stripe/link-cli) so clawd can complete purchases on the user's behalf using one-time-use virtual cards or Shared Payment Tokens (SPT). Every spend is gated by an in-app approval in the Link mobile/web app — clawd cannot self-approve.
 
 US-only at the moment (Link account requirement). Windows is not supported by the upstream CLI — this skill is gated `[linux, macos]`.
 
@@ -33,7 +33,7 @@ If the user wants a paid API call (HTTP 402, no checkout form), the `card` path 
 - Node.js 20+ available on `PATH` (`node --version`)
 - US-based (Link account requirement)
 
-The Link account, payment method, and spend-approval app do NOT need to be set up before Hermes attempts to pay — the CLI walks the user through them on first run:
+The Link account, payment method, and spend-approval app do NOT need to be set up before clawd attempts to pay — the CLI walks the user through them on first run:
 
 - A Link account at https://app.link.com — created/linked during first `link-cli` auth
 - At least one payment method — added during first run at https://app.link.com/wallet
@@ -158,13 +158,13 @@ rm -f ~/.hermes/cache/scratch/link-card.json
 
 ## Optional: run as an MCP server instead
 
-`@stripe/link-cli --mcp` exposes the same commands as MCP tools over stdio. To register it with Hermes' native MCP:
+`@stripe/link-cli --mcp` exposes the same commands as MCP tools over stdio. To register it with clawd's native MCP:
 
 ```
-hermes mcp add stripe-link --command "npx" --args "@stripe/link-cli --mcp"
+clawd mcp add stripe-link --command "npx" --args "@stripe/link-cli --mcp"
 ```
 
-Then `hermes mcp list` should show `stripe-link`. The same approval rules apply — MCP doesn't bypass the Link app approval step.
+Then `clawd mcp list` should show `stripe-link`. The same approval rules apply — MCP doesn't bypass the Link app approval step.
 
 ## Pitfalls
 

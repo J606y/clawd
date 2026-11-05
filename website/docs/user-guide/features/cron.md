@@ -6,7 +6,7 @@ description: "Schedule automated tasks with natural language, manage them with o
 
 # Scheduled Tasks (Cron)
 
-Schedule tasks to run automatically with natural language or cron expressions. Hermes exposes cron management through a single `cronjob_manage` tool with action-style operations instead of separate schedule/list/remove tools.
+Schedule tasks to run automatically with natural language or cron expressions. clawd exposes cron management through a single `cronjob_manage` tool with action-style operations instead of separate schedule/list/remove tools.
 
 ## What cron can do now
 
@@ -21,26 +21,26 @@ Cron jobs can:
 - run in **no-agent mode** — a script on a schedule, its stdout delivered verbatim, zero LLM involvement (see the [no-agent mode](#no-agent-mode-script-only-jobs) section below)
 - fire on **external events** — a webhook route with `cron_job` set fires the job the moment something happens (a PR gets feedback, a service posts an alert) instead of waiting for the next scheduled tick. See [Event-Triggered Cron Jobs](../messaging/webhooks.md#event-triggered-cron-jobs).
 
-All of this is available to Hermes itself through the `cronjob_manage` tool, so you can create, pause, edit, and remove jobs by asking in plain language — no CLI required.
+All of this is available to clawd itself through the `cronjob_manage` tool, so you can create, pause, edit, and remove jobs by asking in plain language — no CLI required.
 
 :::tip
-**Which model does a cron job run on?** Resolution at fire time is: per-job pin → `cron.model` in `config.yaml` → the main agent model from `hermes model`.
+**Which model does a cron job run on?** Resolution at fire time is: per-job pin → `cron.model` in `config.yaml` → the main agent model from `clawd model`.
 
-- **Per-job pin** — a job that carries its own model. Set it to a specific model via the dashboard, `hermes cron create/edit --model … --provider …`, or by editing `~/.hermes/cron/jobs.json`; or **lock in the current main model** with `hermes cron create/edit --pin` (the agent's `cronjob_manage` tool can do this too with `pinned=true`, but only when you ask it to). `--unpin` (`pinned=false`) releases the lock. The agent cannot point a job at a *different* model — inference pins are user-owned.
-- **`cron.model` / `cron.model_provider`** — a cron-fleet default: every unpinned job runs on this model, independent of your chat model. Set it once (`hermes config set cron.model <name>`) and switching your chat model with `hermes model` or `/model` never touches your cron fleet.
-- **Main agent model** — when neither of the above is set, a job runs on whatever `hermes model` / `/model` is set to **at the moment it fires**. Change your main model and every unpinned job follows on its next run.
+- **Per-job pin** — a job that carries its own model. Set it to a specific model via the dashboard, `clawd cron create/edit --model … --provider …`, or by editing `~/.clawd/cron/jobs.json`; or **lock in the current main model** with `clawd cron create/edit --pin` (the agent's `cronjob_manage` tool can do this too with `pinned=true`, but only when you ask it to). `--unpin` (`pinned=false`) releases the lock. The agent cannot point a job at a *different* model — inference pins are user-owned.
+- **`cron.model` / `cron.model_provider`** — a cron-fleet default: every unpinned job runs on this model, independent of your chat model. Set it once (`clawd config set cron.model <name>`) and switching your chat model with `clawd model` or `/model` never touches your cron fleet.
+- **Main agent model** — when neither of the above is set, a job runs on whatever `clawd model` / `/model` is set to **at the moment it fires**. Change your main model and every unpinned job follows on its next run.
 
 Whichever provider a job resolves to, its provider-specific request settings (e.g. `request_overrides` such as `extra_body`/`extra_headers` for custom providers) carry into the scheduled run just like an interactive session.
 
-`hermes setup --portal` is the lowest-friction option for unattended runs since OAuth refresh is automatic. See [Nous Portal](../../integrations/nous-portal.md).
+`clawd setup --portal` is the lowest-friction option for unattended runs since OAuth refresh is automatic. See [Nous Portal](../../integrations/nous-portal.md).
 :::
 
 :::tip
-**Per-job reasoning effort.** A job can pin its own thinking level, independent of the model pin: one of `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`, `ultra`. When set, it overrides both the global `agent.reasoning_effort` and per-model `agent.reasoning_overrides` for that job's runs (`none` disables thinking). Set it via `hermes cron create/edit --reasoning-effort high`; pass an empty string on edit to clear the pin and follow config again. (It is deliberately not exposed on the agent's `cronjob_manage` tool — model configuration stays a user decision.) Levels a model doesn't support are clamped or omitted by the provider at request time — pinning `xhigh` on a model that caps at `high` runs at `high`. The pin has no effect on `no_agent` jobs (there is no LLM call to tune). Use it to run heavy scheduled analyses at `high` while cheap recurring jobs run at `minimal`, without touching your global default.
+**Per-job reasoning effort.** A job can pin its own thinking level, independent of the model pin: one of `none`, `minimal`, `low`, `medium`, `high`, `xhigh`, `max`, `ultra`. When set, it overrides both the global `agent.reasoning_effort` and per-model `agent.reasoning_overrides` for that job's runs (`none` disables thinking). Set it via `clawd cron create/edit --reasoning-effort high`; pass an empty string on edit to clear the pin and follow config again. (It is deliberately not exposed on the agent's `cronjob_manage` tool — model configuration stays a user decision.) Levels a model doesn't support are clamped or omitted by the provider at request time — pinning `xhigh` on a model that caps at `high` runs at `high`. The pin has no effect on `no_agent` jobs (there is no LLM call to tune). Use it to run heavy scheduled analyses at `high` while cheap recurring jobs run at `minimal`, without touching your global default.
 :::
 
 :::warning
-Cron-run sessions cannot recursively create more cron jobs. Hermes disables cron management tools inside cron executions to prevent runaway scheduling loops.
+Cron-run sessions cannot recursively create more cron jobs. clawd disables cron management tools inside cron executions to prevent runaway scheduling loops.
 :::
 
 ## Admission recovery
@@ -53,7 +53,7 @@ unknown and is not retried automatically.
 
 An interrupted execution or a prepared fire that cannot be found stays paused for operator review.
 Recovery never creates another admission for it. Paused jobs are not automatically resumed, even
-when their completed result is recovered. `hermes cron run` exits nonzero for a known synchronous
+when their completed result is recovered. `clawd cron run` exits nonzero for a known synchronous
 execution failure; background dispatch is not a terminal success/failure verdict.
 
 ## Creating scheduled tasks
@@ -70,9 +70,9 @@ execution failure; background dispatch is not a terminal success/failure verdict
 ### From the standalone CLI
 
 ```bash
-hermes cron create "every 2h" "Check server status"
-hermes cron create "every 1h" "Summarize new feed items" --skill blogwatcher
-hermes cron create "every 1h" "Use both skills and combine the result" \
+clawd cron create "every 2h" "Check server status"
+clawd cron create "every 1h" "Summarize new feed items" --skill blogwatcher
+clawd cron create "every 1h" "Use both skills and combine the result" \
   --skill blogwatcher \
   --skill maps \
   --name "Skill combo"
@@ -80,13 +80,13 @@ hermes cron create "every 1h" "Use both skills and combine the result" \
 
 ### Through natural conversation
 
-Ask Hermes normally:
+Ask clawd normally:
 
 ```text
 Every morning at 9am, check Hacker News for AI news and send me a summary on Telegram.
 ```
 
-Hermes will use the unified `cronjob_manage` tool internally.
+clawd will use the unified `cronjob_manage` tool internally.
 
 ## Pre-dispatch configuration validation
 
@@ -131,21 +131,21 @@ cron:
   preflight: false
 ```
 
-Or: `hermes config set cron.preflight false`
+Or: `clawd config set cron.preflight false`
 
 ## Moving unpinned jobs to a new global default
 
-An unpinned job follows the main agent model, so `hermes model` moves your cron fleet with it.
+An unpinned job follows the main agent model, so `clawd model` moves your cron fleet with it.
 When you want a job to *stay* on a model:
 
 ```bash
-hermes cron edit <job_id> --pin                                   # lock the current main model onto one job
-hermes cron edit <job_id> --provider <provider> --model <model>   # pin an explicit model
-hermes cron edit <job_id> --unpin                                 # follow the main model again
-hermes config set cron.model <model>                              # every unpinned job, without touching chat
+clawd cron edit <job_id> --pin                                   # lock the current main model onto one job
+clawd cron edit <job_id> --provider <provider> --model <model>   # pin an explicit model
+clawd cron edit <job_id> --unpin                                 # follow the main model again
+clawd config set cron.model <model>                              # every unpinned job, without touching chat
 ```
 
-`hermes cron list` and the `cronjob_manage` tool report `pinned` per job.
+`clawd cron list` and the `cronjob_manage` tool report `pinned` per job.
 
 ## Skill-backed cron jobs
 
@@ -185,7 +185,7 @@ Cron jobs default to running detached from any repo — no `AGENTS.md`, `CLAUDE.
 
 ```bash
 # Standalone CLI (schedule and prompt are positional)
-hermes cron create "every 1d at 09:00" \
+clawd cron create "every 1d at 09:00" \
   "Audit open PRs, summarize CI health, and post to #eng" \
   --workdir /home/me/projects/acme
 ```
@@ -216,8 +216,8 @@ Each agent run binds its `workdir` to that run's unique task identity. Workdir j
 By default a job's cron expression is read in your profile's timezone (`timezone:` in `config.yaml`). A job can pin its own zone instead, so one profile can serve several markets:
 
 ```bash
-hermes cron create "0 9 * * 1-5" --timezone Asia/Hong_Kong "HK market open brief"
-hermes cron create "0 9 * * 1-5" --timezone America/New_York "US market open brief"
+clawd cron create "0 9 * * 1-5" --timezone Asia/Hong_Kong "HK market open brief"
+clawd cron create "0 9 * * 1-5" --timezone America/New_York "US market open brief"
 ```
 
 - The expression is the pinned zone's **wall clock**: `0 9 * * *` fires at 09:00 in that zone, and stays at 09:00 across that zone's DST changes.
@@ -231,8 +231,8 @@ hermes cron create "0 9 * * 1-5" --timezone America/New_York "US market open bri
 A missed cron occurrence is run late only inside a catch-up window: half the job's period, clamped to 2 minutes–2 hours. `--grace-minutes` overrides that per job (0–1440):
 
 ```bash
-hermes cron edit market-open --grace-minutes 0    # never catch up: skip a missed occurrence
-hermes cron edit market-open --grace-minutes 180  # run up to 3h late
+clawd cron edit market-open --grace-minutes 0    # never catch up: skip a missed occurrence
+clawd cron edit market-open --grace-minutes 180  # run up to 3h late
 ```
 
 `0` means never catch up; `--grace-minutes ""` restores the computed window. It only applies to cron expressions — `once` and `interval` schedules have no missed wall clock to catch up on.
@@ -258,12 +258,12 @@ The `<job_id>` placeholder below (and in [Lifecycle actions](#lifecycle-actions)
 ### Standalone CLI
 
 ```bash
-hermes cron edit <job_id> --schedule "every 4h"
-hermes cron edit <job_id> --prompt "Use the revised task"
-hermes cron edit <job_id> --skill blogwatcher --skill maps
-hermes cron edit <job_id> --add-skill maps
-hermes cron edit <job_id> --remove-skill blogwatcher
-hermes cron edit <job_id> --clear-skills
+clawd cron edit <job_id> --schedule "every 4h"
+clawd cron edit <job_id> --prompt "Use the revised task"
+clawd cron edit <job_id> --skill blogwatcher --skill maps
+clawd cron edit <job_id> --add-skill maps
+clawd cron edit <job_id> --remove-skill blogwatcher
+clawd cron edit <job_id> --clear-skills
 ```
 
 Notes:
@@ -290,15 +290,15 @@ Cron jobs now have a fuller lifecycle than just create/remove.
 ### Standalone CLI
 
 ```bash
-hermes cron list
-hermes cron pause <job_id_or_name>
-hermes cron resume <job_id_or_name>
-hermes cron run <job_id_or_name>
-hermes cron cancel <job_id_or_name>
-hermes cron remove <job_id_or_name>
-hermes cron edit <job_id_or_name> [...flags]
-hermes cron status
-hermes cron tick
+clawd cron list
+clawd cron pause <job_id_or_name>
+clawd cron resume <job_id_or_name>
+clawd cron run <job_id_or_name>
+clawd cron cancel <job_id_or_name>
+clawd cron remove <job_id_or_name>
+clawd cron edit <job_id_or_name> [...flags]
+clawd cron status
+clawd cron tick
 ```
 
 What they do:
@@ -312,24 +312,24 @@ What they do:
 - `tick` — run one scheduler pass and exit (for a system crontab or other external
   scheduler). **The gateway must be running:** agent jobs execute inside the gateway, and a
   tick never starts one. With no gateway up, agent jobs are skipped with a logged reason
-  (`hermes cron list` shows it) and fire on the next tick after `hermes gateway start`; their
+  (`clawd cron list` shows it) and fire on the next tick after `clawd gateway start`; their
   schedule is not advanced or penalised. `no_agent` script jobs still run from a bare tick.
 
 **Name-based lookup.** The mutating verbs (`pause`, `resume`, `run`, `cancel`, `remove`, `edit`) plus the agent's `cronjob_manage` tool now accept a job **name** (case-insensitive) in place of the hex ID. The agent and CLI both prefer an exact ID match if one exists; ambiguous name matches (multiple jobs sharing the same name) are refused with the full list of candidate IDs so you can pick one explicitly. Names are not unique, so this guard is load-bearing — it prevents silently mutating the wrong job when two share a name.
 
-### Pausing everything: `hermes pause`
+### Pausing everything: `clawd pause`
 
-`hermes pause [--reason ...]` is the global emergency stop (`hermes resume` lifts it). While it is engaged no scheduled cron fire starts, whichever door it arrives through: the built-in ticker skips its dispatch, the managed-cron (hosted scheduler) fire webhook answers `503` with `Retry-After: 60` so the scheduler redelivers the fire after you resume, and the [misfire catch-up](#misfire-catch-up) sweep stays idle instead of force-firing everything that was held back. Runs already in flight are never killed, and nothing is lost: due work catches up on the first tick or sweep after `hermes resume`. Explicit manual runs (`hermes cron run`, the dashboard's Trigger button) are an operator override and still execute while paused.
+`clawd pause [--reason ...]` is the global emergency stop (`clawd resume` lifts it). While it is engaged no scheduled cron fire starts, whichever door it arrives through: the built-in ticker skips its dispatch, the managed-cron (hosted scheduler) fire webhook answers `503` with `Retry-After: 60` so the scheduler redelivers the fire after you resume, and the [misfire catch-up](#misfire-catch-up) sweep stays idle instead of force-firing everything that was held back. Runs already in flight are never killed, and nothing is lost: due work catches up on the first tick or sweep after `clawd resume`. Explicit manual runs (`clawd cron run`, the dashboard's Trigger button) are an operator override and still execute while paused.
 
-### Stopping a run in flight: `hermes cron cancel`
+### Stopping a run in flight: `clawd cron cancel`
 
 `pause` only suppresses future fires — a run that is already executing keeps going until it
 finishes or hits a timeout. When a run is wedged (a script blocked on network I/O, an agent
 turn that will not end), stop just that run:
 
 ```bash
-hermes cron cancel <job_id_or_name>
-hermes cron cancel <job_id_or_name> --reason "wedged on the staging API"
+clawd cron cancel <job_id_or_name>
+clawd cron cancel <job_id_or_name> --reason "wedged on the staging API"
 ```
 
 The schedule is untouched: the job stays enabled and its next fire happens as planned. What
@@ -343,14 +343,14 @@ changes is the current run.
 
 The cancel is a *request*, not a kill: it is recorded against that run's execution id and picked
 up at the run's next cancel check (well under a second for a script). The run then books a
-`cancelled` row with its reason, so `hermes cron runs <job_id>` shows why it stopped instead of an
+`cancelled` row with its reason, so `clawd cron runs <job_id>` shows why it stopped instead of an
 unexplained timeout or a bare failure. A cancelled run sends no failure notice and does not count
 toward the job's failure streak. The same stop is available as `POST /api/cron/jobs/{id}/cancel`,
 as the agent's `cronjob_manage` action `cancel`, and in the Desktop: a job with a run in flight
 shows **Stop** in its header (it reads **Stopping…** until the run has booked its `cancelled`
 row, then a *Run cancelled* toast confirms it).
 
-**Removing a job stops its live run.** `hermes cron remove` (and the dashboard/Desktop delete or
+**Removing a job stops its live run.** `clawd cron remove` (and the dashboard/Desktop delete or
 the agent's `remove` action) cancels a run that is in flight, booked `cancelled` with the reason
 "job removed while running", instead of letting it keep spending tokens on a result nothing
 will keep.
@@ -364,8 +364,8 @@ already performed — it stops the run, it does not roll it back.
 Create a canary without a create-then-pause scheduling race:
 
 ```bash
-hermes cron create "every 1h" "Post the digest" --paused --paused-reason "Awaiting review"
-hermes cron resume <job_id>
+clawd cron create "every 1h" "Post the digest" --paused --paused-reason "Awaiting review"
+clawd cron resume <job_id>
 ```
 
 `--paused` stores `enabled: false`, `state: paused`, `next_run_at: null`, a pause
@@ -423,24 +423,24 @@ over ones that create new jobs each run.
 **Cron execution is handled by the gateway daemon.** The gateway ticks the scheduler every 60 seconds, running any due jobs in isolated agent sessions.
 
 ```bash
-hermes gateway install     # Install as a user service
-sudo hermes gateway install --system   # Linux: boot-time system service for servers
-hermes gateway             # Or run in foreground
+clawd gateway install     # Install as a user service
+sudo clawd gateway install --system   # Linux: boot-time system service for servers
+clawd gateway             # Or run in foreground
 
-hermes cron list
-hermes cron status
+clawd cron list
+clawd cron status
 ```
 
-`hermes cron status` reports whether the scheduler is alive (gateway process, ticker heartbeat, last successful tick) and the soonest scheduled run across your active jobs, ordered by actual instant even when jobs store different UTC offsets. A `next_run_at` that is already more than 15 minutes in the past is never shown as an upcoming "Next run": `cron status` prints `⚠ Next run <time> is OVERDUE — passed 7h ago but the job has not fired`, `cron list` and the in-chat `/cron list` label the row `Overdue:`, the dashboard and the Desktop cron panel (including a Bot's Routines card) show `Overdue since`, and when the scheduler has stopped ticking `status` (with the gateway down) and the dashboard Cron page also say when it last ticked. That is the signature of a scheduler that stopped ticking — restart the gateway (`hermes gateway restart`) so the next tick picks the overdue job up, or run it right away with `hermes cron run <id>`.
+`clawd cron status` reports whether the scheduler is alive (gateway process, ticker heartbeat, last successful tick) and the soonest scheduled run across your active jobs, ordered by actual instant even when jobs store different UTC offsets. A `next_run_at` that is already more than 15 minutes in the past is never shown as an upcoming "Next run": `cron status` prints `⚠ Next run <time> is OVERDUE — passed 7h ago but the job has not fired`, `cron list` and the in-chat `/cron list` label the row `Overdue:`, the dashboard and the Desktop cron panel (including a Bot's Routines card) show `Overdue since`, and when the scheduler has stopped ticking `status` (with the gateway down) and the dashboard Cron page also say when it last ticked. That is the signature of a scheduler that stopped ticking — restart the gateway (`clawd gateway restart`) so the next tick picks the overdue job up, or run it right away with `clawd cron run <id>`.
 
-For a named profile served by the default-profile multiplexer, `hermes cron status` names that scheduler host and reports the named profile's own heartbeat health. Missing or stale heartbeats point to `hermes --profile default gateway restart`. `cron list` and `cron create` also warn when that heartbeat is missing or stale; `cron status` additionally checks the last successful tick and reports tick errors.
+For a named profile served by the default-profile multiplexer, `clawd cron status` names that scheduler host and reports the named profile's own heartbeat health. Missing or stale heartbeats point to `clawd --profile default gateway restart`. `cron list` and `cron create` also warn when that heartbeat is missing or stale; `cron status` additionally checks the last successful tick and reports tick errors.
 
 #### Cron store not writable (full disk, read-only mount, permissions)
 
-When the cron store (`~/.hermes/cron/`, or the profile's own `cron/` directory) can't be written, for example because the disk is full (`ENOSPC`), the mount is read-only (`EROFS`) or the permissions are wrong (`EACCES`), the scheduler does not run a job whose run it can't record. That prevents double fires after recovery. The ticker keeps running. It stops attempting the doomed writes and re-checks the store about once a minute. The outage shows up in four places:
+When the cron store (`~/.clawd/cron/`, or the profile's own `cron/` directory) can't be written, for example because the disk is full (`ENOSPC`), the mount is read-only (`EROFS`) or the permissions are wrong (`EACCES`), the scheduler does not run a job whose run it can't record. That prevents double fires after recovery. The ticker keeps running. It stops attempting the doomed writes and re-checks the store about once a minute. The outage shows up in four places:
 
-- `hermes cron status` probes the store itself and leads with `⚠ Cron store is NOT writable — scheduled jobs are being skipped`. Below that it shows the store path, the OS error, the last successful write and how many due runs have not fired. `hermes cron list` prints a one-line banner.
-- `hermes doctor` warns when the store is not writable, or when its filesystem has less than 100 MB free.
+- `clawd cron status` probes the store itself and leads with `⚠ Cron store is NOT writable — scheduled jobs are being skipped`. Below that it shows the store path, the OS error, the last successful write and how many due runs have not fired. `clawd cron list` prints a one-line banner.
+- `clawd doctor` warns when the store is not writable, or when its filesystem has less than 100 MB free.
 - The gateway posts one notice to the profile's home channels when the store becomes unwritable and one when it has stayed writable for an hour (a store that fails again within that hour posts nothing more, so the last notice always matches its state). Both respect `display.suppress_warning_notifications` and use the profile's `display.language`.
 - Monitoring exports `hermes.cron.store.writable` (0 while any profile's store served by this gateway is unwritable, else 1) and `hermes.cron.store.skipped_runs` (summed over those stores).
 
@@ -450,7 +450,7 @@ To fix it, free disk space on the filesystem holding the store, remount it read-
 
 On each tick Hermes:
 
-1. loads jobs from `~/.hermes/cron/jobs.json`
+1. loads jobs from `~/.clawd/cron/jobs.json`
 2. checks `next_run_at` against the current time
 3. starts a fresh `AIAgent` session for each due job
 4. optionally injects one or more attached skills into that fresh session
@@ -458,7 +458,7 @@ On each tick Hermes:
 6. delivers the final response
 7. updates run metadata and the next scheduled time
 
-A file lock at `~/.hermes/cron/.tick.lock` prevents overlapping scheduler ticks from double-running the same job batch.
+A file lock at `~/.clawd/cron/.tick.lock` prevents overlapping scheduler ticks from double-running the same job batch.
 
 ### Restart-safe workers under systemd
 
@@ -473,16 +473,16 @@ cron:
 
 The lasting fix is a user session for the gateway user: `sudo loginctl enable-linger <gateway-user>` (and `XDG_RUNTIME_DIR` / `DBUS_SESSION_BUS_ADDRESS` in the unit for system-level installs), then restart the gateway. Kanban workers always require a scope under the managed gateway regardless of this key: a spawn the host cannot scope is recorded on the card as an infrastructure failure and retried later, never charged to the card (see the [Kanban docs](kanban.md#workers-and-systemd-cgroups)).
 
-The worker is the gateway's own interpreter running `python -m cron.scheduler`, with the gateway's checkout pinned on its `PYTHONPATH` (plus any entries the gateway itself was started with), so it imports the same Hermes tree the gateway runs — regardless of the venv's editable-install mapping, the unit's `WorkingDirectory`, or `PYTHONSAFEPATH` on the host. A worker that dies before acknowledging the handoff records its own stderr tail in the job's last error and in the execution ledger, so the failing import (or whatever killed it) is named instead of a bare exit code.
+The worker is the gateway's own interpreter running `python -m cron.scheduler`, with the gateway's checkout pinned on its `PYTHONPATH` (plus any entries the gateway itself was started with), so it imports the same clawd tree the gateway runs — regardless of the venv's editable-install mapping, the unit's `WorkingDirectory`, or `PYTHONSAFEPATH` on the host. A worker that dies before acknowledging the handoff records its own stderr tail in the job's last error and in the execution ledger, so the failing import (or whatever killed it) is named instead of a bare exit code.
 
 ### Execution history
 
-Hermes records each claimed cron attempt in the profile-local
-`~/.hermes/cron/executions.db` before executor or provider dispatch. Attempts
+clawd records each claimed cron attempt in the profile-local
+`~/.clawd/cron/executions.db` before executor or provider dispatch. Attempts
 move through `claimed`, `running`, and one immutable terminal state:
 `completed`, `failed`, or `unknown`. After restart — and before every manual
-`hermes cron run` / `/cron run`, so a one-shot invocation with no scheduler
-running heals the ledger too — Hermes marks an abandoned attempt `unknown` only
+`clawd cron run` / `/cron run`, so a one-shot invocation with no scheduler
+running heals the ledger too — clawd marks an abandoned attempt `unknown` only
 when the original PID and process-start fingerprint prove that its owner is
 gone, or when a live owner has been **silent** for longer than the derived
 stale bound (`max(3 × HERMES_CRON_TIMEOUT, script timeout, 2 h)`): the run
@@ -491,13 +491,13 @@ tools or streaming, so a healthy multi-hour job is never reclaimed mid-run, whil
 a worker deadlocked on a lock stops stamping and is released once the bound
 passes. Unknown attempts are audit records and are never automatically rerun.
 
-Inspect recent attempts with `hermes cron runs [job-id] --limit 20` (alias:
+Inspect recent attempts with `clawd cron runs [job-id] --limit 20` (alias:
 `history`). Terminal history is bounded; active attempts are never pruned. The
 ledger is included in quick backups.
 
 Scheduled attempts also record their exact scheduled instant, separately from
 the time they were claimed. If an old `jobs.json` snapshot re-arms an occurrence
-that the retained ledger records as completed, Hermes skips that replay and
+that the retained ledger records as completed, clawd skips that replay and
 re-anchors recurring jobs. This works even when the snapshot predates the
 dispatch stamp or the original run started late. Explicit manual runs do not
 consume a scheduled occurrence's identity.
@@ -516,8 +516,8 @@ a bad import after a half-applied update, a provider client that cannot be
 constructed — counts and alerts the same as one the agent itself failed. When
 a *recurring* job's streak reaches the threshold, the failure message
 delivered to chat gains a review nudge telling you the job has failed N runs
-in a row and suggesting you fix, pause (`hermes cron pause <job>`), or remove
-it. Any successful run resets the streak, and `hermes cron list` shows the
+in a row and suggesting you fix, pause (`clawd cron pause <job>`), or remove
+it. Any successful run resets the streak, and `clawd cron list` shows the
 streak alongside a failing job's last run. One-shot jobs never nudge.
 
 ```yaml
@@ -577,7 +577,7 @@ the job plus a normalized signature of the error text (case, whitespace and
 measured durations such as `idle for 603s` are ignored), in the same per-profile
 ledger database as the execution history; the first failure of a signature is
 always delivered, and repeats are then withheld while the incident is `alerted`
-(the run is still recorded — `hermes cron runs` and the failure streak see it,
+(the run is still recorded — `clawd cron runs` and the failure streak see it,
 only the ping is held back).
 
 ```yaml
@@ -592,9 +592,9 @@ so the same error after a green run alerts again. If the incident ledger cannot
 be read, the ping is delivered rather than swallowed.
 
 ```bash
-hermes cron incidents                 # list incidents (newest activity first)
-hermes cron incidents --state alerted # filter: detected | alerted | resolved | closed
-hermes cron incidents ack <id>        # acknowledge — silence this signature for good
+clawd cron incidents                 # list incidents (newest activity first)
+clawd cron incidents --state alerted # filter: detected | alerted | resolved | closed
+clawd cron incidents ack <id>        # acknowledge — silence this signature for good
 ```
 
 Acknowledging an incident silences the failure ping for that exact signature
@@ -615,14 +615,14 @@ reminder cooldown) → `resolved` (the job ran OK afterwards; re-opens on a
 repeat) or `closed` (acknowledged; terminal for that signature). Stored error
 text is secret-redacted and truncated before it is written.
 
-### Fleet health check: `hermes cron doctor`
+### Fleet health check: `clawd cron doctor`
 
-`hermes cron doctor` is a read-only health check over every active job. It prints grouped, per-job issues and exits `1` while any finding stands, including historical late or catch-up dispatches (`0` when no findings remain).
+`clawd cron doctor` is a read-only health check over every active job. It prints grouped, per-job issues and exits `1` while any finding stands, including historical late or catch-up dispatches (`0` when no findings remain).
 
-A successful catch-up does not clear the lateness warning; the next on-time dispatch does. A watchdog such as `hermes cron doctor || alert` can therefore keep alerting for a full schedule interval after the host wakes, even if the catch-up succeeds.
+A successful catch-up does not clear the lateness warning; the next on-time dispatch does. A watchdog such as `clawd cron doctor || alert` can therefore keep alerting for a full schedule interval after the host wakes, even if the catch-up succeeds.
 
 ```bash
-hermes cron doctor
+clawd cron doctor
 ```
 
 Checks per active job:
@@ -639,7 +639,7 @@ Checks per active job:
 - configured `workdir` that no longer exists.
 
 Doctor never mutates jobs or state — it only reports. Pair it with
-`hermes cron incidents` (durable failure records) and `hermes cron runs`
+`clawd cron incidents` (durable failure records) and `clawd cron runs`
 (attempt ledger) when digging into a flagged job.
 
 ## Delivery options
@@ -649,7 +649,7 @@ When scheduling jobs, you specify where the output goes:
 | Option | Description | Example |
 |--------|-------------|---------|
 | `"origin"` | Back to where the job was created | Default on messaging platforms |
-| `"local"` | Save to local files only (`~/.hermes/cron/output/`) | Default on CLI |
+| `"local"` | Save to local files only (`~/.clawd/cron/output/`) | Default on CLI |
 | `"telegram"` | Telegram home channel | Uses `TELEGRAM_HOME_CHANNEL` |
 | `"telegram:123456"` | Specific Telegram chat by ID | Direct delivery |
 | `"telegram:-100123:17585"` | Specific Telegram topic | `chat_id:thread_id` format |
@@ -692,8 +692,8 @@ Execution and delivery are tracked separately. When the agent run succeeds but
 the output never reaches the target (platform 5xx, rate limit, stale session,
 adapter returned no positive evidence of a send), the job records
 `last_status: delivery_failed` — never a plain `ok` — with the reason in
-`last_delivery_error`. `hermes cron list` shows it in yellow as
-`delivery_failed: <reason>`, `hermes cron doctor` reports it as a delivery
+`last_delivery_error`. `clawd cron list` shows it in yellow as
+`delivery_failed: <reason>`, `clawd cron doctor` reports it as a delivery
 issue, and a manual `cronjob run` reports `success: false` with the delivery
 error. A delivery failure does not count toward the job's `failure_streak`
 (the agent did its job); the next fully successful run returns the status to
@@ -704,10 +704,10 @@ error. A delivery failure does not count toward the job's `failure_streak`
 `bot-chat` delivers the output **into a profile's canonical "Bot Chat" session as a real message**. Unlike every other target — where the recipient is a human reading a channel — the recipient here is the bot itself: it receives the output as an incoming message, acts on anything that needs action, and responds in its chat. Use it when scheduled output should be *processed*, not just posted.
 
 - `bot-chat` (bare) targets the job's own profile.
-- `bot-chat:<profile>` targets another profile **on the same machine**. Names are validated against `hermes profile list` when the job is created; profiles on other gateways or machines can never be targeted, so same-named profiles across machines are unambiguous.
+- `bot-chat:<profile>` targets another profile **on the same machine**. Names are validated against `clawd profile list` when the job is created; profiles on other gateways or machines can never be targeted, so same-named profiles across machines are unambiguous.
 - Each delivery costs the target bot one full agent turn — mind the schedule frequency.
 - Composes with other targets (`bot-chat,telegram`) but is never included in `all`.
-- If the canonical chat is open in a mailbox-capable Desktop/TUI backend, delivery is **durably queued immediately**, whether the bot is idle or busy. Only that live owner runs the incoming turn; cron does not start a competing CLI writer. A profile that has no Bot Chat yet gets one created on first delivery. If the target profile's gateway is not running, the run is recorded `delivery_failed` with the reason (the output stays in `hermes cron runs`; it is not redelivered automatically) and cron never starts its own Bot Chat turn.
+- If the canonical chat is open in a mailbox-capable Desktop/TUI backend, delivery is **durably queued immediately**, whether the bot is idle or busy. Only that live owner runs the incoming turn; cron does not start a competing CLI writer. A profile that has no Bot Chat yet gets one created on first delivery. If the target profile's gateway is not running, the run is recorded `delivery_failed` with the reason (the output stays in `clawd cron runs`; it is not redelivered automatically) and cron never starts its own Bot Chat turn.
 - **Queued is not completed.** Cron records receipt IDs and `queued`/`claimed` statuses in `last_delivery_queued`, with delivery outcome `queued` (neither delivered nor failed). A successful job shows `delivery_queued`; genuine errors on other targets still take precedence as delivery failures. The bot may complete later. The durable receipt in the target profile's `runtime/bot_live_delivery/<receipt-id>.json` is authoritative for the turn itself. For an agent job the send rides the gateway delivery queue, and once the gateway has handed it to the bot the run settles to `ok` (accepted, not answered) while `last_delivery_queued` keeps the receipt; a refused hand-off settles to `delivery_failed`. Script-only (`no_agent`) Bot Chat deliveries stay `delivery_queued`: cron never rewrites that history when the bot's turn later completes.
 - Rechecking the same execution inspects its existing receipt, even if the owner has disappeared. It never falls back to another writer after acceptance. `failed`, `cancelled`, or `ambiguous` receipts are not automatically replayed; inspect the chat and receipt before intentionally starting new work. Each new cron execution has a distinct delivery ID.
 
@@ -746,7 +746,7 @@ Note: The agent cannot see this message, and therefore cannot respond to it.
 To deliver the raw agent output without the wrapper, set `cron.wrap_response` to `false`:
 
 ```yaml
-# ~/.hermes/config.yaml
+# ~/.clawd/config.yaml
 cron:
   wrap_response: false
 ```
@@ -760,7 +760,7 @@ brief triggers a push even when the adapter's notification mode is `important`
 silent brief as "never delivered"). To restore silent deliveries:
 
 ```yaml
-# ~/.hermes/config.yaml
+# ~/.clawd/config.yaml
 cron:
   delivery:
     notify: false   # default: true
@@ -777,13 +777,13 @@ the adapter: an explicit `success` that is not a filtered drop
 `success` but neither piece of evidence — the shape Slack, Matrix and
 Mattermost adapters return — is still accepted (it is not proof of failure),
 but the run is recorded on the job as `last_delivery_unverified` and surfaces
-in `hermes cron list`:
+in `clawd cron list`:
 
 ```
 ⚠ Delivery UNVERIFIED: adapter acked slack:C0123456 without message_id/raw_response
 ```
 
-and in `hermes cron doctor` as `last delivery unverified (...)`. The marker is
+and in `clawd cron doctor` as `last delivery unverified (...)`. The marker is
 cleared by the next run that delivers with evidence. An empty payload (no text
 and no media) is never handed to an adapter; it fails closed and is reported in
 `last_delivery_error` instead of being logged as delivered.
@@ -800,7 +800,7 @@ Opt-in, **default off**. Enable globally in config, or per-job via the `cronjob`
 tool's `attach_to_session` (which overrides the global setting for that one job):
 
 ```yaml
-# ~/.hermes/config.yaml
+# ~/.clawd/config.yaml
 cron:
   mirror_delivery: false   # set true to make cron deliveries continuable
 ```
@@ -845,7 +845,7 @@ delivery. If you'd rather have a continuable job land **flat in the channel
 timeline** — no thread — set the Slack **continuable surface** to `in_channel`:
 
 ```yaml
-# ~/.hermes/config.yaml
+# ~/.clawd/config.yaml
 slack:
   cron_continuable_surface: in_channel   # default: thread
   reply_in_thread: false                 # required pairing (see below)
@@ -897,7 +897,7 @@ not required (and is ignored) for DMs.
 
 ### Silent suppression
 
-If the agent's final response contains `[SILENT]`, delivery is suppressed entirely. The output is still saved locally for audit (in `~/.hermes/cron/output/`), but no message is sent to the delivery target.
+If the agent's final response contains `[SILENT]`, delivery is suppressed entirely. The output is still saved locally for audit (in `~/.clawd/cron/output/`), but no message is sent to the delivery target.
 
 This is useful for monitoring jobs that should only report when something is wrong:
 
@@ -920,9 +920,9 @@ by the explanation:
 The nightly export subagent exited with "disk full"; no report was produced.
 ```
 
-The run is then recorded as failed (`last_status`, failure streak, `hermes cron runs` and `hermes cron incidents`
+The run is then recorded as failed (`last_status`, failure streak, `clawd cron runs` and `clawd cron incidents`
 all reflect it) and the failure notice is delivered like any other failed run. The full response is still saved
-under `~/.hermes/cron/output/` for triage. The marker is strict: mentioning or quoting `[CRON_FAILURE]` anywhere
+under `~/.clawd/cron/output/` for triage. The marker is strict: mentioning or quoting `[CRON_FAILURE]` anywhere
 else in a report leaves the run successful. Script-only (`no_agent`) jobs ignore it — a script signals failure
 with a non-zero exit code.
 
@@ -931,7 +931,7 @@ with a non-zero exit code.
 Pre-run scripts (attached via the `script` parameter) have a default timeout of 3600 seconds (1 hour). This bounds the **script only** — skill-based / LLM-driven jobs run on a separate inactivity budget and are not capped by this value. If your scripts need a different limit, you can change it:
 
 ```yaml
-# ~/.hermes/config.yaml
+# ~/.clawd/config.yaml
 cron:
   script_timeout_seconds: 1800   # 30 minutes
 ```
@@ -941,7 +941,7 @@ Or set the `HERMES_CRON_SCRIPT_TIMEOUT` environment variable. The resolution ord
 Cron also bounds post-run session and agent-resource cleanup. This happens after the LLM turn returns, so it is separate from the inactivity timeout. The default is 10 seconds per cleanup operation. If a storage or client finalizer stops returning, the scheduler logs an error, releases the job's in-flight guard, and allows later runs to dispatch instead of skipping that job forever.
 
 ```yaml
-# ~/.hermes/config.yaml
+# ~/.clawd/config.yaml
 cron:
   cleanup_timeout_seconds: 10
 ```
@@ -953,7 +953,7 @@ Set `cleanup_timeout_seconds: 0` only to restore the legacy unbounded cleanup be
 When a cron delivery includes media attachments (a generated PDF, TTS audio, an exported report) sent through a live gateway adapter, each attachment upload is bounded by a timeout — 300 seconds by default. Large files on slow uplinks can need more:
 
 ```yaml
-# ~/.hermes/config.yaml
+# ~/.clawd/config.yaml
 cron:
   media_send_timeout_seconds: 600   # 10 minutes per attachment
 ```
@@ -969,7 +969,7 @@ A `bot-chat` delivery is admitted to the target profile's running gateway and ex
 When the live gateway adapter cannot deliver (or no gateway is running), a target is sent through the platform's standalone sender. That send is bounded by a wall-clock timeout — 60 seconds by default — so a transport that is mid-reconnect cannot pin the job run (and a pending restart drain behind it) indefinitely:
 
 ```yaml
-# ~/.hermes/config.yaml
+# ~/.clawd/config.yaml
 cron:
   standalone_send_timeout_seconds: 120
 ```
@@ -981,7 +981,7 @@ A timed-out send is recorded in `last_delivery_error` as `standalone send to <ta
 For recurring jobs that don't need LLM reasoning — classic watchdogs, disk/memory alerts, heartbeats, CI pings — pass `no_agent=True` at creation time. The scheduler runs your script on schedule and delivers its stdout directly, skipping the agent entirely:
 
 ```bash
-hermes cron create "every 5m" \
+clawd cron create "every 5m" \
   --no-agent \
   --script memory-watchdog.sh \
   --deliver telegram \
@@ -996,7 +996,7 @@ Semantics:
 - `{"wakeAgent": false}` on the last line → silent tick (same gate LLM jobs use).
 - No tokens, no model, no provider fallback — the job never touches the inference layer.
 
-`.sh` / `.bash` files run under `bash` from `PATH` when available, otherwise `/bin/bash` (important on Windows Git Bash). Anything else runs under the current Python interpreter (`sys.executable`). `script` is always a **file**, never a command line: `--script "echo hi"` is refused at creation (write the command into `~/.hermes/scripts/hi.sh` and pass `hi.sh`). Scripts must resolve inside `$HERMES_HOME/scripts/` — relative names, absolute paths, and `~`-prefixed paths are accepted when the resolved target stays in that directory; paths that escape it are rejected. A Python `script` or `monitor_script` can also pin a user-managed venv (for packages the Hermes runtime doesn't carry) by passing `--interpreter ~/venvs/.../bin/python` at create/edit time — see [Using your own Python environment](../../guides/cron-script-only.md#using-your-own-python-environment). The Hermes-managed venv stays Hermes-owned; nothing is installed or restored automatically. The subprocess environment is sanitized (`_sanitize_subprocess_env`), so provider API credentials and other Hermes-managed secrets are **not** inherited by cron scripts.
+`.sh` / `.bash` files run under `bash` from `PATH` when available, otherwise `/bin/bash` (important on Windows Git Bash). Anything else runs under the current Python interpreter (`sys.executable`). `script` is always a **file**, never a command line: `--script "echo hi"` is refused at creation (write the command into `~/.hermes/scripts/hi.sh` and pass `hi.sh`). Scripts must resolve inside `$HERMES_HOME/scripts/` — relative names, absolute paths, and `~`-prefixed paths are accepted when the resolved target stays in that directory; paths that escape it are rejected. A Python `script` or `monitor_script` can also pin a user-managed venv (for packages the clawd runtime doesn't carry) by passing `--interpreter ~/venvs/.../bin/python` at create/edit time — see [Using your own Python environment](../../guides/cron-script-only.md#using-your-own-python-environment). The Hermes-managed venv stays Hermes-owned; nothing is installed or restored automatically. The subprocess environment is sanitized (`_sanitize_subprocess_env`), so provider API credentials and other Hermes-managed secrets are **not** inherited by cron scripts.
 
 #### Giving a script a credential
 
@@ -1012,13 +1012,13 @@ The variable is forwarded into the script's environment with the **owning profil
 
 ### The agent sets these up for you
 
-The `cronjob_manage` tool's schema exposes `no_agent` to Hermes directly, so you can describe a watchdog in chat and let the agent wire it up:
+The `cronjob_manage` tool's schema exposes `no_agent` to clawd directly, so you can describe a watchdog in chat and let the agent wire it up:
 
 ```text
 Ping me on Telegram if RAM is over 85%, every 5 minutes.
 ```
 
-Hermes will write the check script to `~/.hermes/scripts/` via `write_file`, then call:
+clawd will write the check script to `~/.clawd/scripts/` via `write_file`, then call:
 
 ```python
 cronjob(action="create", schedule="every 5m",
@@ -1038,7 +1038,7 @@ Cron jobs run in isolated sessions with no memory of previous runs. But sometime
 # Job 1: Collect raw data
 cronjob(
     action="create",
-    prompt="Fetch the top 10 AI/ML stories from Hacker News. Save them to ~/.hermes/data/briefs/raw.md in markdown format with title, URL, and score.",
+    prompt="Fetch the top 10 AI/ML stories from Hacker News. Save them to ~/.clawd/data/briefs/raw.md in markdown format with title, URL, and score.",
     schedule="0 7 * * *",
     name="AI News Collector",
 )
@@ -1047,7 +1047,7 @@ cronjob(
 # Get Job 1's ID from: cronjob(action="list")
 cronjob(
     action="create",
-    prompt="Read ~/.hermes/data/briefs/raw.md. Score each story 1–10 for engagement potential and novelty. Output the top 5 to ~/.hermes/data/briefs/ranked.md.",
+    prompt="Read ~/.clawd/data/briefs/raw.md. Score each story 1–10 for engagement potential and novelty. Output the top 5 to ~/.clawd/data/briefs/ranked.md.",
     schedule="30 7 * * *",
     context_from="<job1_id>",
     name="AI News Triage",
@@ -1056,7 +1056,7 @@ cronjob(
 # Job 3: Ship — receives Job 2's output as context
 cronjob(
     action="create",
-    prompt="Read ~/.hermes/data/briefs/ranked.md. Write 3 tweet drafts (hook + body + hashtags). Deliver to telegram:7976161601.",
+    prompt="Read ~/.clawd/data/briefs/ranked.md. Write 3 tweet drafts (hook + body + hashtags). Deliver to telegram:7976161601.",
     schedule="0 8 * * *",
     context_from="<job2_id>",
     name="AI News Brief",
@@ -1065,7 +1065,7 @@ cronjob(
 
 **How it works:**
 
-- When Job 2 fires, Hermes reads Job 1's most recent output from `~/.hermes/cron/output/{job1_id}/*.md`
+- When Job 2 fires, clawd reads Job 1's most recent output from `~/.clawd/cron/output/{job1_id}/*.md`
 - That output is prepended to Job 2's prompt automatically
 - Job 2 doesn't need to hardcode "read this file" — it receives the content as context
 - The chain can be any length: Job 1 → Job 2 → Job 3 → ...
@@ -1095,7 +1095,7 @@ cronjob(
 
 The first run has no previous output, so the prompt runs as-is. Silent monitor ticks (`no_change`), empty output, and `wakeAgent=false` audit records are skipped when selecting context, so a quiet period preserves the latest substantive output. Audit files remain on disk. Error documents remain eligible to give the next run recovery context; this is not a success-only history filter. On later runs the previous output is prepended with continuity framing ("avoid repeating what was already reported"). It combines freely with upstream jobs (`context_from=["<other_job_id>"]` plus `continuity=true`), and `continuity=false` on update turns it off while preserving other `context_from` entries. Internally the flag is stored as the reserved `self` entry in `context_from`.
 
-From the CLI: `hermes cron create "every 6h" "Scan for news" --continuity`, and `hermes cron edit <job_id> --continuity` / `--no-continuity` to toggle it on an existing job. The same toggle appears in the dashboard's cron editor and the desktop Bot Mode routine dialog.
+From the CLI: `clawd cron create "every 6h" "Scan for news" --continuity`, and `clawd cron edit <job_id> --continuity` / `--no-continuity` to toggle it on an existing job. The same toggle appears in the dashboard's cron editor and the desktop Bot Mode routine dialog.
 
 **When to use it:**
 
@@ -1113,7 +1113,7 @@ If the primary API key is rate-limited or the provider returns an error, the cro
 
 A job with its own `provider`, `model` or `base_url` (set with `--provider` / `--model`, `--pin`, the dashboard, or `jobs.json`) never falls back to the global chain. The pin says which route the job runs on, and a fallback entry is a different provider and usually a different model, so when the pinned route fails the run fails and the failure alert says so. This is the same rule [subagent delegation](./delegation.md) applies to a pinned child. To keep fallback for a job, leave it unpinned: it follows `cron.model` / `cron.model_provider` (or the main model) and walks the chain like any other unpinned job.
 
-Before this rule, a pinned job whose provider failed could run on the first working `fallback_providers` entry instead, with a one-line notice in its output. If you relied on that, unpin the job (`hermes cron edit <job_id> --unpin`) and set the model through `cron.model` instead.
+Before this rule, a pinned job whose provider failed could run on the first working `fallback_providers` entry instead, with a one-line notice in its output. If you relied on that, unpin the job (`clawd cron edit <job_id> --unpin`) and set the model through `cron.model` instead.
 
 A single rate-limited key therefore does not fail a run that has another credential for the same provider, and unpinned jobs still survive a provider outage when a chain is configured.
 
@@ -1125,7 +1125,7 @@ This is separate from `last_fire_error` (scheduler handoff) and `last_delivery_e
 Those fields can correctly be empty when the agent itself failed.
 
 For a connection failure, inspect the run document under `cron/output/<job_id>/` in the active
-Hermes home. Its `## Error` section includes the chained traceback, with credential patterns
+clawd home. Its `## Error` section includes the chained traceback, with credential patterns
 and URL credentials redacted. The file uses the existing private output-file permissions;
 traceback locals are not captured. Delivery notices and `last_error` retain the concise error,
 not the full traceback. Review diagnostics before sharing: redaction is not a guarantee that
@@ -1138,11 +1138,11 @@ On hosted (managed-cron) deployments, a scheduled fire travels from the platform
 These misses are stamped on the job record as `last_fire_error` (timestamp + reason) and surfaced by:
 
 - `cronjob_manage` tool → `action: "list"` — the `last_fire_error` field
-- `hermes cron list`: a red missed-fire warning under the job
-- `hermes cron doctor`: a per-job missed-fire finding that makes the command exit `1`
+- `clawd cron list`: a red missed-fire warning under the job
+- `clawd cron doctor`: a per-job missed-fire finding that makes the command exit `1`
 - The dashboard job view
 
-The stamp always reflects **current** auto-fire health: it is overwritten by newer misses and cleared automatically by the next successful run. If you see it, the job and its schedule are fine — the gateway side of the fire path needs attention (most commonly, restart the gateway through its supervisor so it loads the full profile environment: `hermes gateway restart`).
+The stamp always reflects **current** auto-fire health: it is overwritten by newer misses and cleared automatically by the next successful run. If you see it, the job and its schedule are fine — the gateway side of the fire path needs attention (most commonly, restart the gateway through its supervisor so it loads the full profile environment: `clawd gateway restart`).
 
 ### Local missed-run policy
 
@@ -1151,7 +1151,7 @@ passed, the job **catches up once** when the scheduler is back: a slot missed
 inside a restart gap fires exactly one time, a slot that already ran before the
 restart is never run again, and a long outage collapses into a single run rather
 than one run per missed slot. Paused jobs never catch up. Each catch-up shows in
-`hermes cron list` as `⚠ late` / `⚠ catch-up after missed fire`.
+`clawd cron list` as `⚠ late` / `⚠ catch-up after missed fire`.
 
 To avoid that catch-up load after a planned gateway stop, set:
 
@@ -1160,7 +1160,7 @@ cron:
   catch_up_missed: false   # default: true
 ```
 
-Or run `hermes config set cron.catch_up_missed false`. With this opt-out, a recurring
+Or run `clawd config set cron.catch_up_missed false`. With this opt-out, a recurring
 job later than its existing grace window (half its period, clamped to 120 seconds–2
 hours) is re-anchored to its next future occurrence without firing now. The skip is
 logged. Jobs inside grace and explicit manual triggers still run normally; if the
@@ -1170,8 +1170,8 @@ This does not change resume behavior or the hosted-provider sweep below.
 **Per job.** A job can override the default with `catch_up`:
 
 ```bash
-hermes cron create "0 7 * * 1-5" "Morning brief" --catch-up off   # a stale brief is useless: skip
-hermes cron edit <job> --catch-up on                                # always run once on return
+clawd cron create "0 7 * * 1-5" "Morning brief" --catch-up off   # a stale brief is useless: skip
+clawd cron edit <job> --catch-up on                                # always run once on return
 ```
 
 (`cronjob_manage` takes `catch_up: true|false`; the Desktop job editor has the same choice as
@@ -1185,7 +1185,7 @@ and the job still runs once for it.
 **Missed runs are visible.** Every slot the scheduler passes over is booked as one `missed ×N`
 row in the execution ledger: `missed ×3 (skipped, catch-up off; next run …)` for a skip, and
 `missed ×2 (collapsed into one catch-up run)` beside the one run that caught up for three slots.
-The rows show in `hermes cron runs <job>` and in the dashboard/Desktop run history.
+The rows show in `clawd cron runs <job>` and in the dashboard/Desktop run history.
 
 ### Misfire catch-up
 
@@ -1306,16 +1306,16 @@ The context is appended to the job's stored prompt under a `## Run Context`
 header for that single fire only — it is never persisted to the job
 definition, and it passes the same prompt-injection scan as stored prompts.
 
-Runtimes that can't receive detached results (one-shot `hermes -z`, `hermes
+Runtimes that can't receive detached results (one-shot `clawd -z`, `clawd
 cron run` from the CLI, cron child sessions, Kanban workers) fall back to
 synchronous execution automatically.
 
 ## Toolsets available to cron jobs
 
-Cron runs each job in a fresh agent session with no chat platform attached. By default the cron agent gets **the toolset you configured for the `cron` platform in `hermes tools`** — not the CLI default, not everything under the sun.
+Cron runs each job in a fresh agent session with no chat platform attached. By default the cron agent gets **the toolset you configured for the `cron` platform in `clawd tools`** — not the CLI default, not everything under the sun.
 
 ```bash
-hermes tools
+clawd tools
 # → pick the "cron" platform in the curses UI
 # → toggle toolsets on/off just like you would for Telegram/Discord/etc.
 ```
@@ -1329,13 +1329,13 @@ cronjob(action="create", name="weekly-news-summary",
         prompt="Summarize this week's AI news: ...")
 ```
 
-When `enabled_toolsets` is set on a job it wins; otherwise the `hermes tools` cron-platform config wins; otherwise Hermes falls back to the built-in defaults. If the cron-platform toolset config cannot be read at all (for example a malformed `platform_toolsets` block in `config.yaml`), the run fails with a recorded error instead of quietly running with every tool — check `hermes cron list` / `hermes cron doctor`. This matters for cost control: carrying `browser`, `delegation` into every tiny "fetch news" job bloats the tool-schema prompt on every LLM call.
+When `enabled_toolsets` is set on a job it wins; otherwise the `clawd tools` cron-platform config wins; otherwise clawd falls back to the built-in defaults. If the cron-platform toolset config cannot be read at all (for example a malformed `platform_toolsets` block in `config.yaml`), the run fails with a recorded error instead of quietly running with every tool — check `clawd cron list` / `clawd cron doctor`. This matters for cost control: carrying `browser`, `delegation` into every tiny "fetch news" job bloats the tool-schema prompt on every LLM call.
 
 If the job drives a site you're logged into, the login has to be in place before the run — a scheduled tick has nobody to answer a prompt. [Scheduled and unattended runs](./browser.md#scheduled-and-unattended-runs) covers that setup.
 
 ### Skipping the agent entirely: `wakeAgent`
 
-If your cron job attaches a pre-check script (via `script=`), the script can decide at runtime whether Hermes should even invoke the agent. Emit a final stdout line of the form:
+If your cron job attaches a pre-check script (via `script=`), the script can decide at runtime whether clawd should even invoke the agent. Emit a final stdout line of the form:
 
 ```text
 {"wakeAgent": false}
@@ -1365,7 +1365,7 @@ The `wakeAgent` gate gives you a $0 way to decide whether a scheduled job should
 
 ```bash
 #!/usr/bin/env bash
-# ~/.hermes/scripts/feed-changed.sh
+# ~/.clawd/scripts/feed-changed.sh
 FEED="$HOME/data/feed.json"
 STATE="$HOME/.hermes/scripts/.feed-changed.last"
 test -f "$FEED" || { echo '{"wakeAgent": false}'; exit 0; }
@@ -1390,9 +1390,9 @@ cronjob(action="create", name="process-feed",
 
 ```bash
 #!/usr/bin/env bash
-# ~/.hermes/scripts/flag-ready.sh
-if test -f ~/.hermes/cache/scratch/new-data-ready; then
-  rm -f ~/.hermes/cache/scratch/new-data-ready
+# ~/.clawd/scripts/flag-ready.sh
+if test -f ~/.clawd/cache/scratch/new-data-ready; then
+  rm -f ~/.clawd/cache/scratch/new-data-ready
   echo '{"wakeAgent": true}'
 else
   echo '{"wakeAgent": false}'
@@ -1410,7 +1410,7 @@ cronjob(action="create", name="nightly-analysis",
 
 ```python
 #!/usr/bin/env python
-# ~/.hermes/scripts/new-rows.py
+# ~/.clawd/scripts/new-rows.py
 import json, sqlite3
 conn = sqlite3.connect("/home/me/data/app.db")
 n = conn.execute(
@@ -1432,7 +1432,7 @@ cronjob(action="create", name="summarize-new-msgs",
 The same pattern works for any data source you can query from a script — Postgres, an HTTP API, your own state store — without baking a SQL evaluator into the cron subsystem.
 
 :::tip
-Hermes's own `~/.hermes/state.db` is an internal schema that changes between releases. Don't query it from a pre-run gate — point at your own database or feed instead.
+clawd'ss own `~/.clawd/state.db` is an internal schema that changes between releases. Don't query it from a pre-run gate — point at your own database or feed instead.
 :::
 
 Credit: this recipe set was prompted by @iankar8's exploration in [#2654](https://github.com/NousResearch/hermes-agent/pull/2654), which proposed adding sql/file/command triggers as a parallel mechanism. The `script` + `wakeAgent` gate already covers all three cases at $0, so the work landed as documentation instead.
@@ -1452,17 +1452,17 @@ The referenced jobs' most recent completed outputs are injected above the prompt
 
 ## Job storage
 
-Jobs are stored in `~/.hermes/cron/jobs.json`. Output from job runs is saved to `~/.hermes/cron/output/{job_id}/{timestamp}.md`.
+Jobs are stored in `~/.clawd/cron/jobs.json`. Output from job runs is saved to `~/.clawd/cron/output/{job_id}/{timestamp}.md`.
 
 Job definitions are plain JSON on disk: they survive `hermes update`, gateway restarts, and machine reboots. A job that was mid-run during a restart is marked `unknown` in the execution ledger — it is not automatically retried, but the job's next scheduled tick fires normally. See [Execution history](#execution-history) for details.
 
 :::tip
-Ask the agent to manage jobs through the `cronjob_manage` tool, `hermes cron edit`, or `/cron` — not by patching `jobs.json` directly. Direct edits can fail silently when [file write safety](../security.md#file-write-safety) blocks the path (for example when `HERMES_WRITE_SAFE_ROOT` is set), and the [file-mutation verifier](../configuration.md#file-mutation-verifier) footer is the authoritative signal that nothing was saved.
+Ask the agent to manage jobs through the `cronjob_manage` tool, `clawd cron edit`, or `/cron` — not by patching `jobs.json` directly. Direct edits can fail silently when [file write safety](../security.md#file-write-safety) blocks the path (for example when `HERMES_WRITE_SAFE_ROOT` is set), and the [file-mutation verifier](../configuration.md#file-mutation-verifier) footer is the authoritative signal that nothing was saved.
 :::
 
 If a hand edit leaves `jobs.json` malformed, the scheduler repairs it on the next load instead of stopping: entries in the `jobs` list that are not JSON objects are dropped, and a `repeat.completed` that is not a non-negative integer is reset to a valid count (0 when it can't be read). Each repair is logged as a warning (value types only, never contents).
 
-Jobs may store `model` and `provider` as `null`. When those fields are omitted, Hermes resolves them at execution time from the global configuration. They only appear in the job record when a per-job override is set.
+Jobs may store `model` and `provider` as `null`. When those fields are omitted, clawd resolves them at execution time from the global configuration. They only appear in the job record when a per-job override is set.
 
 A per-job `base_url` override needs an explicit `provider`. For a provider with a stored key (a named custom provider or a built-in one), the override must have the same origin as that provider's configured endpoint: the same scheme, host and port. Another scheme, port or subdomain is refused, so the stored key is only ever sent where you configured it. A bare `provider: custom` takes any `base_url` that no stored key goes with. When a stored key matches the URL's hostname (for example `DEEPSEEK_API_KEY` for `api.deepseek.com`), the same rule applies: the `base_url` must have the origin of an endpoint you configured or of a built-in provider.
 

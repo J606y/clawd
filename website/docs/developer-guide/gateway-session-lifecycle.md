@@ -419,7 +419,7 @@ Written at the end of a graceful shutdown. On next startup:
   were already drained, so no sessions are stuck.
 - Then delete the marker.
 
-This prevents unwanted auto-resets after `hermes update`, `hermes gateway restart`,
+This prevents unwanted auto-resets after `hermes update`, `clawd gateway restart`,
 or `/restart`.
 
 ---

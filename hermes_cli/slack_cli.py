@@ -58,7 +58,7 @@ def _build_full_manifest(
 
     display_information = {
         "name": bot_name[:35],
-        "description": (bot_description or "Your Hermes agent on Slack")[:140],
+        "description": (bot_description or "Your clawd agent on Slack")[:140],
         "background_color": "#1a1a2e"}
     if long_description is not None:
         display_information["long_description"] = long_description
@@ -78,14 +78,14 @@ def _build_full_manifest(
 
 def slack_manifest_command(args) -> int:
     """Print or write a Slack app manifest JSON (flags documented in ``hermes_cli/main.py``)."""
-    name = getattr(args, "name", None) or "Hermes"
-    description = getattr(args, "description", None) or "Your Hermes agent on Slack"
+    name = getattr(args, "name", None) or "clawd"
+    description = getattr(args, "description", None) or "Your clawd agent on Slack"
     long_description = getattr(args, "long_description", None)
     long_description_file = getattr(args, "long_description_file", None)
     slashes_only = getattr(args, "slashes_only", False)
 
     def fail(msg: str) -> int:
-        print(f"hermes slack manifest: {msg}", file=sys.stderr)
+        print(f"clawd slack manifest: {msg}", file=sys.stderr)
         return 2
 
     if slashes_only and (long_description is not None or long_description_file is not None):

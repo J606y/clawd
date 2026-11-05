@@ -1,4 +1,4 @@
-"""IRC Platform Adapter for Hermes Agent — stdlib asyncio only, zero external dependencies.
+"""IRC Platform Adapter for clawd — stdlib asyncio only, zero external dependencies.
 
 config.yaml ``gateway.platforms.irc.extra`` keys: server, port (6697), nickname (hermes-bot), channel,
 use_tls (true), server_password, nickserv_password, allowed_users ([] = allow all), max_message_length (450).
@@ -176,7 +176,7 @@ class IRCAdapter(BasePlatformAdapter):
         if self.server_password:
             await self._send_raw(f"PASS {self.server_password}")
         await self._send_raw(f"NICK {self.nickname}")
-        await self._send_raw(f"USER {self.nickname} 0 * :Hermes Agent")
+        await self._send_raw(f"USER {self.nickname} 0 * :clawd")
         self._recv_task = asyncio.create_task(self._receive_loop())
         try:  # wait for registration (001 RPL_WELCOME)
             await asyncio.wait_for(self._registration_event.wait(), timeout=30.0)
@@ -503,7 +503,7 @@ async def _sa_register(conn: _StandaloneConn, nick_base: str, server_password: s
     if server_password:
         await conn.raw(f"PASS {_strip_irc_control_chars(server_password)}")
     await conn.raw(f"NICK {standalone_nick}")
-    await conn.raw(f"USER {standalone_nick} 0 * :Hermes Agent (cron)")
+    await conn.raw(f"USER {standalone_nick} 0 * :clawd (cron)")
     registered = await conn.pump(15.0, _on_registration)
     if registered is None:
         return _sa_error("registration timeout (no RPL_WELCOME)")

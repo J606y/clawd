@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>image preview layer</title>
+</head>
+<body>
+  <div class="shell">
+    <header id="topbar" style="position:fixed;top:0;left:0;right:0;height:44px;z-index:40;background:#111;color:#fff">title</header>
+    <div class="hp-chat" style="padding-top:60px">
+      <div id="trap" style="transform:translateY(0)">
+        <div id="mount"></div>
+      </div>
+    </div>
+    <div id="status" style="position:fixed;left:8px;top:80px;z-index:80;color:#d97757;background:#111;padding:4px 8px">Fluttering...</div>
+  </div>
+  <script>
+    window.__CLAWD_ARTIFACT_ROOTS__ = ["/tmp/clawd-fixture-uploads/uploads/"];
+  </script>
+  <script type="module">
+    import { createElement } from "react";
+    import { createRoot } from "react-dom/client";
+    import { AssistantBody, UserAttachments } from "/src/react/pages/chat/turns.tsx";
+    import { ChatStyles } from "/src/react/pages/chat/chat-styles.tsx";
+
+    const png = (width, height) => {
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#39f";
+      ctx.fillRect(0, 0, width, height);
+      return canvas.toDataURL("image/png");
+    };
+    const square = png(8, 8);
+    const wide = png(1600, 40);
+    const tall = png(40, 1600);
+    createRoot(document.getElementById("mount")).render(createElement("div", null,
+      createElement(ChatStyles),
+      createElement("section", { id: "user-shot" },
+        createElement(UserAttachments, {
+          images: [square],
+          files: [],
+          uploads: [{ name: "IMG_2465.jpeg", absPath: "/tmp/clawd-fixture-uploads/uploads/IMG_2465.jpeg", size: "1 KB", image: true }],
+          droppedImages: 0,
+        }),
+      ),
+      createElement("section", { id: "archived-shot" },
+        createElement(UserAttachments, {
+          images: [],
+          files: [],
+          uploads: [
+            { name: "原图.png", absPath: "/tmp/clawd-fixture-uploads/uploads/原图.png", size: "68 B", image: true },
+            { name: "说明.pdf", absPath: "/tmp/clawd-fixture-uploads/uploads/说明.pdf", size: "2 KB", image: false },
+          ],
+          droppedImages: 0,
+        }),
+      ),
+      createElement("section", { id: "assistant-shot" },
+        createElement(AssistantBody, { text: "done",        images: [square], streaming: false, pace: false, ownerKey: "layer-1" }),
+      ),
+      createElement("section", { id: "wide-shot" },
+        createElement(UserAttachments, { images: [wide], files: [], uploads: [], droppedImages: 0 }),
+      ),
+      createElement("section", { id: "tall-shot" },
+        createElement(UserAttachments, { images: [tall], files: [], uploads: [], droppedImages: 0 }),
+      ),
+    ));
+    window.ready = true;
+  </script>
+</body>
+</html>

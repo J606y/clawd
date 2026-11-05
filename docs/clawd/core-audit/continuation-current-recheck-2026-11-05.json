@@ -1,0 +1,275 @@
+{
+  "meta": {
+    "reviewer": "continuation-current-recheck-2026-11-05",
+    "method": "static-read-only",
+    "not_run": true,
+    "not_a_fix": true,
+    "not_runtime_pass": true,
+    "not_exploited": true,
+    "kernel_safe": false,
+    "do_not_sum_with_final_findings": true,
+    "baseline": "docs/clawd/core-audit/final-findings-2026-11-05.json",
+    "observed_at": "2026-11-05T18:07:38+08:00",
+    "note": "只重核 9 个既有 ID。不修代码，不并入 63。作者自报不是本结论。未跑攻击。可达有风险不等于已利用。",
+    "not_run_list": [
+      "tests",
+      "build",
+      "import",
+      "py_compile",
+      "product CLI",
+      "network",
+      "production reads",
+      "attack verification",
+      "commit",
+      "push",
+      "deploy"
+    ],
+    "scope_ids": [
+      "bg-receipt",
+      "bg-lease",
+      "bg-human",
+      "bg-busy",
+      "bg-window",
+      "bg-swallow",
+      "bg-pid",
+      "bg-stop",
+      "bg-plan"
+    ],
+    "id_count": 9,
+    "unique_id_count": 9,
+    "omission": [],
+    "conclusion_changed_ids": [],
+    "counts": {
+      "conclusion_same": 9,
+      "conclusion_changed": 0,
+      "active": 8,
+      "false_positive": 1,
+      "fixed": 0,
+      "needs_verification": 0
+    }
+  },
+  "source_hashes": {
+    "gateway/clawd_continuation.py": "6c2be349953a7b1044549e322b5443d6e34847084bec600c46728eeae2c56d4f",
+    "gateway/clawd_continuation_admit.py": "a8e6b2f1c8595708186c6aba4ee034efefec107f8cd0b2bcc8a7b1e9cc017f3a",
+    "gateway/clawd_continuation_decision.py": "fa244674385cc0b216ca29227d32025fb51848a9a7d43a5c34a4f77cd9b97dbd",
+    "gateway/clawd_continuation_journal.py": "fe3d64ff1af9d3f241e37522828e0d2a8e6107271055eb38a71c654ca50205d9",
+    "gateway/clawd_continuation_gates.py": "6d2fa59a5c89ecf198799fb41e51fd7c3c6e671a0e23d2008ea0324ea1511ae9",
+    "gateway/wake.py": "7fe985e4606b769355c942ba137e5d52037cd96d61c1a6072a2e837f782b1a32",
+    "gateway/platforms/api_server_runs.py": "554cb28b411b323fab038d4f24dedc7e4876b7266f2044bc5f3730e528fa122b",
+    "hermes_state_compression.py": "8b6e2df32259d1d1c89a6f7215c8ba23ff7a91f69ecb83bcc9f3ff9a52863670",
+    "hermes_state_messages.py": "b81c7d272f768a548daa91642bf8283dfad2f592528fbe95c029038a13e7f574"
+  },
+  "items": [
+    {
+      "id": "bg-receipt",
+      "old_status": "active",
+      "status": "active",
+      "conclusion_same": true,
+      "severity": "high",
+      "confidence": "确定",
+      "runtime_demonstrated": false,
+      "title": "续跑回执写在 admit 返回时，早于回合结束",
+      "trigger": "admit 已返回 run_id 并写入 admitted 回执；此后进程退出，或 _run_agent 的结果字典里 completed 为假。无 authority 时没有另一套账本重跑。",
+      "branches": [
+        "gateway/clawd_continuation_admit.py:156-172 _go 异常以外一律 _set_run_status completed，不读 result['completed']",
+        "gateway/clawd_continuation_admit.py:174-180 create_task(_go) 后返回，不等待回合",
+        "gateway/clawd_continuation_admit.py:315-316 与 342-343 可复用则直接返回旧 run_id，不 _launch",
+        "gateway/clawd_continuation_admit.py:356-357 _launch 后立刻 return run_id",
+        "gateway/clawd_continuation.py:465-482 FROZEN_LAUNCH 只包住 admit；返回后立刻 add_receipts reason=admitted"
+      ],
+      "old_locations": [
+        "gateway/clawd_continuation_admit.py:122-133",
+        "gateway/clawd_continuation_admit.py:198-199",
+        "gateway/clawd_continuation.py:319-332"
+      ],
+      "hash_same": false,
+      "note": "回执含义仍是已排队或复用，不是回合成功。未利用。"
+    },
+    {
+      "id": "bg-lease",
+      "old_status": "active",
+      "status": "active",
+      "conclusion_same": true,
+      "severity": "high",
+      "confidence": "确定",
+      "runtime_demonstrated": false,
+      "title": "续跑 claim 失败直接返回，不排下一次评估",
+      "trigger": "完成通知已持久化。本轮 claim 因他人持有未过期租约或行状态不可领而返回 False。之后没有新事件。",
+      "branches": [
+        "gateway/clawd_continuation_journal.py:454-472 claim 对无行、他人活租约、admitted/exhausted 返回 False，自身不排程",
+        "gateway/clawd_continuation.py:442-443 主路径 claim 失败直接 return，不 _schedule",
+        "gateway/clawd_continuation.py:353-354 冻结前预算路径同样抢不到就 return，不 _schedule"
+      ],
+      "old_locations": [
+        "gateway/clawd_continuation.py:310-311",
+        "gateway/clawd_continuation.py:324-326"
+      ],
+      "hash_same": false,
+      "note": "未把租约秒数当已复现的线上丢失。未利用。"
+    },
+    {
+      "id": "bg-human",
+      "old_status": "active",
+      "status": "active",
+      "conclusion_same": true,
+      "severity": "high",
+      "confidence": "确定",
+      "runtime_demonstrated": false,
+      "title": "已发射的续跑不再服从更新的人话",
+      "trigger": "第二次 decide 已返回 admit 之后、_go 进入模型之前，插入更晚的人话。",
+      "branches": [
+        "gateway/clawd_continuation.py:442-448 claim 后只再 _decide 一次；非 admit 才释放并改走该决策",
+        "gateway/clawd_continuation.py:468 await admit，其间不再 decide",
+        "gateway/clawd_continuation_admit.py:141-172 _go 不调用 decide，不比较人话代次",
+        "gateway/clawd_continuation.py:479-482 回执不因新人话撤销"
+      ],
+      "old_locations": [
+        "gateway/clawd_continuation.py:310-320",
+        "gateway/clawd_continuation_admit.py:95-128"
+      ],
+      "hash_same": false,
+      "note": "缺检查是静态确定的。未跑交错。未利用。"
+    },
+    {
+      "id": "bg-busy",
+      "old_status": "active",
+      "status": "active",
+      "conclusion_same": true,
+      "severity": "medium",
+      "confidence": "确定",
+      "runtime_demonstrated": false,
+      "title": "续跑 busy/draining 会计入尝试次数",
+      "trigger": "网关并发顶满或 draining，续跑被连续拒绝。",
+      "branches": [
+        "gateway/clawd_continuation.py:360-363 冻结前 busy/draining 记一次并 _schedule BACKOFF_S[0]",
+        "gateway/clawd_continuation.py:451-458 对齐阶段同类拒绝同样记次并退避",
+        "gateway/clawd_continuation.py:463-474 record_attempt 在 await admit 之前；admit 再抛 busy/draining 时用同一 attempt 改写并退避",
+        "gateway/clawd_continuation_decision.py:20 MAX_ATTEMPTS=5；343-344 才是 attempts_exhausted。342 行成功次数不是闸门"
+      ],
+      "old_locations": [
+        "gateway/clawd_continuation.py:317-327"
+      ],
+      "hash_same": false,
+      "note": "加次确定。这是失败预算，不是成功次数门槛。按既有范围保留，未修。"
+    },
+    {
+      "id": "bg-window",
+      "old_status": "active",
+      "status": "active",
+      "conclusion_same": true,
+      "severity": "medium",
+      "confidence": "确定",
+      "runtime_demonstrated": false,
+      "title": "续跑预检用传入会话查租约，触发只看最新 300 条",
+      "trigger": "压缩后完成通知被解析到子会话，根租约仍在父谱系；或完成行之后又写入超过 300 条更新的活动消息。",
+      "branches": [
+        "gateway/clawd_continuation.py:306 与 501-503 预检 get_messages(session_id, limit=300, latest=True)，不传 include_ancestors",
+        "hermes_state_messages.py:1370-1372 include_ancestors 默认 False。本文件不在归并哈希内，只核签名默认",
+        "gateway/clawd_continuation.py:324 把传入 session_id 交给 turn_lease_expires",
+        "gateway/clawd_continuation_gates.py:68-73 查询 conversation_id = 传入 id，不走谱系根",
+        "hermes_state_compression.py:728-750 写入方用 _session_turn_lease_key_on_conn",
+        "gateway/wake.py:215-220 投递前 resolve_resume_session_id，失败则保留原 id"
+      ],
+      "old_locations": [
+        "gateway/clawd_continuation_gates.py:68-81",
+        "hermes_state_compression.py:728-750",
+        "gateway/clawd_continuation.py:268-280",
+        "gateway/clawd_continuation.py:349-351",
+        "gateway/wake.py:215-220"
+      ],
+      "hash_same": false,
+      "note": "gates、wake、compression 哈希与归并相同，行号仍有效。continuation 行号已移。未跑压缩交错。"
+    },
+    {
+      "id": "bg-swallow",
+      "old_status": "active",
+      "status": "active",
+      "conclusion_same": true,
+      "severity": "low",
+      "confidence": "确定",
+      "runtime_demonstrated": false,
+      "title": "续跑通知失败后投递仍算完成，评估失败不排重试",
+      "trigger": "投递行已写入后，续跑导入失败或 evaluate 抛出未内部处理的异常，且之后没有新通知、run 终态或重启。",
+      "branches": [
+        "gateway/wake.py:231-235 异常只记日志，不抛出，函数随后结束",
+        "gateway/clawd_continuation.py:293-301 JournalUnavailable 与宽 except 只 fail_closed，不 _schedule",
+        "gateway/clawd_continuation.py:257-264 fail_closed 只记事件"
+      ],
+      "old_locations": [
+        "gateway/wake.py:231-235",
+        "gateway/clawd_continuation.py:253-264"
+      ],
+      "hash_same": false,
+      "note": "wake.py 哈希与归并相同。未利用。"
+    },
+    {
+      "id": "bg-pid",
+      "old_status": "active",
+      "status": "active",
+      "conclusion_same": true,
+      "severity": "high",
+      "confidence": "确定",
+      "runtime_demonstrated": false,
+      "title": "续跑把仍存在的 PID 当成可复用旧 run 并写回执",
+      "trigger": "续跑行停在非终态，原进程已死，同一 pid 之后属于无关进程，评估走到 reused。",
+      "branches": [
+        "gateway/clawd_continuation_admit.py:182-192 非终态且本进程无活 task 时，别的 pid 只要求 _pid_alive，不比 owner_started",
+        "gateway/clawd_continuation_admit.py:337-341 reserve 写入 owner_started，复用判断未读它",
+        "gateway/clawd_continuation_admit.py:315-316 与 342-343 复用成功返回旧 run_id，不 _launch",
+        "gateway/clawd_continuation.py:479-482 调用方随后写 admitted 回执"
+      ],
+      "old_locations": [
+        "gateway/clawd_continuation_admit.py:136-146",
+        "gateway/clawd_continuation_admit.py:166-167",
+        "gateway/clawd_continuation_admit.py:181-185"
+      ],
+      "hash_same": false,
+      "note": "缺比较是静态确定的。PID 再分配未跑。未利用。"
+    },
+    {
+      "id": "bg-stop",
+      "old_status": "active",
+      "status": "active",
+      "conclusion_same": true,
+      "severity": "high",
+      "confidence": "确定",
+      "runtime_demonstrated": false,
+      "title": "停止打不中续跑回合",
+      "trigger": "对续跑 run id 调用 POST /v1/runs/{id}/stop，且走无 authority 分支，或 authority 找不到对应 admission。",
+      "branches": [
+        "gateway/clawd_continuation_admit.py:137-180 _launch 不写 _active_run_agents，不传 request_id；若 _active_run_tasks 是 dict 则登记 task",
+        "gateway/platforms/api_server_runs.py:1291-1292 stop 装载的 agent/task 来自这两张表",
+        "gateway/platforms/api_server_runs.py:1556-1580 有 authority 且任务无 delivery_id 时走 stop_run 并返回；无 authority 时仅 agent 非空才 request_hard_interrupt，不取消 task"
+      ],
+      "old_locations": [
+        "gateway/clawd_continuation_admit.py:91-133",
+        "gateway/platforms/api_server_runs.py:1556-1580"
+      ],
+      "hash_same": false,
+      "note": "api_server_runs.py 哈希与归并相同。新登记 task 不关闭本条：引用的 stop 仍不取消 task，仍不在 agent 为空时打断。双 admission 未跑，不升格。"
+    },
+    {
+      "id": "bg-plan",
+      "old_status": "false_positive",
+      "status": "false_positive",
+      "conclusion_same": true,
+      "severity": "medium",
+      "confidence": "确定",
+      "runtime_demonstrated": false,
+      "title": "计划探针缺失，但没有可触发的计划待批输入",
+      "trigger": "原触发依赖侧表计划或未接线的外持有者。当前产品源码仍没有这两类输入。",
+      "branches": [
+        "gateway/clawd_continuation_gates.py:47-51 属性不可调用时 plan_pending 返回 False，不把 unknown 置真",
+        "gateway/clawd_continuation_gates.py:54-65 collect_gates 只消费该返回值",
+        "gateway/clawd_continuation_decision.py:211-244 transcript_plan_pending 只扫已载入行",
+        "gateway/clawd_continuation_decision.py:340-344 计划闸门仍在 attempts 比较之前；342 行注释不放行"
+      ],
+      "old_locations": [
+        "gateway/clawd_continuation_gates.py:47-65",
+        "gateway/clawd_continuation_decision.py:209-242"
+      ],
+      "hash_same": false,
+      "note": "gates.py 哈希与归并相同。decision.py 哈希已变；未持有归并字节，不能把差异证明为仅注释。当前已读函数仍先拦计划。产品源码没有 clawd_plan_approval_pending 赋值，也没有 plan_approval / plan_mode 写入方；测试夹具不是产品输入。不因注释升格。"
+    }
+  ]
+}

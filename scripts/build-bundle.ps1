@@ -40,6 +40,9 @@ param(
   [string]$Remote = 'origin'
 )
 
+Write-Error "refused: clawd does not build the official desktop app. This entry is unsupported."
+exit 2
+
 # 'Stop' turns the native stderr progress lines of the build into terminating errors on Windows PowerShell 5.
 $ErrorActionPreference = 'Continue'
 $Repo = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path

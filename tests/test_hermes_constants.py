@@ -614,9 +614,9 @@ class TestProjectVenvDirOutOfTree:
         from pm.environments import site_packages
         hermes_constants.venv_python_path(venv).parent.mkdir(parents=True)
         hermes_constants.venv_python_path(venv).write_text("", encoding="utf-8")
-        dist_info = site_packages(venv) / "hermes_agent-0.0.0.dist-info"
+        dist_info = site_packages(venv) / "clawd-0.0.0.dist-info"
         dist_info.mkdir(parents=True)
-        (dist_info / "METADATA").write_text("Name: hermes-agent\nVersion: 0.0.0\n", encoding="utf-8")
+        (dist_info / "METADATA").write_text("Name: clawd\nVersion: 0.0.0\n", encoding="utf-8")
         (dist_info / "direct_url.json").write_text(
             json.dumps({"url": source.resolve().as_uri(), "dir_info": {"editable": True}}), encoding="utf-8")
 

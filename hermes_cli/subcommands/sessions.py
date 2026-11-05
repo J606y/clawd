@@ -1,4 +1,4 @@
-"""``hermes sessions`` subcommand parser."""
+"""``clawd sessions`` subcommand parser."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ def _flag(parser, *names, help, **kw):
 
 
 def cmd_sessions_lazy(args, **kwargs):
-    """``hermes sessions`` handler; sessions_cmd imports only when the subcommand runs."""
+    """``clawd sessions`` handler; sessions_cmd imports only when the subcommand runs."""
     from hermes_cli.sessions_cmd import cmd_sessions
 
     return cmd_sessions(args, **kwargs)
@@ -102,7 +102,7 @@ def build_sessions_parser(subparsers, *, cmd_sessions: Callable) -> None:
     sessions_export.add_argument("output", nargs="?", metavar="OUTPUT",
         help="Where to write. jsonl/html/trace: a file path, or a directory (existing, or ending in /) "
             "to write a default-named file into; - for stdout (jsonl/trace only; jsonl requires OUTPUT). "
-            "md/qmd: a directory, one file per session (default: <hermes home>/session-exports)")
+            "md/qmd: a directory, one file per session (default: <clawd home>/session-exports)")
     sessions_export.add_argument(
         "--format", choices=["jsonl", "md", "qmd", "html", "trace"], default="jsonl",
         help="Export format (default: jsonl). 'trace' emits Claude Code JSONL "
@@ -150,7 +150,7 @@ def build_sessions_parser(subparsers, *, cmd_sessions: Callable) -> None:
             "and are older than AGE (default 30 days). Ordinary prune can "
             "never reach these — it only ever selects ended sessions")
     _flag(sessions_prune, "--force",
-        help="With no gateway running: run even while another Hermes process (Desktop, dashboard, cron) holds state.db — rewriting the store under a live writer can leave every agent refusing turns until all writers are stopped. With the gateway running, prune always goes through it")
+        help="With no gateway running: run even while another clawd process (Desktop, dashboard, cron) holds state.db — rewriting the store under a live writer can leave every agent refusing turns until all writers are stopped. With the gateway running, prune always goes through it")
 
     sessions_archive = sessions_subparsers.add_parser(
         "archive", help="Bulk-archive (soft-hide) sessions matching filters — no deletion")
@@ -161,7 +161,7 @@ def build_sessions_parser(subparsers, *, cmd_sessions: Callable) -> None:
     sessions_optimize = sessions_subparsers.add_parser(
         "optimize", help="Reclaim disk space: merge FTS5 segments + VACUUM (no data change)")
     _flag(sessions_optimize, "--force",
-        help="Run even while another Hermes process (gateway, Desktop, dashboard, cron) holds state.db — rewriting the store under a live writer can leave every agent refusing turns until all writers are stopped")
+        help="Run even while another clawd process (gateway, Desktop, dashboard, cron) holds state.db — rewriting the store under a live writer can leave every agent refusing turns until all writers are stopped")
 
     sessions_clean_markers = sessions_subparsers.add_parser("clean-markers",
         help="Permanently clear stale tool-call marker content left by sessions from before #78148",
@@ -185,7 +185,7 @@ def build_sessions_parser(subparsers, *, cmd_sessions: Callable) -> None:
             "large fraction of state.db (the old layout stored duplicate "
             "copies of every message and indexed tool output). Runs "
             "foreground with progress for every phase (refusing while a gateway "
-            "or other Hermes process holds state.db, pacing itself if one opens it mid-run) and "
+            "or other clawd process holds state.db, pacing itself if one opens it mid-run) and "
             "VACUUMs at the end. Safe to interrupt and re-run — it resumes where it left off. No conversation data is "
             "changed; only the search index is rebuilt.")
     _flag(sessions_optimize_storage, "--no-vacuum", default=False,
@@ -193,7 +193,7 @@ def build_sessions_parser(subparsers, *, cmd_sessions: Callable) -> None:
     _flag(sessions_optimize_storage, "--yes", "-y", default=False,
         help="Skip the disk-space confirmation prompt")
     _flag(sessions_optimize_storage, "--force",
-        help="Run even while another Hermes process (gateway, Desktop, dashboard, cron) holds state.db — rewriting the store under a live writer can leave every agent refusing turns until all writers are stopped; the rebuild then paces itself so that process stays responsive (much slower)")
+        help="Run even while another clawd process (gateway, Desktop, dashboard, cron) holds state.db — rewriting the store under a live writer can leave every agent refusing turns until all writers are stopped; the rebuild then paces itself so that process stays responsive (much slower)")
 
     sessions_repair = sessions_subparsers.add_parser(
         "repair", help="Repair a malformed state.db schema so hidden sessions reappear",
@@ -207,7 +207,7 @@ def build_sessions_parser(subparsers, *, cmd_sessions: Callable) -> None:
 
     sessions_set_journal_mode = sessions_subparsers.add_parser(
         "set-journal-mode", help="Convert state.db between journal_mode=WAL and DELETE offline (every holder stopped)",
-        description="Switch the on-disk journal mode of the session store. Hermes never "
+        description="Switch the on-disk journal mode of the session store. clawd never "
             "live-downgrades a WAL database at startup (other processes may hold "
             "uncheckpointed commits), so `database.journal_mode: delete` cannot "
             "self-apply to an existing WAL store. Run this with the gateway, "
@@ -215,10 +215,10 @@ def build_sessions_parser(subparsers, *, cmd_sessions: Callable) -> None:
             "the file, switches the mode, and verifies the file header.")
     sessions_set_journal_mode.add_argument("mode", choices=("delete", "wal"), help="Target journal mode")
     sessions_set_journal_mode.add_argument("--db", default=None, metavar="PATH",
-        help="Convert another Hermes SQLite store (e.g. kanban.db) instead of the profile's state.db")
+        help="Convert another clawd SQLite store (e.g. kanban.db) instead of the profile's state.db")
     _flag(sessions_set_journal_mode, "--force",
         help="Proceed when the holder scan itself fails (cannot prove the store is quiet) after stopping every "
-            "Hermes process yourself; a process the scan does find is still refused")
+            "clawd process yourself; a process the scan does find is still refused")
 
     sessions_repair_routing = sessions_subparsers.add_parser(
         "repair-routing", help="Re-stamp gateway sessions that lost their routing identity",
@@ -331,10 +331,10 @@ def build_sessions_parser(subparsers, *, cmd_sessions: Callable) -> None:
         "--limit", type=int, default=500, help="Max sessions to load (default: 500)")
 
     sessions_import = sessions_subparsers.add_parser(
-        "import", help="Import a Claude Code or Codex CLI session into Hermes",
+        "import", help="Import a Claude Code or Codex CLI session into clawd",
         description="Pull a conversation started in Claude Code (~/.claude/projects) "
-            "or Codex CLI (~/.codex/sessions) into the Hermes session store "
-            "so it can be resumed with 'hermes --resume <id>'. The foreign "
+            "or Codex CLI (~/.codex/sessions) into the clawd session store "
+            "so it can be resumed with 'clawd --resume <id>'. The foreign "
             "files are only read, never modified.")
     sessions_import.add_argument("--from", dest="from_source", choices=["claude", "codex"],
         help="Which tool to import from (default: pick across both)")

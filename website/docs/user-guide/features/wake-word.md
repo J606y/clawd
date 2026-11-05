@@ -6,9 +6,9 @@ description: "Hands-free 'Hey Hermes' wake word — start a voice session by spe
 
 # Wake Word ("Hey Hermes")
 
-The wake word turns Hermes into a hands-free assistant across the CLI, TUI, and
-desktop app: with one setting on, Hermes listens in the background for a spoken
-trigger phrase. Say it, and Hermes starts a fresh session, opens the microphone,
+The wake word turns clawd into a hands-free assistant across the CLI, TUI, and
+desktop app: with one setting on, clawd listens in the background for a spoken
+trigger phrase. Say it, and clawd starts a fresh session, opens the microphone,
 captures your command via the normal [voice pipeline](./voice-mode.md),
 and answers — exactly like "Hey Siri" or "Alexa". Use `surface` to pick which
 one listens.
@@ -39,12 +39,12 @@ container" still goes through normally.
 
 ## Remote desktop (client capture)
 
-When the desktop app connects to a **remote** Hermes backend (for example a
+When the desktop app connects to a **remote** clawd backend (for example a
 headless Docker host or a machine in another room), the backend often has **no
 microphone**. Server-side PortAudio then fails with “Failed to open the
 wake-word microphone.”
 
-Hermes supports **client capture** for that case:
+clawd supports **client capture** for that case:
 
 1. The desktop arms wake with `capture: client` (automatic for the GUI when the
    backend has no local input device, or set explicitly below).
@@ -89,23 +89,23 @@ that of the Python backend, not a remote desktop client:
   (free, no key).
 
 An explicit provider stays selected, even if this platform does not support it.
-Hermes reports the requirement error instead of silently switching engines.
+clawd reports the requirement error instead of silently switching engines.
 Existing explicit settings are not migrated. To opt into automatic selection,
-run `hermes config set wake_word.provider auto`. Wake detection stays **off**
+run `clawd config set wake_word.provider auto`. Wake detection stays **off**
 until you enable it.
 
-The default phrase label is **"hey hermes"**. For openWakeWord, Hermes includes
+The default phrase label is **"hey hermes"**. For openWakeWord, clawd includes
 its trained TFLite model.
 The `pyopen-wakeword` package includes the shared feature-extraction models, so
 this engine does not download models when it starts.
 
-If the selected engine is missing, Hermes requests its PM extra when you enable
+If the selected engine is missing, clawd requests its PM extra when you enable
 wake-word detection. `security.allow_lazy_installs` controls this installation.
-A new dependency environment can require a Hermes restart before the engine loads.
+A new dependency environment can require a clawd restart before the engine loads.
 Packaged builds include the engine dependencies supported by their target.
 
 The `pyopen-wakeword` macOS
-wheel contains an ARM64-only library despite its `universal2` label. Hermes
+wheel contains an ARM64-only library despite its `universal2` label. clawd
 excludes that engine on Intel Macs and native Windows ARM64. Sherpa provides
 keyless detection on both targets.
 
@@ -117,13 +117,13 @@ setting is only a display label; choose a built-in keyword or supply a custom
 
 The supported `pyopen-wakeword` wheels target Apple Silicon with macOS 15 or
 later, glibc Linux 2.35 or later, and Windows x64. These requirements apply to
-that engine, not every Hermes feature. Termux's core/ACP package does not
+that engine, not every clawd feature. Termux's core/ACP package does not
 include this wake stack.
 
 ## Quick start
 
 ```bash
-# In an interactive `hermes` session:
+# In an interactive `clawd` session:
 /wake on        # start listening (installs the engine on first use)
 /wake status    # show phrase, provider, and state
 /wake off       # stop listening
@@ -133,7 +133,7 @@ In the desktop app, hover the microphone in the composer and click the ear
 that fans out of it. The ear is solid when the wake word is listening.
 
 The toggle IS the setting: turning the wake word on or off — via `/wake` or the
-desktop ear button — also writes `wake_word.enabled` to `~/.hermes/config.yaml`,
+desktop ear button — also writes `wake_word.enabled` to `~/.clawd/config.yaml`,
 so your choice persists across sessions. You can also flip it by hand:
 
 ```yaml
@@ -196,26 +196,26 @@ don't have the single-frame-spike problem and ignore `confirmation_frames`
 
 The `openwakeword` provider name now selects
 [pyopen-wakeword](https://github.com/rhasspy/pyopen-wakeword). Its wheel includes
-the TFLite library and shared feature models. Hermes uses the bundled
+the TFLite library and shared feature models. clawd uses the bundled
 `hey_hermes.tflite` model by default. ONNX wake models and the
 `inference_framework` setting are no longer supported.
 
 ### Surfaces (CLI, TUI, GUI)
 
-The wake word works in all three Hermes surfaces, and `surface` picks which one
+The wake word works in all three clawd surfaces, and `surface` picks which one
 owns the listener and opens the new session when it fires:
 
 | `surface` | Behavior |
 |-----------|----------|
 | `auto` (default) | All local surfaces are eligible; the first one to arm owns the listener. |
-| `cli` | Only the classic `hermes` CLI. |
-| `tui` | Only `hermes --tui`. |
+| `cli` | Only the classic `clawd` CLI. |
+| `tui` | Only `clawd --tui`. |
 | `gui` | Only the desktop app. |
 
 The detector is on-device and single-mic, so only one surface listens at a time,
-including when Hermes surfaces run in separate processes. Ownership is sticky:
+including when clawd surfaces run in separate processes. Ownership is sticky:
 the first eligible claimant keeps the listener until it stops, disconnects, or
-its process exits. Hermes does not silently fail over to another open surface.
+its process exits. clawd does not silently fail over to another open surface.
 Set `surface` when you want to pin ownership instead of using first-claim wins.
 The TUI and desktop GUI share the same Python backend (`tui_gateway`), which
 runs the detector server-side and yields the mic to voice capture while a
@@ -258,7 +258,7 @@ there, and starts hands-free voice:
 Set `wake_word.profile_routing: false` on the listener's profile to opt out
 and listen only for its own phrase. The CLI and TUI are single-profile
 processes: a wake phrase belonging to another profile prints the switch
-command (`hermes -p <profile>`) instead of routing.
+command (`clawd -p <profile>`) instead of routing.
 
 Names are matched acoustically by their English subword sounds: two-word
 phrases with distinct, 2+ syllable names work best. Very short names, heavy
@@ -268,7 +268,7 @@ degrade accuracy — tune per-profile `sensitivity` if needed.
 ### Option B — openWakeWord (free, trained model)
 
 For a different phrase, obtain or train a compatible openWakeWord TFLite model.
-Set its absolute path in the configuration. Hermes does not resolve built-in
+Set its absolute path in the configuration. clawd does not resolve built-in
 names such as `hey_jarvis` or download their models for you.
 
 ```yaml
@@ -287,7 +287,7 @@ Training references:
 
 :::tip Pick a distinctive phrase
 Wake phrases that don't collide with everyday speech generalize best. Two
-syllables with an uncommon word ("hermes" qualifies) beat common words like
+syllables with an uncommon word ("clawd" qualifies) beat common words like
 "hello" or "stop".
 :::
 
@@ -302,10 +302,10 @@ wake_word:
   provider: porcupine
   phrase: "hey hermes"
   porcupine:
-    keyword: ~/.hermes/wakewords/hey_hermes.ppn
+    keyword: ~/.clawd/wakewords/hey_hermes.ppn
 ```
 
-Set your access key in `~/.hermes/.env`:
+Set your access key in `~/.clawd/.env`:
 
 ```bash
 PORCUPINE_ACCESS_KEY=your-key-here
@@ -320,7 +320,7 @@ PORCUPINE_ACCESS_KEY=your-key-here
   full provider list.
 - A TTS provider for speaking the reply (the default `edge-tts` works with no
   key). The wake flow is fully hands-free, so the toggle refuses to arm until
-  both STT and TTS are ready — `hermes tools` (Voice section) sets them up.
+  both STT and TTS are ready — `clawd tools` (Voice section) sets them up.
 - The wake engine deps (auto-installed, or `hermes-agent[wake]`).
 
 `/wake status` reports exactly what's missing if the listener won't start.
@@ -331,11 +331,11 @@ macOS grants microphone access per **process**. STT working in the desktop app
 proves the *renderer* has mic access — the wake listener runs in the Python
 *backend*, which needs its own grant. Without it, CoreAudio hands the backend a
 "working" stream that only ever delivers silence, so the ear shows listening
-but the phrase never fires. Hermes detects this (`/wake status` shows
+but the phrase never fires. clawd detects this (`/wake status` shows
 "mic delivers only silence"; the desktop's folded voice menu carries the same
 hint on its trigger).
-Fix: System Settings → Privacy & Security → Microphone → enable the Hermes
-backend (it may appear as your terminal, `python`, or Hermes), then toggle the
+Fix: System Settings → Privacy & Security → Microphone → enable the clawd
+backend (it may appear as your terminal, `python`, or clawd), then toggle the
 wake word off and on.
 
 ### "Listening" but receives silence (Windows)
@@ -350,13 +350,13 @@ When it reports silence, set `wake_word.input_device` to the numeric index or an
 unambiguous name of the working PortAudio input, then toggle the wake word:
 
 ```bash
-hermes config set wake_word.input_device "Microphone Array"
+clawd config set wake_word.input_device "Microphone Array"
 ```
 
 Use `null` to return to the process default:
 
 ```bash
-hermes config set wake_word.input_device null
+clawd config set wake_word.input_device null
 ```
 
 ## Notes & limits

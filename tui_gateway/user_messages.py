@@ -43,8 +43,8 @@ _TURN_ERROR_LAYER_COPY: dict[str, tuple[str, str]] = {
     "billing": ("The model provider reports no credit left", "Top up the account or switch with /model."),
     "endpoint": ("Your custom model endpoint did not answer", "Check the endpoint is running, then /retry."),
     "streaming": ("The connection to the model provider dropped mid-reply", "Send /retry."),
-    "disk": ("The disk is full, so Hermes could not save the turn", "Free some space, then /retry."),
-    "gateway": ("Hermes hit an internal error while running this turn", "Send /retry; type /logs for the trace."),
+    "disk": ("The disk is full, so clawd could not save the turn", "Free some space, then /retry."),
+    "gateway": ("clawd hit an internal error while running this turn", "Send /retry; type /logs for the trace."),
     "provider": ("The model provider returned an error", "Send /retry, or switch with /model."),
 }
 
@@ -52,7 +52,7 @@ _TURN_ERROR_LAYER_COPY: dict[str, tuple[str, str]] = {
 # ``retryable: false``), for codes whose retry hint cannot be reworded mechanically.
 _TURN_ERROR_NO_RETRY_HINT: dict[str, str] = {
     # Switched off: nothing comes up on its own, so the user starts it or picks another model.
-    "local_runtime_unavailable": ("Start the local model server (Hermes desktop app, or `hermes model` → "
+    "local_runtime_unavailable": ("Start the local model server (`clawd model` → "
                                   "Local models), or switch with /model."),
 }
 
@@ -104,7 +104,7 @@ def busy_message(command: str, compressing: bool = False) -> str:
     the session busy, but nothing is replying and Stop does not end it: say to wait instead."""
     if compressing:
         return f"session busy — a /compress is running; run /{command.lstrip('/')} when it finishes."
-    return (f"session busy — Hermes is still replying. Stop the current reply first (Stop button, "
+    return (f"session busy — clawd is still replying. Stop the current reply first (Stop button, "
             f"or Ctrl+C in a terminal), then run /{command.lstrip('/')}.")
 
 
@@ -123,15 +123,15 @@ _AUTH_LOCK_TIMEOUT_PREFIXES = (
 def agent_init_failed_message(exc: Any) -> str:
     detail = str(exc).rstrip(". ")  # resolver messages end in a sentence; no ".." before the hint
     if any(prefix in detail for prefix in _AUTH_LOCK_TIMEOUT_PREFIXES):
-        return (f"Hermes could not start the assistant for this session. Details: {detail}. "
+        return (f"clawd could not start the assistant for this session. Details: {detail}. "
                 "Wait for the other process to release the lock (or exit it — check for a running "
                 "dashboard or background hermes process), then retry.")
-    return (f"Hermes could not start the assistant for this session. Details: {detail}. "
-            "Check the model and provider with /model, or run `hermes setup` in a terminal to reconfigure.")
+    return (f"clawd could not start the assistant for this session. Details: {detail}. "
+            "Check the model and provider with /model, or run `clawd setup` in a terminal to reconfigure.")
 
 
 AGENT_STILL_STARTING = (
-    "Hermes is still starting this session (loading tools), so this command could not run yet. "
+    "clawd is still starting this session (loading tools), so this command could not run yet. "
     "Wait for the status bar to show ready and try again.")
 
 # A deferred build that finished WITHOUT attaching an agent (its session record was replaced or
@@ -139,7 +139,7 @@ AGENT_STILL_STARTING = (
 AGENT_BUILD_ABANDONED = "agent build aborted: the session was closed or replaced before the build finished"
 # Turn refusal when the record still has no agent at admission time (reason unknown).
 AGENT_MISSING_FOR_TURN = (
-    "Hermes could not start the assistant for this session, so your message was not run. "
+    "clawd could not start the assistant for this session, so your message was not run. "
     "Reopen the session (or start a new one with /new) and send it again.")
 
 

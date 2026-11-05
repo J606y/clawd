@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>sidebar live</title>
+  <style>
+    html, body, #root { height: 100%; margin: 0; }
+    .shell { height: 100%; }
+    aside { width: 320px; height: 100%; display: flex; flex-direction: column; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script>
+    window.mockTime = 1_000_000;
+    Date.now = () => window.mockTime;
+    localStorage.removeItem("hp_live_retention_v1");
+    var list;
+    window.known = new Map();
+    window.mockState = {
+      activeList: [],
+      chatList: [
+        { id: "chat-one", title: "历史对话 1", source: "api_server", started_at: 500, last_active: 500, message_count: 1, preview: "历史", pinned: false, archived: false },
+      ],
+    };
+    const remember = (items) => {
+      for (const item of items || []) if (item?.title) window.known.set(item.title, item);
+    };
+    window.fetch = async (input, init) => {
+      const raw = typeof input === "string" ? input : (input instanceof URL ? input.href : input.url);
+      const url = new URL(raw, location.href);
+      const json = (body, status = 200) => new Response(JSON.stringify(body), {
+        status,
+        headers: { "Content-Type": "application/json" },
+      });
+      if (url.pathname.includes("/sessions/active")) {
+        remember(window.mockState.activeList);
+        return json({ data: window.mockState.activeList });
+      }
+      if (url.pathname.includes("/sessions/folders")) return json({ folders: [], assignments: {} });
+      if (url.pathname.includes("/api/projects")) return json({ projects: [] });
+      if (url.pathname.includes("/api/sessions")) {
+        remember(window.mockState.chatList);
+        return json({ data: window.mockState.chatList, has_more: false });
+      }
+      if (url.pathname.includes("/subagents")) return json({ data: [], running: 0, now: window.mockTime / 1000 });
+      return json({});
+    };
+  </script>
+  <script type="module">
+    import { createElement, useRef } from "react";
+    import { createRoot } from "react-dom/client";
+    import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+    import { SessionList } from "/src/react/shell/session-list.tsx";
+    import { useUiStore } from "/src/react/stores/ui.ts";
+    import "/src/react/styles/index.css";
+    import "/src/react/shell/shell.css";
+
+    window.list = { sessions: [], filter: "chats", refreshHead() { return Promise.resolve(); } };
+    function Harness() {
+      const ref = useRef(null);
+      window.list = {
+        get filter() { return useUiStore.getState().sessionListFilter; },
+        get sessions() {
+          return [...document.querySelectorAll(".session-list > ul .item .title")].map((node) => {
+            const title = node.textContent.replace("●", "").trim();
+            return window.known.get(title);
+          }).filter(Boolean);
+        },
+        refreshHead() { return ref.current?.refreshHead() ?? Promise.resolve(); },
+      };
+      window.ready = true;
+      return createElement("div", { className: "shell" },
+        createElement("aside", null,
+          createElement(SessionList, {
+            ref,
+            onSelect() {},
+            onDeleted() {},
+            onRenamed() {},
+          }),
+        ),
+      );
+    }
+    window.root = () => document.querySelector(".session-list");
+    createRoot(document.getElementById("root")).render(
+      createElement(QueryClientProvider, { client: new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } }) },
+        createElement(Harness),
+      ),
+    );
+  </script>
+</body>
+</html>

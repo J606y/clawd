@@ -1,0 +1,1781 @@
+/* f852fac hp-settings-hub.ts。下划线标签。子页样式在后面，数值从旧 css 原样抄。 */
+.settings-hub {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  background: var(--bg);
+  color: var(--text);
+}
+.settings-hub > .tabs {
+  display: flex;
+  gap: 4px;
+  padding: 8px 20px 0;
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  scrollbar-width: none;
+  flex: none;
+  background: var(--bg);
+}
+.settings-hub > .tabs::-webkit-scrollbar { display: none; }
+.settings-hub > .tabs button {
+  font: inherit;
+  font-size: 14px;
+  color: var(--text-secondary);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  padding: 8px 12px;
+  min-height: 0;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.settings-hub > .tabs button:hover { color: var(--text); }
+.settings-hub > .tabs button[aria-selected="true"] {
+  color: var(--text);
+  font-weight: 600;
+  border-bottom-color: var(--accent);
+}
+.settings-hub .body {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--bg);
+}
+.settings-hub .pane {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  background: var(--bg);
+}
+.settings-hub .page {
+  display: block;
+  flex: none;
+  width: 100%;
+  background: transparent;
+}
+.settings-hub :focus-visible { outline: none; }
+@media (max-width: 768px) {
+  .settings-hub > .tabs { padding: 8px 14px 0; }
+}
+
+/* f852fac page.ts + content.ts + 设置子页样式，数值原样。 */
+
+.settings-hub .page{ max-width: 920px; margin: 0 auto; padding: 24px 20px calc(32px + var(--safe-bottom)); }
+.settings-hub .head{ display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
+.settings-hub .head h1{ margin: 0; flex: 1; font-size: 22px; font-weight: 600; letter-spacing: -0.02em; }
+.settings-hub .sub{ margin: -8px 0 16px; font-size: 13px; color: var(--text-secondary); }
+.settings-hub .card{ background: var(--bg-elevated); border: 1px solid var(--border); border-radius: var(--radius-l); box-shadow: none; }
+.settings-hub .list > * + *{ border-top: 1px solid var(--border); }
+.settings-hub .btn{ font: inherit; font-size: 13px; border: 1px solid var(--border); background: var(--bg-elevated); color: var(--text); border-radius: var(--radius-l); padding: 6px 14px; cursor: pointer; white-space: nowrap; }
+.settings-hub .btn:hover:not(:disabled){ background: var(--bg-hover); }
+.settings-hub .btn.primary{ background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+.settings-hub .btn.danger{ color: var(--danger); }
+.settings-hub .btn:disabled{ opacity: 0.5; cursor: default; }
+.settings-hub .link{ font: inherit; font-size: 13px; color: var(--accent); background: none; border: none; padding: 0; cursor: pointer; }
+.settings-hub .muted{ color: var(--text-secondary); }
+.settings-hub .tiny{ font-size: 12px; }
+.settings-hub .error{ color: var(--danger); font-size: 13px; }
+.settings-hub .ok{ color: var(--success); }
+.settings-hub .warn{ color: var(--warning); }
+.settings-hub .empty, .settings-hub .loading{ padding: 40px 0; text-align: center; color: var(--text-secondary); font-size: 14px; }
+.settings-hub .pill{ display: inline-flex; align-items: center; gap: 5px; font-size: 12px; padding: 1px 8px; border-radius: var(--radius-l); background: var(--bg-hover); color: var(--text-secondary); white-space: nowrap; }
+.settings-hub .pill::before{ content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.settings-hub .pill.on{ color: var(--success); }
+.settings-hub .pill.off{ color: var(--text-tertiary); }
+.settings-hub .pill.bad{ color: var(--danger); }
+.settings-hub .pill.mid{ color: var(--warning); }
+.settings-hub input[type="text"], .settings-hub input[type="search"], .settings-hub textarea{
+  width: 100%; font: inherit; font-size: 16px; color: var(--text); background: var(--bg);
+  border: 1px solid var(--border); border-radius: var(--radius-m); padding: 8px 12px; outline: none; box-sizing: border-box;
+}
+.settings-hub input:focus, .settings-hub textarea:focus{ border-color: var(--accent); outline: none; }
+.settings-hub label{ display: block; font-size: 13px; color: var(--text-secondary); margin: 12px 0 6px; }
+.settings-hub .switch{ position: relative; width: 38px; height: 22px; flex: none; border-radius: var(--radius-l); border: none; background: var(--bg-active); cursor: pointer; padding: 0; transition: background 0.15s var(--ease); }
+.settings-hub .switch::after{ content: ""; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3); transition: transform 0.15s var(--ease); }
+.settings-hub .switch[aria-checked="true"]{ background: var(--success); }
+.settings-hub .switch[aria-checked="true"]::after{ transform: translateX(16px); }
+.settings-hub .switch:disabled{ opacity: 0.5; cursor: default; }
+.settings-hub button, .settings-hub [role="button"], .settings-hub summary{
+  transition: background-color 180ms var(--ease-nav, cubic-bezier(0.32, 0.72, 0, 1)), color 180ms var(--ease-nav, cubic-bezier(0.32, 0.72, 0, 1)), border-color 180ms var(--ease-nav, cubic-bezier(0.32, 0.72, 0, 1)), opacity 180ms var(--ease-nav, cubic-bezier(0.32, 0.72, 0, 1));
+}
+@media (prefers-reduced-motion: reduce) {
+  .settings-hub button, .settings-hub [role="button"], .settings-hub summary{ transition: none; }
+}
+@media (max-width: 768px) {
+  .settings-hub .page{ padding: 16px 14px calc(24px + var(--safe-bottom)); }
+}
+
+
+  .settings-hub .md{
+    overflow-wrap: anywhere;
+    line-height: 1.65;
+  }
+  .settings-hub .md > :first-child{
+    margin-top: 0;
+  }
+  .settings-hub .md > :last-child{
+    margin-bottom: 0;
+  }
+  .settings-hub .md p, .settings-hub .md ul, .settings-hub .md ol, .settings-hub .md blockquote, .settings-hub .md table, .settings-hub .md .code{
+    margin: 0 0 12px;
+  }
+  .settings-hub .md h1, .settings-hub .md h2, .settings-hub .md h3, .settings-hub .md h4{
+    margin: 20px 0 8px;
+    line-height: 1.3;
+    letter-spacing: -0.01em;
+  }
+  .settings-hub .md h1{
+    font-size: 1.4em;
+  }
+  .settings-hub .md h2{
+    font-size: 1.25em;
+  }
+  .settings-hub .md h3{
+    font-size: 1.1em;
+  }
+  .settings-hub .md ul, .settings-hub .md ol{
+    padding-left: 1.4em;
+  }
+  .settings-hub .md li + li{
+    margin-top: 4px;
+  }
+  .settings-hub .md a{
+    color: var(--accent);
+    text-decoration: none;
+    -webkit-touch-callout: none;
+  }
+  .settings-hub .md a:hover{
+    text-decoration: underline;
+  }
+  .settings-hub .md blockquote{
+    padding: 2px 0 2px 12px;
+    border-left: 3px solid var(--border);
+    color: var(--text-secondary);
+  }
+  .settings-hub .md hr{
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 16px 0;
+  }
+  .settings-hub .md img{
+    max-width: 100%;
+    border-radius: var(--radius-m);
+  }
+  .settings-hub .md table{
+    display: block;
+    overflow-x: auto;
+    border-collapse: collapse;
+    font-size: 14px;
+  }
+  .settings-hub .md th, .settings-hub .md td{
+    border: 1px solid var(--border);
+    padding: 6px 10px;
+    text-align: left;
+  }
+  .settings-hub .md th{
+    background: var(--bg-hover);
+    font-weight: 600;
+  }
+  .settings-hub .md :not(pre) > code{
+    font-family: var(--font-mono);
+    font-size: 0.88em;
+    padding: 1px 5px;
+    border-radius: var(--radius-l);
+    background: var(--bg-hover);
+  }
+
+  .settings-hub .code{
+    border: 1px solid var(--border);
+    border-radius: var(--radius-m);
+    overflow: hidden;
+    background: var(--code-bg);
+  }
+  .settings-hub .code-head{
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 6px 4px 12px;
+    font-size: 12px;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--border);
+  }
+  .settings-hub .code-head button{
+    font: inherit;
+    color: var(--text-secondary);
+    background: none;
+    border: none;
+    border-radius: var(--radius-s);
+    padding: 2px 8px;
+    cursor: pointer;
+  }
+  .settings-hub .code-head button:hover{
+    background: var(--bg-hover);
+    color: var(--text);
+  }
+  .settings-hub pre{
+    margin: 0;
+    padding: 12px;
+    overflow-x: auto;
+    font: 13px/1.55 var(--font-mono);
+    tab-size: 4;
+  }
+
+  .settings-hub .hljs-comment, .settings-hub .hljs-quote{
+    color: var(--hl-comment);
+    font-style: italic;
+  }
+  .settings-hub .hljs-keyword, .settings-hub .hljs-selector-tag, .settings-hub .hljs-built_in, .settings-hub .hljs-meta .hljs-keyword{
+    color: var(--hl-keyword);
+  }
+  .settings-hub .hljs-string, .settings-hub .hljs-regexp, .settings-hub .hljs-addition, .settings-hub .hljs-attribute .hljs-string{
+    color: var(--hl-string);
+  }
+  .settings-hub .hljs-number, .settings-hub .hljs-literal, .settings-hub .hljs-symbol, .settings-hub .hljs-bullet{
+    color: var(--hl-number);
+  }
+  .settings-hub .hljs-title, .settings-hub .hljs-section, .settings-hub .hljs-title.function_{
+    color: var(--hl-title);
+  }
+  .settings-hub .hljs-attr, .settings-hub .hljs-attribute, .settings-hub .hljs-variable, .settings-hub .hljs-template-variable, .settings-hub .hljs-property{
+    color: var(--hl-attr);
+  }
+  .settings-hub .hljs-type, .settings-hub .hljs-class .hljs-title, .settings-hub .hljs-title.class_{
+    color: var(--hl-type);
+  }
+  .settings-hub .hljs-deletion{
+    color: var(--danger);
+  }
+  .settings-hub .hljs-meta{
+    color: var(--hl-comment);
+  }
+
+
+/* hp-settings.ts */
+
+      .settings-hub .cfg-root section{
+        margin-bottom: 24px;
+      }
+      .settings-hub .cfg-root h2{
+        margin: 0 0 10px;
+        font-size: 15px;
+        font-weight: 600;
+      }
+      .settings-hub .cfg-root form{
+        padding: 16px;
+      }
+      .settings-hub .cfg-root .pair{
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 12px;
+      }
+      .settings-hub .cfg-root .pair label{
+        margin-top: 0;
+      }
+      .settings-hub .cfg-root .actions{
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-top: 12px;
+        flex-wrap: wrap;
+      }
+      .settings-hub .cfg-root .out{
+        margin-top: 12px;
+        font: 12px/1.5 var(--font-mono);
+        white-space: pre-wrap;
+        color: var(--text-secondary);
+      }
+      .settings-hub .cfg-root .tabs{
+        display: flex;
+        gap: 4px;
+        margin-bottom: 16px;
+        border-bottom: 1px solid var(--border);
+      }
+      .settings-hub .cfg-root .tabs button{
+        font: inherit;
+        font-size: 14px;
+        color: var(--text-secondary);
+        background: none;
+        border: none;
+        border-bottom: 2px solid transparent;
+        padding: 8px 14px;
+        cursor: pointer;
+      }
+      .settings-hub .cfg-root .tabs button[aria-selected="true"]{
+        color: var(--text);
+        font-weight: 600;
+        border-bottom-color: var(--accent);
+      }
+      .settings-hub .cfg-root .meta{
+        font-size: 12px;
+        color: var(--text-tertiary);
+        margin-bottom: 8px;
+      }
+      @media (max-width: 640px) {
+        .settings-hub .cfg-root .pair{
+          grid-template-columns: 1fr;
+        }
+      }
+    
+
+/* hp-settings-form.ts */
+
+      
+      .settings-hub .cfg-root{
+        overflow: visible;
+        overscroll-behavior: auto;
+        min-height: auto;
+      }
+      .settings-hub .cfg-root[hidden]{
+        display: none;
+      }
+      .settings-hub .cfg-root .toolbar{
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px 14px;
+        margin-bottom: 12px;
+      }
+      .settings-hub .cfg-root .toolbar input[type="search"]{
+        flex: 1;
+        min-width: 180px;
+      }
+      .settings-hub .cfg-root .toolbar label{
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        margin: 0;
+        font-size: 13px;
+        color: var(--text-secondary);
+        white-space: nowrap;
+      }
+      .settings-hub .cfg-root .cats{
+        display: flex;
+        gap: 6px;
+        overflow-x: auto;
+        padding-bottom: 8px;
+        margin-bottom: 8px;
+        scrollbar-width: thin;
+      }
+      .settings-hub .cfg-root .cat{
+        flex: none;
+        font: inherit;
+        font-size: 13px;
+        color: var(--text-secondary);
+        background: var(--bg-elevated);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-l);
+        padding: 4px 12px;
+        cursor: pointer;
+        white-space: nowrap;
+      }
+      .settings-hub .cfg-root .cat[aria-pressed="true"]{
+        color: var(--accent-text);
+        background: var(--accent);
+        border-color: var(--accent);
+      }
+      .settings-hub .cfg-root .cat small{
+        opacity: 0.7;
+        margin-left: 4px;
+      }
+      .settings-hub .cfg-root .row{
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(160px, 280px);
+        gap: 8px 16px;
+        align-items: center;
+        padding: 12px 16px;
+      }
+      .settings-hub .cfg-root .desc{
+        min-width: 0;
+      }
+      .settings-hub .cfg-root .desc .t{
+        font-size: 14px;
+        overflow-wrap: anywhere;
+      }
+      .settings-hub .cfg-root .desc code{
+        display: block;
+        margin-top: 2px;
+        font: 11px var(--font-mono);
+        color: var(--text-tertiary);
+        overflow-wrap: anywhere;
+      }
+      .settings-hub .cfg-root .badge{
+        margin-left: 6px;
+        font-size: 11px;
+        color: var(--accent);
+      }
+      .settings-hub .cfg-root .ctl{
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 8px;
+        min-width: 0;
+      }
+      .settings-hub .cfg-root .ctl input[type="number"], .settings-hub .cfg-root .ctl select{
+        color: var(--text);
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-m);
+        padding: 7px 10px;
+        outline: none;
+      }
+      .settings-hub .cfg-root .ctl input[type="number"]:focus, .settings-hub .cfg-root .ctl select:focus{
+        border-color: var(--accent);
+      }
+      .settings-hub .cfg-root .ctl input, .settings-hub .cfg-root .ctl select, .settings-hub .cfg-root .ctl textarea{
+        width: 100%;
+        min-width: 0;
+        box-sizing: border-box;
+        font: inherit;
+        font-size: 14px;
+      }
+      .settings-hub .cfg-root .ctl textarea{
+        font-family: var(--font-mono);
+        min-height: 64px;
+        resize: vertical;
+      }
+      .settings-hub .cfg-root .side{
+        grid-column: 1 / -1;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 4px 12px;
+        font-size: 12px;
+        min-height: 0;
+      }
+      .settings-hub .cfg-root .side:empty{
+        display: none;
+      }
+      .settings-hub .cfg-root .locked{
+        font-size: 12px;
+        color: var(--text-tertiary);
+        text-align: right;
+      }
+      .settings-hub .cfg-root .notice{
+        margin-bottom: 12px;
+        font-size: 13px;
+      }
+      @media (max-width: 640px) {
+        .settings-hub .cfg-root .row{
+          grid-template-columns: 1fr;
+        }
+        .settings-hub .cfg-root .ctl{
+          justify-content: stretch;
+        }
+      }
+    
+
+/* hp-jobs.ts */
+
+      .settings-hub .jobs-root .job{
+        padding: 14px 16px;
+      }
+      .settings-hub .jobs-root .top{
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .settings-hub .jobs-root .top h3{
+        margin: 0;
+        flex: 1;
+        min-width: 0;
+        font-size: 15px;
+        font-weight: 600;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .settings-hub .jobs-root .meta{
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px 16px;
+        margin-top: 6px;
+        font-size: 12px;
+        color: var(--text-secondary);
+        font-variant-numeric: tabular-nums;
+      }
+      .settings-hub .jobs-root .prompt{
+        margin-top: 8px;
+        font-size: 13px;
+        color: var(--text-secondary);
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        white-space: pre-wrap;
+      }
+      .settings-hub .jobs-root .lasterr{
+        margin-top: 6px;
+        font-size: 12px;
+        color: var(--danger);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .settings-hub .jobs-root .acts{
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 12px;
+      }
+      .settings-hub .jobs-root .runs{
+        margin-top: 10px;
+        border-top: 1px solid var(--border);
+        padding-top: 8px;
+      }
+      .settings-hub .jobs-root .runs button{
+        width: 100%;
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        font: inherit;
+        font-size: 13px;
+        color: var(--text);
+        background: none;
+        border: none;
+        border-radius: var(--radius-s);
+        padding: 6px 8px;
+        cursor: pointer;
+        text-align: left;
+      }
+      .settings-hub .jobs-root .runs button:hover{
+        background: var(--bg-hover);
+      }
+      .settings-hub .jobs-root form{
+        padding: 16px;
+        margin-bottom: 16px;
+      }
+      .settings-hub .jobs-root form h2{
+        margin: 0;
+        font-size: 15px;
+      }
+      .settings-hub .jobs-root textarea{
+        min-height: 140px;
+        resize: vertical;
+        line-height: 1.5;
+      }
+      .settings-hub .jobs-root .formacts{
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        margin-top: 14px;
+      }
+      .settings-hub .jobs-root .notice{
+        margin-bottom: 12px;
+        font-size: 13px;
+      }
+    
+
+/* hp-skills.ts */
+
+      .settings-hub .skills-root .search{
+        margin-bottom: 16px;
+      }
+      .settings-hub .skills-root h2{
+        margin: 20px 0 8px;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text-secondary);
+        text-transform: capitalize;
+      }
+      .settings-hub .skills-root .skill{
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        padding: 10px 16px;
+      }
+      .settings-hub .skills-root .info{
+        flex: 1;
+        min-width: 0;
+        text-align: left;
+        font: inherit;
+        color: inherit;
+        background: none;
+        border: none;
+        padding: 0;
+        cursor: pointer;
+      }
+      .settings-hub .skills-root .info b{
+        font-size: 14px;
+        font-weight: 500;
+      }
+      .settings-hub .skills-root .info b small{
+        font-weight: 400;
+        color: var(--text-tertiary);
+        margin-left: 6px;
+        font-size: 12px;
+      }
+      .settings-hub .skills-root .info span{
+        display: block;
+        font-size: 12px;
+        color: var(--text-secondary);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .settings-hub .skills-root .skill[data-off] .info{
+        opacity: 0.55;
+      }
+      .settings-hub .skills-root .viewer{
+        padding: 16px 20px 20px;
+        margin-bottom: 16px;
+      }
+      .settings-hub .skills-root .viewer .bar{
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 12px;
+      }
+      .settings-hub .skills-root .viewer .bar h2{
+        margin: 0;
+        flex: 1;
+        font-size: 16px;
+        color: var(--text);
+        text-transform: none;
+      }
+      .settings-hub .skills-root .notice{
+        margin-bottom: 12px;
+        font-size: 13px;
+      }
+      .settings-hub .skills-root textarea.editor{
+        width: 100%;
+        box-sizing: border-box;
+        min-height: min(60vh, 520px);
+        resize: vertical;
+        font: 13px/1.6 var(--font-mono);
+        tab-size: 2;
+        white-space: pre;
+        overflow: auto;
+      }
+      .settings-hub .skills-root .edit-tools{
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px 12px;
+        margin-top: 10px;
+        font-size: 12px;
+        color: var(--text-secondary);
+      }
+      .settings-hub .skills-root .edit-tools .grow{
+        flex: 1;
+      }
+      .settings-hub .skills-root .edit-tools select{
+        font: inherit;
+        font-size: 12px;
+        max-width: 200px;
+      }
+      .settings-hub .skills-root .edit-err{
+        margin-top: 8px;
+        font-size: 13px;
+      }
+    
+
+/* hp-usage.ts */
+
+      .settings-hub .usage-root .seg{
+        display: inline-flex;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-l);
+        background: var(--bg-elevated);
+        padding: 2px;
+      }
+      .settings-hub .usage-root .seg button{
+        font: inherit;
+        font-size: 13px;
+        color: var(--text-secondary);
+        background: none;
+        border: none;
+        border-radius: var(--radius-l);
+        padding: 4px 12px;
+        cursor: pointer;
+      }
+      .settings-hub .usage-root .seg button[aria-pressed="true"]{
+        background: var(--accent);
+        color: var(--accent-text);
+      }
+      .settings-hub .usage-root .stats{
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        gap: 12px;
+        margin-bottom: 16px;
+      }
+      .settings-hub .usage-root .stats .card{
+        padding: 12px 16px;
+      }
+      .settings-hub .usage-root .stats .k{
+        font-size: 12px;
+        color: var(--text-secondary);
+      }
+      .settings-hub .usage-root .stats .v{
+        font-size: 24px;
+        font-weight: 600;
+        font-variant-numeric: tabular-nums;
+      }
+      .settings-hub .usage-root section.card{
+        margin-bottom: 16px;
+      }
+      .settings-hub .usage-root section h2{
+        margin: 0;
+        padding: 12px 16px 0;
+        font-size: 14px;
+        font-weight: 600;
+      }
+      .settings-hub .usage-root .legend{
+        display: flex;
+        gap: 14px;
+        padding: 6px 16px 0;
+        font-size: 12px;
+        color: var(--text-secondary);
+      }
+      .settings-hub .usage-root .legend i{
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        border-radius: var(--radius-l);
+        margin-right: 5px;
+        vertical-align: -1px;
+      }
+      .settings-hub .usage-root .c-in{
+        --c: var(--accent);
+      }
+      .settings-hub .usage-root .c-out{
+        --c: var(--hl-attr);
+      }
+      .settings-hub .usage-root .legend i{
+        background: var(--c);
+      }
+      .settings-hub .usage-root .chart{
+        overflow-x: auto;
+        padding: 8px 8px 0;
+      }
+      .settings-hub .usage-root .chart svg{
+        display: block;
+        max-width: none;
+      }
+      .settings-hub .usage-root .chart .grid{
+        stroke: var(--border);
+        stroke-width: 1;
+      }
+      .settings-hub .usage-root .chart text{
+        font-size: 11px;
+        fill: var(--text-tertiary);
+        font-variant-numeric: tabular-nums;
+      }
+      .settings-hub .usage-root .chart .in{
+        fill: var(--accent);
+      }
+      .settings-hub .usage-root .chart .out{
+        fill: var(--hl-attr);
+      }
+      .settings-hub .usage-root .chart .hit{
+        fill: transparent;
+        cursor: pointer;
+        outline: none;
+      }
+      .settings-hub .usage-root .chart .hit:hover, .settings-hub .usage-root .chart .hit:focus-visible, .settings-hub .usage-root .chart .hit[data-on="true"]{
+        fill: var(--bg-hover);
+      }
+      .settings-hub .usage-root .detail{
+        min-height: 20px;
+        padding: 6px 16px 12px;
+        font-size: 13px;
+        color: var(--text-secondary);
+        font-variant-numeric: tabular-nums;
+      }
+      .settings-hub .usage-root .detail b{
+        color: var(--text);
+        font-weight: 600;
+      }
+      .settings-hub .usage-root .tablewrap{
+        overflow-x: auto;
+        padding: 4px 0 8px;
+      }
+      .settings-hub .usage-root table{
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 13px;
+        font-variant-numeric: tabular-nums;
+      }
+      .settings-hub .usage-root th, .settings-hub .usage-root td{
+        padding: 7px 16px;
+        text-align: right;
+        white-space: nowrap;
+      }
+      .settings-hub .usage-root th:first-child, .settings-hub .usage-root td:first-child{
+        text-align: left;
+      }
+      .settings-hub .usage-root th{
+        font-weight: 500;
+        font-size: 12px;
+        color: var(--text-secondary);
+      }
+      .settings-hub .usage-root tbody tr + tr td{
+        border-top: 1px solid var(--border);
+      }
+      .settings-hub .usage-root td.txt{
+        text-align: left;
+      }
+      .settings-hub .usage-root .top{
+        width: 100%;
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 2px 12px;
+        align-items: center;
+        padding: 9px 16px;
+        font: inherit;
+        font-size: 14px;
+        color: inherit;
+        text-align: left;
+        background: none;
+        border: none;
+        cursor: pointer;
+      }
+      .settings-hub .usage-root .top:hover{
+        background: var(--bg-hover);
+      }
+      .settings-hub .usage-root .top .t{
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .settings-hub .usage-root .top .n{
+        font-variant-numeric: tabular-nums;
+        font-weight: 500;
+        text-align: right;
+      }
+      .settings-hub .usage-root .top small{
+        font-size: 12px;
+        color: var(--text-tertiary);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .settings-hub .usage-root .top small.r{
+        text-align: right;
+      }
+      .settings-hub .usage-root .foot{
+        margin: 8px 0 0;
+        font-size: 12px;
+        color: var(--text-tertiary);
+      }
+      .settings-hub .usage-root .retry{
+        text-align: center;
+        padding: 40px 0;
+      }
+      .settings-hub .usage-root .retry .error{
+        display: block;
+        margin-bottom: 12px;
+      }
+      @media (max-width: 768px) {
+        .settings-hub .usage-root th, .settings-hub .usage-root td{
+          padding: 7px 12px;
+        }
+        .settings-hub .usage-root .top{
+          padding: 9px 12px;
+        }
+      }
+    
+
+/* hp-logs.ts */
+
+      .settings-hub .logs-root .toolbar{
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+        margin-bottom: 12px;
+      }
+      .settings-hub .logs-root select{
+        font: inherit;
+        font-size: 13px;
+        color: var(--text);
+        background: var(--bg-elevated);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-m);
+        padding: 6px 8px;
+        max-width: 100%;
+      }
+      .settings-hub .logs-root select:focus-visible{
+        outline: 2px solid var(--accent);
+        outline-offset: 1px;
+      }
+      .settings-hub .logs-root .search{
+        flex: 1 1 160px;
+        min-width: 120px;
+      }
+      .settings-hub .logs-root .follow{
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        color: var(--text-secondary);
+      }
+      .settings-hub .logs-root .status{
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        min-height: 20px;
+        margin-bottom: 8px;
+        font-size: 12px;
+        color: var(--text-tertiary);
+      }
+      .settings-hub .logs-root .log{
+        height: min(68vh, 760px);
+        min-height: 280px;
+        overflow: auto;
+        padding: 10px 14px;
+        font: 12px/1.55 var(--font-mono);
+        white-space: pre-wrap;
+        word-break: break-all;
+        color: var(--text);
+        background: var(--code-bg);
+      }
+      .settings-hub .logs-root .log .ln{
+        display: block;
+      }
+      .settings-hub .logs-root .log .ln[data-tone="err"]{
+        color: var(--danger);
+      }
+      .settings-hub .logs-root .log .ln[data-tone="warn"]{
+        color: var(--warning);
+      }
+      .settings-hub .logs-root .log .ln[data-tone="dim"]{
+        color: var(--text-tertiary);
+      }
+      .settings-hub .logs-root .log-empty{
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: min(68vh, 760px);
+        min-height: 280px;
+        color: var(--text-secondary);
+        font-size: 14px;
+      }
+      @media (max-width: 768px) {
+        .settings-hub .logs-root .log{
+          font-size: 11px;
+          padding: 8px 10px;
+        }
+      }
+    
+
+/* hp-models.ts */
+
+      .settings-hub .models-root .block{
+        padding: 16px;
+        margin-bottom: 16px;
+      }
+      .settings-hub .models-root h2{
+        margin: 0 0 4px;
+        font-size: 15px;
+        font-weight: 600;
+      }
+      .settings-hub .models-root h3{
+        margin: 0;
+        font-size: 15px;
+        font-weight: 600;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .settings-hub .models-root .section{
+        margin: 24px 0 8px;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--text-secondary);
+      }
+      .settings-hub .models-root .kv{
+        display: grid;
+        grid-template-columns: max-content 1fr;
+        gap: 6px 16px;
+        margin: 12px 0 0;
+        font-size: 13px;
+      }
+      .settings-hub .models-root .kv dt{
+        color: var(--text-secondary);
+      }
+      .settings-hub .models-root .kv dd{
+        margin: 0;
+        min-width: 0;
+        overflow-wrap: anywhere;
+      }
+      .settings-hub .models-root .mono{
+        font-family: var(--font-mono);
+        font-size: 12px;
+      }
+      .settings-hub .models-root .top{
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .settings-hub .models-root .top .grow{
+        flex: 1;
+        min-width: 0;
+      }
+      .settings-hub .models-root .meta{
+        margin-top: 4px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 2px 14px;
+        font-size: 12px;
+        color: var(--text-secondary);
+      }
+      .settings-hub .models-root .provider{
+        padding: 14px 16px;
+      }
+      .settings-hub .models-root .provider + .provider{
+        margin-top: 12px;
+      }
+      .settings-hub .models-root .toggle{
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 12px;
+        color: var(--text-secondary);
+      }
+      .settings-hub .models-root .chips{
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 12px;
+      }
+      .settings-hub .models-root .chip{
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        max-width: 100%;
+        padding: 3px 4px 3px 10px;
+        border: 1px solid var(--border);
+        border-radius: var(--radius-l);
+        background: var(--bg);
+        font-size: 12px;
+      }
+      .settings-hub .models-root .chip code{
+        font-family: var(--font-mono);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .settings-hub .models-root .chip[data-default]{
+        border-color: var(--accent);
+        background: color-mix(in srgb, var(--accent) 10%, var(--bg));
+      }
+      .settings-hub .models-root .chip .tag{
+        color: var(--accent);
+        font-weight: 600;
+        padding-right: 8px;
+      }
+      .settings-hub .models-root .chip button{
+        font: inherit;
+        font-size: 12px;
+        color: var(--accent);
+        background: none;
+        border: none;
+        border-radius: var(--radius-l);
+        padding: 2px 8px;
+        cursor: pointer;
+      }
+      .settings-hub .models-root .chip button:hover:not(:disabled){
+        background: var(--bg-hover);
+      }
+      .settings-hub .models-root .chip button:disabled{
+        opacity: 0.5;
+        cursor: default;
+      }
+      .settings-hub .models-root .chip.plain{
+        padding-right: 4px;
+      }
+      .settings-hub .models-root .chip.plain button{
+        color: var(--text-secondary);
+        padding: 2px 6px;
+      }
+      .settings-hub .models-root .acts{
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        margin-top: 12px;
+      }
+      .settings-hub .models-root textarea{
+        min-height: 140px;
+        resize: vertical;
+        font-family: var(--font-mono);
+        font-size: 14px;
+        line-height: 1.5;
+      }
+      .settings-hub .models-root .msg{
+        margin-top: 8px;
+        font-size: 13px;
+      }
+      .settings-hub .models-root .readonly{
+        margin-top: 12px;
+        padding: 8px 12px;
+        border-radius: var(--radius-m);
+        background: var(--bg-hover);
+        font-size: 12px;
+        color: var(--text-secondary);
+      }
+      .settings-hub .models-root .addrow{
+        display: flex;
+        gap: 8px;
+        margin-top: 12px;
+      }
+      .settings-hub .models-root .addrow input{
+        flex: 1;
+        min-width: 0;
+      }
+      .settings-hub .models-root .group{
+        margin-top: 14px;
+        font-size: 12px;
+        color: var(--text-secondary);
+      }
+      .settings-hub .models-root .group + .chips{
+        margin-top: 8px;
+      }
+      .settings-hub .models-root .chip .label{
+        white-space: nowrap;
+        font-size: 12px;
+      }
+      .settings-hub .models-root .chip .label + code{
+        color: var(--text-secondary);
+      }
+      .settings-hub .models-root .chip.stale code{
+        color: var(--warning);
+      }
+      .settings-hub .models-root .jobs{
+        list-style: none;
+        margin: 8px 0 0;
+        padding: 0;
+      }
+      .settings-hub .models-root .jobs li{
+        display: flex;
+        align-items: baseline;
+        gap: 8px;
+        padding: 8px 0;
+        font-size: 13px;
+      }
+      .settings-hub .models-root .jobs li + li{
+        border-top: 1px solid var(--border);
+      }
+      .settings-hub .models-root .jobs .name{
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .settings-hub .models-root .jobs .paused .name{
+        color: var(--text-secondary);
+      }
+      .settings-hub .models-root .jobs .uses{
+        flex-shrink: 0;
+        max-width: 50%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        font-size: 12px;
+        color: var(--text-secondary);
+      }
+      .settings-hub .models-root .jobs .uses code{
+        font-family: var(--font-mono);
+        color: var(--text);
+      }
+      .settings-hub .models-root .foot{
+        margin-top: 24px;
+        text-align: center;
+        font-size: 12px;
+        color: var(--text-tertiary);
+      }
+      .settings-hub .models-root .notice{
+        margin-bottom: 12px;
+        font-size: 13px;
+      }
+    
+
+/* hp-mcp.ts */
+
+      .settings-hub .mcp-root .server{
+        padding: 14px 16px;
+      }
+      .settings-hub .mcp-root .server + .server{
+        margin-top: 12px;
+      }
+      .settings-hub .mcp-root .top{
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .settings-hub .mcp-root .top h3{
+        margin: 0;
+        flex: 1;
+        min-width: 0;
+        font-size: 15px;
+        font-weight: 600;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .settings-hub .mcp-root .transport{
+        font-size: 11px;
+        font-weight: 600;
+        padding: 1px 8px;
+        border-radius: var(--radius-l);
+        background: var(--bg-hover);
+        color: var(--text-secondary);
+      }
+      .settings-hub .mcp-root .server[data-off] .body{
+        opacity: 0.6;
+      }
+      .settings-hub .mcp-root .mono{
+        display: block;
+        margin-top: 8px;
+        font-family: var(--font-mono);
+        font-size: 12px;
+        color: var(--text-secondary);
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+      }
+      .settings-hub .mcp-root .line{
+        margin-top: 6px;
+        font-size: 12px;
+        color: var(--text-secondary);
+        overflow-wrap: anywhere;
+      }
+      .settings-hub .mcp-root .line code{
+        font-family: var(--font-mono);
+      }
+      .settings-hub .mcp-root .tools{
+        margin-top: 6px;
+        font-size: 12px;
+      }
+      .settings-hub .mcp-root .toolchips{
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-top: 6px;
+      }
+      .settings-hub .mcp-root .toolchips code{
+        font-family: var(--font-mono);
+        font-size: 12px;
+        padding: 1px 8px;
+        border-radius: var(--radius-l);
+        background: var(--bg-hover);
+        color: var(--text-secondary);
+      }
+      .settings-hub .mcp-root .readonly{
+        margin-top: 10px;
+        font-size: 12px;
+        color: var(--text-tertiary);
+      }
+      .settings-hub .mcp-root .acts{
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        margin-top: 12px;
+      }
+      .settings-hub .mcp-root .acts .hint{
+        font-size: 12px;
+        color: var(--text-tertiary);
+      }
+      .settings-hub .mcp-root .result{
+        margin-top: 12px;
+      }
+      .settings-hub .mcp-root .result .badge{
+        margin-bottom: 6px;
+      }
+      .settings-hub .mcp-root pre{
+        margin: 0;
+        max-height: 240px;
+        overflow: auto;
+        padding: 10px 12px;
+        border-radius: var(--radius-m);
+        border: 1px solid var(--border);
+        background: var(--code-bg);
+        color: var(--text);
+        font-family: var(--font-mono);
+        font-size: 12px;
+        line-height: 1.5;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+      }
+      .settings-hub .mcp-root .msg{
+        margin-top: 8px;
+        font-size: 13px;
+      }
+      .settings-hub .mcp-root .notice{
+        margin-bottom: 12px;
+        font-size: 13px;
+      }
+      .settings-hub .mcp-root code.inline{
+        font-family: var(--font-mono);
+      }
+    
+
+/* hp-plugins.ts */
+
+      .settings-hub .plugins-root h2{
+        margin: 28px 0 6px;
+        font-size: 17px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+      .settings-hub .plugins-root h2:first-of-type{
+        margin-top: 0;
+      }
+      .settings-hub .plugins-root .hint{
+        margin: 0 0 12px;
+        font-size: 12px;
+        color: var(--text-secondary);
+      }
+      .settings-hub .plugins-root .notice{
+        margin-bottom: 12px;
+        font-size: 13px;
+      }
+      .settings-hub .plugins-root .row{
+        padding: 12px 16px;
+      }
+      .settings-hub .plugins-root .line{
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+      }
+      .settings-hub .plugins-root .name{
+        flex: 1;
+        min-width: 0;
+        text-align: left;
+        font: inherit;
+        color: inherit;
+        background: none;
+        border: none;
+        padding: 0;
+        cursor: pointer;
+      }
+      .settings-hub .plugins-root .name b{
+        font-size: 14px;
+        font-weight: 500;
+        word-break: break-all;
+      }
+      .settings-hub .plugins-root .meta{
+        display: flex;
+        flex-wrap: wrap;
+        gap: 2px 14px;
+        margin-top: 4px;
+        font-size: 12px;
+        color: var(--text-secondary);
+      }
+      .settings-hub .plugins-root .acts{
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 10px;
+      }
+      .settings-hub .plugins-root .rowerr{
+        margin-top: 8px;
+      }
+      .settings-hub .plugins-root pre{
+        margin: 10px 0 0;
+        padding: 10px 12px;
+        max-height: 320px;
+        overflow: auto;
+        font-family: var(--font-mono);
+        font-size: 12px;
+        line-height: 1.5;
+        white-space: pre-wrap;
+        word-break: break-all;
+        background: var(--code-bg);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-m);
+      }
+      .settings-hub .plugins-root .rawbox{
+        padding: 14px 16px;
+      }
+      .settings-hub .plugins-root .rawbox p{
+        margin: 0;
+        font-size: 13px;
+      }
+      .settings-hub .plugins-root form{
+        padding: 16px;
+        margin-top: 12px;
+      }
+      .settings-hub .plugins-root fieldset{
+        border: none;
+        margin: 0;
+        padding: 0;
+        min-width: 0;
+      }
+      .settings-hub .plugins-root fieldset:disabled{
+        opacity: 0.6;
+      }
+      .settings-hub .plugins-root select{
+        width: 100%;
+        font: inherit;
+        font-size: 16px;
+        color: var(--text);
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-m);
+        padding: 8px 12px;
+      }
+      .settings-hub .plugins-root .warnbox{
+        margin-top: 10px;
+        padding: 8px 12px;
+        font-size: 13px;
+        color: var(--warning);
+        border: 1px solid var(--warning);
+        border-radius: var(--radius-m);
+      }
+      .settings-hub .plugins-root .formacts{
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+        margin-top: 14px;
+      }
+      .settings-hub .plugins-root .bar{
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 12px;
+        margin-bottom: 12px;
+      }
+      .settings-hub .plugins-root .bar input{
+        flex: 1;
+        min-width: 160px;
+      }
+      .settings-hub .plugins-root .only{
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 13px;
+        color: var(--text-secondary);
+      }
+      .settings-hub .plugins-root .plugin .desc{
+        margin-top: 4px;
+        font-size: 12px;
+        color: var(--text-secondary);
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+      }
+      .settings-hub .plugins-root .plugin[data-off] .name{
+        opacity: 0.6;
+      }
+      .settings-hub .plugins-root .skeleton{
+        height: 54px;
+        margin: 8px 0;
+        border-radius: var(--radius-m);
+        background: var(--bg-hover);
+        animation: pulse 1.2s ease-in-out infinite;
+      }
+      @keyframes pulse {
+        50% {
+          opacity: 0.4;
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .settings-hub .plugins-root .skeleton{
+          animation: none;
+        }
+      }
+      .settings-hub .plugins-root .section-error{
+        padding: 24px 0;
+      }
+    
+
+/* hp-webhooks.ts */
+
+      .settings-hub .webhooks-root h2{
+        margin: 28px 0 6px;
+        font-size: 17px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+      .settings-hub .webhooks-root .hint{
+        margin: 0 0 12px;
+        font-size: 12px;
+        color: var(--text-secondary);
+      }
+      .settings-hub .webhooks-root .notice{
+        margin-bottom: 12px;
+        font-size: 13px;
+      }
+      .settings-hub .webhooks-root .banner{
+        margin-bottom: 16px;
+        padding: 10px 14px;
+        font-size: 13px;
+        color: var(--warning);
+        border: 1px solid var(--warning);
+        border-radius: var(--radius-m);
+      }
+      .settings-hub .webhooks-root .hook{
+        padding: 14px 16px;
+      }
+      .settings-hub .webhooks-root .top{
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .settings-hub .webhooks-root .top h3{
+        margin: 0;
+        flex: 1;
+        min-width: 0;
+        font-size: 15px;
+        font-weight: 600;
+        word-break: break-all;
+      }
+      .settings-hub .webhooks-root .path{
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        margin-top: 8px;
+      }
+      .settings-hub .webhooks-root code, .settings-hub .webhooks-root pre, .settings-hub .webhooks-root .mono{
+        font-family: var(--font-mono);
+        font-size: 12px;
+      }
+      .settings-hub .webhooks-root code{
+        word-break: break-all;
+        color: var(--text);
+      }
+      .settings-hub .webhooks-root .desc{
+        margin-top: 8px;
+        font-size: 13px;
+        color: var(--text-secondary);
+      }
+      .settings-hub .webhooks-root .meta{
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 4px 14px;
+        margin-top: 8px;
+        font-size: 12px;
+        color: var(--text-secondary);
+      }
+      .settings-hub .webhooks-root .acts{
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 8px;
+        margin-top: 12px;
+      }
+      .settings-hub .webhooks-root pre{
+        margin: 10px 0 0;
+        padding: 10px 12px;
+        max-height: 320px;
+        overflow: auto;
+        line-height: 1.5;
+        white-space: pre-wrap;
+        word-break: break-all;
+        background: var(--code-bg);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-m);
+      }
+      .settings-hub .webhooks-root details{
+        margin-top: 8px;
+        font-size: 13px;
+      }
+      .settings-hub .webhooks-root summary{
+        cursor: pointer;
+        color: var(--text-secondary);
+      }
+      .settings-hub .webhooks-root details pre{
+        margin-top: 6px;
+      }
+      .settings-hub .webhooks-root .rowerr{
+        margin-top: 8px;
+      }
+      .settings-hub .webhooks-root form{
+        padding: 16px;
+        margin-bottom: 16px;
+      }
+      .settings-hub .webhooks-root fieldset{
+        border: none;
+        margin: 0;
+        padding: 0;
+        min-width: 0;
+      }
+      .settings-hub .webhooks-root textarea{
+        min-height: 140px;
+        resize: vertical;
+        line-height: 1.5;
+      }
+      .settings-hub .webhooks-root .formacts{
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        align-items: center;
+        margin-top: 14px;
+      }
+      .settings-hub .webhooks-root select{
+        font: inherit;
+        font-size: 14px;
+        color: var(--text);
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-m);
+        padding: 6px 10px;
+        max-width: 100%;
+      }
+      .settings-hub .webhooks-root .drow{
+        display: grid;
+        grid-template-columns: 112px minmax(0, 1fr) minmax(0, 1fr) 56px 72px;
+        gap: 10px;
+        padding: 9px 16px;
+        font-size: 12px;
+        align-items: center;
+        font-variant-numeric: tabular-nums;
+      }
+      .settings-hub .webhooks-root .drow > span{
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .settings-hub .webhooks-root .dhead{
+        color: var(--text-tertiary);
+      }
+      .settings-hub .webhooks-root .modal{
+        position: fixed;
+        inset: 0;
+        z-index: 50;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 16px;
+        background: rgba(0, 0, 0, 0.5);
+      }
+      .settings-hub .webhooks-root .panel{
+        width: 100%;
+        max-width: 520px;
+        max-height: 100%;
+        overflow: auto;
+        padding: 20px;
+        background: var(--bg-elevated);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-l);
+        box-shadow: var(--shadow);
+      }
+      .settings-hub .webhooks-root .panel h2{
+        margin: 0 0 12px;
+      }
+      .settings-hub .webhooks-root .secret{
+        display: block;
+        padding: 10px 12px;
+        margin: 6px 0 8px;
+        user-select: all;
+        background: var(--code-bg);
+        border: 1px solid var(--border);
+        border-radius: var(--radius-m);
+      }
+      .settings-hub .webhooks-root .skeleton{
+        height: 96px;
+        margin: 8px 0;
+        border-radius: var(--radius-l);
+        background: var(--bg-hover);
+      }
+      @media (max-width: 640px) {
+        .settings-hub .webhooks-root .drow{
+          grid-template-columns: 1fr 1fr;
+        }
+        .settings-hub .webhooks-root .dhead{
+          display: none;
+        }
+      }
+    
+
+/* hp-update.ts */
+
+      .settings-hub .update-root .notice{
+        margin-bottom: 12px;
+        font-size: 13px;
+      }
+      .settings-hub .update-root .upd{
+        padding: 14px 16px;
+      }
+      .settings-hub .update-root .urow{
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+      .settings-hub .update-root .uver{
+        font-size: 15px;
+        font-weight: 600;
+      }
+      .settings-hub .update-root .uver small, .settings-hub .update-root .usub, .settings-hub .update-root .faint, .settings-hub .update-root .ucommits small{
+        font-size: 12px;
+        color: var(--text-tertiary);
+      }
+      .settings-hub .update-root .uact{
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .settings-hub .update-root .uline{
+        margin-top: 10px;
+        font-size: 13px;
+        line-height: 1.5;
+      }
+      .settings-hub .update-root .uline.warn{
+        color: var(--warning);
+      }
+      .settings-hub .update-root .uline code, .settings-hub .update-root .ucommits code{
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 12px;
+        overflow-wrap: anywhere;
+      }
+      .settings-hub .update-root .uconfirm, .settings-hub .update-root .urun{
+        margin-top: 12px;
+        padding-top: 12px;
+        border-top: 1px solid var(--border);
+      }
+      .settings-hub .update-root .uwarn{
+        margin: 6px 0 10px;
+        padding-left: 18px;
+        font-size: 13px;
+        line-height: 1.6;
+      }
+      .settings-hub .update-root .ulog{
+        margin: 8px 0 0;
+        padding: 10px 12px;
+        max-height: 260px;
+        overflow: auto;
+        overscroll-behavior: auto;
+        font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+        background: var(--bg-hover);
+        border-radius: var(--radius-l);
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+      }
+      .settings-hub .update-root .ucommits{
+        margin: 12px 0 0;
+        padding: 0;
+        list-style: none;
+        font-size: 13px;
+        border-top: 1px solid var(--border);
+      }
+      .settings-hub .update-root .ucommits li{
+        display: flex;
+        gap: 8px;
+        align-items: baseline;
+        padding: 6px 0;
+        border-bottom: 1px solid var(--border);
+      }
+      .settings-hub .update-root .ucommits li small{
+        margin-left: auto;
+        flex-shrink: 0;
+      }
+    

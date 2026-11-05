@@ -1,0 +1,235 @@
+@import "tailwindcss";
+@import "./liquid-glass.css";
+@source "..";
+
+/* 设计令牌来自 f852fac src/styles/global.css。浅色默认；深色走 data-theme，并保留系统深色且未强制浅色的分支。 */
+:root {
+  --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Hiragino Sans GB",
+    "Microsoft YaHei UI", "Segoe UI", system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+
+  --bg: #f5f5f7;
+  --bg-elevated: #ffffff;
+  --bg-sidebar: #ececef;
+  --bg-hover: rgba(0, 0, 0, 0.05);
+  --bg-active: rgba(0, 0, 0, 0.08);
+  --text: #1d1d1f;
+  --text-secondary: #6e6e73;
+  --text-tertiary: #a1a1a6;
+  --border: rgba(0, 0, 0, 0.1);
+  --line: var(--border);
+  --accent: #0071e3;
+  --accent-text: #ffffff;
+  --danger: #d70015;
+  --success: #248a3d;
+  --warning: #b25000;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.08);
+  --code-bg: #fafafa;
+  --hl-comment: #8e8e93;
+  --hl-keyword: #ad3da4;
+  --hl-string: #c41a16;
+  --hl-number: #1c00cf;
+  --hl-title: #326d74;
+  --hl-attr: #836c28;
+  --hl-type: #0b4f79;
+  /* 用量图第二序列。品牌、发送钮、导航不使用它。思考强度渐变仍是组件里的旧色。 */
+  --accent-2: #8f6bff;
+
+  --radius-s: 14px;
+  --radius-m: 14px;
+  --radius-l: 14px;
+  --sidebar-w: 280px;
+  --topbar-h: 52px;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+  --ease-nav: cubic-bezier(0.32, 0.72, 0, 1);
+  --nav-ms: 350ms;
+  --pop-ms: 280ms;
+  --safe-top: calc(env(safe-area-inset-top, 0px) * 1.25);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  color-scheme: light;
+}
+
+:root[data-theme="light"] {
+  --bg: #f5f5f7;
+  --bg-elevated: #ffffff;
+  --bg-sidebar: #ececef;
+  --bg-hover: rgba(0, 0, 0, 0.05);
+  --bg-active: rgba(0, 0, 0, 0.08);
+  --text: #1d1d1f;
+  --text-secondary: #6e6e73;
+  --text-tertiary: #a1a1a6;
+  --border: rgba(0, 0, 0, 0.1);
+  --line: var(--border);
+  --accent: #0071e3;
+  --accent-text: #ffffff;
+  --danger: #d70015;
+  --success: #248a3d;
+  --warning: #b25000;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.06), 0 8px 24px rgba(0, 0, 0, 0.08);
+  --code-bg: #fafafa;
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --bg: #161618;
+  --bg-elevated: #1f1f22;
+  --bg-sidebar: #1b1b1d;
+  --bg-hover: rgba(255, 255, 255, 0.06);
+  --bg-active: rgba(255, 255, 255, 0.1);
+  --text: #f5f5f7;
+  --text-secondary: #a1a1a6;
+  --text-tertiary: #6e6e73;
+  --border: rgba(255, 255, 255, 0.1);
+  --line: var(--border);
+  --accent: #0a84ff;
+  --accent-text: #ffffff;
+  --danger: #ff453a;
+  --success: #30d158;
+  --warning: #ff9f0a;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.4);
+  --code-bg: #1a1a1c;
+  --hl-comment: #7f8c98;
+  --hl-keyword: #ff7ab2;
+  --hl-string: #ff8170;
+  --hl-number: #d9c97c;
+  --hl-title: #67b7a4;
+  --hl-attr: #ffa14f;
+  --hl-type: #5dd8ff;
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #161618;
+    --bg-elevated: #1f1f22;
+    --bg-sidebar: #1b1b1d;
+    --bg-hover: rgba(255, 255, 255, 0.06);
+    --bg-active: rgba(255, 255, 255, 0.1);
+    --text: #f5f5f7;
+    --text-secondary: #a1a1a6;
+    --text-tertiary: #6e6e73;
+    --border: rgba(255, 255, 255, 0.1);
+    --line: var(--border);
+    --accent: #0a84ff;
+    --accent-text: #ffffff;
+    --danger: #ff453a;
+    --success: #30d158;
+    --warning: #ff9f0a;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.4);
+    --code-bg: #1a1a1c;
+    --hl-comment: #7f8c98;
+    --hl-keyword: #ff7ab2;
+    --hl-string: #ff8170;
+    --hl-number: #d9c97c;
+    --hl-title: #67b7a4;
+    --hl-attr: #ffa14f;
+    --hl-type: #5dd8ff;
+    color-scheme: dark;
+  }
+}
+
+@theme inline {
+  --font-sans: var(--font-ui);
+  --color-background: var(--bg);
+  --color-foreground: var(--text);
+  --color-accent: var(--accent);
+  --color-danger: var(--danger);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  min-height: 100%;
+}
+
+html,
+body {
+  background: var(--bg);
+  color: var(--text);
+  font: 15px/1.5 var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
+  touch-action: manipulation;
+}
+
+body {
+  overflow: hidden;
+}
+
+#root {
+  isolation: auto;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.shell {
+  position: relative;
+  z-index: 1;
+  height: 100%;
+  min-height: 0;
+}
+
+.chat-slot,
+.page {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+}
+
+p.page {
+  display: block;
+  padding: 24px 20px;
+}
+
+.chat-slot[hidden] {
+  display: none;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.solid-surface {
+  background: var(--bg-elevated);
+  color: var(--text);
+  border: 1px solid var(--border);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --ease: steps(1);
+    --ease-nav: steps(1);
+    --nav-ms: 0ms;
+    --pop-ms: 0ms;
+  }
+}

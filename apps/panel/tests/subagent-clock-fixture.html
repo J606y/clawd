@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <title>subagent clock</title>
+</head>
+<body>
+  <div id="root" class="hp-chat"></div>
+  <script>
+    let nowMs = 1_700_000_010_000;
+    let visibility = "visible";
+    const timers = new Map();
+    let timerSeq = 1;
+    const queues = new Map();
+    const lastBody = new Map();
+    const fetches = [];
+    Date.now = () => nowMs;
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      get: () => visibility,
+    });
+    window.setInterval = (fn, ms) => {
+      const id = timerSeq++;
+      timers.set(id, { fn, ms, next: nowMs + ms });
+      return id;
+    };
+    window.clearInterval = (id) => {
+      timers.delete(id);
+    };
+    const advance = (ms) => {
+      const target = nowMs + ms;
+      const fired = [];
+      while (true) {
+        let nextId = null;
+        let nextAt = Infinity;
+        for (const [id, timer] of timers) {
+          if (timer.next <= target && timer.next < nextAt) {
+            nextAt = timer.next;
+            nextId = id;
+          }
+        }
+        if (nextId === null) break;
+        nowMs = nextAt;
+        const timer = timers.get(nextId);
+        if (!timer) continue;
+        timer.next += timer.ms;
+        fired.push(timer.ms);
+        timer.fn();
+      }
+      nowMs = target;
+      return fired;
+    };
+    window.fetch = (input) => {
+      const href = String(input);
+      fetches.push(href);
+      if (!href.includes("subagents")) {
+        return Promise.resolve(new Response(JSON.stringify({ error: { message: "not found", code: "not_found" } }), { status: 404, headers: { "Content-Type": "application/json" } }));
+      }
+      const url = new URL(href, location.href);
+      const session = url.searchParams.get("parent") || url.searchParams.get("session") || "";
+      const queue = queues.get(session) || [];
+      const body = queue.length ? queue.shift() : lastBody.get(session);
+      if (!body) return new Promise(() => {});
+      lastBody.set(session, body);
+      queues.set(session, queue);
+      const limit = Number(url.searchParams.get("limit") || 50);
+      const offset = Number(url.searchParams.get("offset") || 0);
+      const data = Array.isArray(body.data) ? body.data : [];
+      const served = {
+        ...body,
+        data: data.slice(offset, offset + limit),
+        total: typeof body.total === "number" ? body.total : data.length,
+        stalled: body.stalled ?? 0,
+        limit,
+        offset,
+      };
+      return Promise.resolve(new Response(JSON.stringify(served), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      }));
+    };
+    window.__clock = {
+      now: () => nowMs,
+      set(ms) { nowMs = ms; },
+      advance,
+      push(session, body) {
+        const queue = queues.get(session) || [];
+        queue.push(body);
+        queues.set(session, queue);
+        lastBody.set(session, body);
+      },
+      setVisible(next) {
+        visibility = next ? "visible" : "hidden";
+        document.dispatchEvent(new Event("visibilitychange"));
+      },
+      timers() {
+        return [...timers.values()].map((timer) => timer.ms);
+      },
+      fetches: () => fetches.slice(),
+      read() {
+        const card = document.querySelector("#root .card .meta");
+        return {
+          text: card ? card.textContent : "",
+          cards: document.querySelectorAll("#root .card").length,
+          timers: [...timers.values()].map((timer) => timer.ms),
+          nowMs,
+        };
+      },
+    };
+    window.__errors = [];
+    window.addEventListener("error", (event) => {
+      window.__errors.push(String(event.message));
+    });
+  </script>
+  <script type="module">
+    import { createElement } from "react";
+    import { createRoot } from "react-dom/client";
+    import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+    import { SubagentsBar } from "/src/react/pages/chat/subagents-bar.tsx";
+
+    const client = new QueryClient({
+      defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false } },
+    });
+    const root = createRoot(document.querySelector("#root"));
+    let sessionId = "sess-a";
+    let mounted = false;
+    const render = () => {
+      root.render(createElement(QueryClientProvider, { client },
+        createElement(SubagentsBar, { sessionId, active: true }),
+      ));
+    };
+    window.__clock.mount = () => {
+      mounted = true;
+      render();
+    };
+    window.__clock.setSession = (id) => {
+      sessionId = id;
+      if (mounted) render();
+    };
+    window.__clock.unmount = () => {
+      mounted = false;
+      root.unmount();
+    };
+    window.__clock.inject = (session, body) => {
+      const limit = session ? 50 : 12;
+      client.setQueryData(["subagents", session, limit], body);
+    };
+    window.__clock.flush = () => new Promise((resolve) => {
+      setTimeout(() => requestAnimationFrame(() => resolve(window.__clock.read())), 0);
+    });
+    window.__ready = true;
+  </script>
+</body>
+</html>

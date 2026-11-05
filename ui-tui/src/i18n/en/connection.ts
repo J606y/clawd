@@ -19,7 +19,7 @@ export const connectionEn = {
       reconnect: 'Reconnect'
     },
     // {0} app, {1} account name the agent chose
-    namedAccount: (app: string, alias: string) => `Hermes named this ${app} account ${alias}. Rename it anytime.`,
+    namedAccount: (app: string, alias: string) => `clawd named this ${app} account ${alias}. Rename it anytime.`,
     header: {
       // {0} title, {1} account name
       account: (title: string, alias: string) => `${title} · ${alias}`,
@@ -55,8 +55,8 @@ export const connectionEn = {
       form: '↑/↓ or Tab move · ←/→ select · Enter confirm · Esc skip · Ctrl+C stop the turn'
     },
     notice: {
-      answerNotDelivered: 'That answer did not reach Hermes. Try again.',
-      restartFailed: 'Hermes could not start that again. Try again.',
+      answerNotDelivered: 'That answer did not reach clawd. Try again.',
+      restartFailed: 'clawd could not start that again. Try again.',
       browserDidNotOpen: 'The browser did not open. Copy the link above.'
     }
   },
@@ -66,7 +66,7 @@ export const connectionEn = {
     closeHint: 'Esc/q close',
     error: (message: string) => `error: ${message}`,
     loading: 'assembling your learning map…',
-    empty: 'No learning yet — your learned skills and memories will start mapping out here as you use Hermes.',
+    empty: 'No learning yet — your learned skills and memories will start mapping out here as you use clawd.',
     noDetail: 'No additional detail recorded yet.',
     notice: {
       cannotEdit: 'cannot edit',

@@ -196,9 +196,117 @@ def get_hermes_home() -> Path:
     override = get_hermes_home_override()
     if override:
         return _expand_hermes_home(override)
-    if not os.environ.get("HERMES_HOME", "").strip():
+    if not os.environ.get("HERMES_HOME", "").strip() and not os.environ.get("CLAWD_HOME", "").strip():
         _warn_profile_fallback_once()
     return get_process_hermes_home()
+
+
+# Product data root. Internal code keeps reading HERMES_HOME after startup maps it.
+CLAWD_DIR_NAME = ".clawd"
+CLAWD_RUNTIME_SUBDIR = "tools"
+_CLAWD_PROFILE_DIR = "profiles"
+
+
+def _expand_clawd_path(path: str, user_home: Callable[[], Path]) -> Path:
+    """Expand ``~`` against *user_home*, never against an inherited Hermes home."""
+    if path == "~" or path.startswith(("~/", "~\\")):
+        path = str(user_home()) + path[1:]
+    return Path(os.path.expandvars(path))
+
+
+def resolve_clawd_home(
+    environ: Mapping[str, str] | None = None,
+    *,
+    user_home: Callable[[], Path] | None = None,
+) -> Path:
+    """``CLAWD_HOME`` or ``~/.clawd``. Never reads ``HERMES_HOME``."""
+    env = os.environ if environ is None else environ
+    home_of = user_home or Path.home
+    raw = env.get("CLAWD_HOME", "").strip()
+    if raw:
+        return _expand_clawd_path(raw, home_of)
+    return home_of() / CLAWD_DIR_NAME
+
+
+def clawd_runtime_dir(clawd_home: Path) -> Path:
+    """PM tool store for a clawd root (same relative layout as ``<home>/tools``)."""
+    return Path(clawd_home) / CLAWD_RUNTIME_SUBDIR
+
+
+def _resolved(path: Path) -> Path:
+    try:
+        return path.resolve()
+    except OSError:
+        return path
+
+
+def _same_or_within(path: Path, root: Path) -> bool:
+    child = _resolved(path)
+    parent = _resolved(root)
+    if child == parent:
+        return True
+    try:
+        child.relative_to(parent)
+    except ValueError:
+        return False
+    return True
+
+
+def explicit_clawd_owned_home(inherited: str, clawd_home: Path) -> bool:
+    """True when *inherited* is the clawd root or a profile directory under it.
+
+    A subprocess that was given ``HERMES_HOME=<clawd>/profiles/<name>`` (including
+    hidden ``profiles/.<name>.staging-<pid>`` dirs) owns that profile. A foreign
+    Hermes home, including ``~/.hermes/profiles/<name>``, does not.
+    """
+    raw = inherited.strip()
+    if not raw:
+        return False
+    path = _resolved(_expand_clawd_path(raw, Path.home))
+    root = _resolved(Path(clawd_home))
+    if path == root:
+        return True
+    try:
+        rel = path.relative_to(root)
+    except ValueError:
+        return False
+    return bool(rel.parts) and rel.parts[0] == _CLAWD_PROFILE_DIR
+
+
+def isolate_inherited_hermes_env(
+    environ: MutableMapping[str, str] | None = None,
+    *,
+    user_home: Callable[[], Path] | None = None,
+) -> dict[str, object]:
+    """Map inherited Hermes locations onto this clawd install.
+
+    ``CLAWD_HOME`` is the only default. An inherited ``HERMES_HOME`` or
+    ``HERMES_RUNTIME_DIR`` that is not already inside that tree is replaced.
+    A profile path under the clawd root is left alone so a child that explicitly
+    owns that profile is not reset to the root.
+    """
+    env = os.environ if environ is None else environ
+    home_of = user_home or Path.home
+    clawd_home = resolve_clawd_home(env, user_home=home_of)
+    env["CLAWD_HOME"] = str(clawd_home)
+    inherited_home = env.get("HERMES_HOME", "")
+    preserved_profile = explicit_clawd_owned_home(inherited_home, clawd_home)
+    if not preserved_profile:
+        env["HERMES_HOME"] = str(clawd_home)
+    runtime = env.get("HERMES_RUNTIME_DIR", "").strip()
+    preserved_runtime = False
+    if runtime:
+        runtime_path = _expand_clawd_path(runtime, home_of)
+        preserved_runtime = _same_or_within(runtime_path, clawd_home)
+    if not preserved_runtime:
+        env["HERMES_RUNTIME_DIR"] = str(clawd_runtime_dir(clawd_home))
+    return {
+        "clawd_home": str(clawd_home),
+        "hermes_home": env.get("HERMES_HOME", ""),
+        "hermes_runtime_dir": env.get("HERMES_RUNTIME_DIR", ""),
+        "preserved_profile": preserved_profile,
+        "preserved_runtime": preserved_runtime,
+    }
 
 
 # Resolved keys, keyed by the path string that was handed in. Path.resolve()
@@ -247,9 +355,18 @@ def get_process_hermes_home() -> Path:
     request is scoped to another profile (e.g. embedded ``/chat`` under ``--open-profile``). Follows
     ``HERMES_HOME`` live on purpose: routed-profile DECISIONS compare against
     :func:`get_routing_process_hermes_home` instead (#119242).
+
+    An explicit ``CLAWD_HOME`` is the product home when ``HERMES_HOME`` is unset.
+    It is not a fallback to an inherited Hermes install; that remap happens at
+    clawd startup via :func:`isolate_inherited_hermes_env`.
     """
     val = os.environ.get("HERMES_HOME", "").strip()
-    return _expand_hermes_home(val) if val else _get_platform_default_hermes_home()
+    if val:
+        return _expand_hermes_home(val)
+    clawd = os.environ.get("CLAWD_HOME", "").strip()
+    if clawd:
+        return _expand_hermes_home(clawd)
+    return _get_platform_default_hermes_home()
 
 
 # Host-pinned identity of the profile this process serves as its own (None: follow HERMES_HOME).
@@ -681,8 +798,8 @@ def secure_parent_dir(path: Path) -> None:
 
         logging.getLogger(__name__).warning(
             "Not restricting permissions on %s: it is inside the "
-            "hermes-agent install directory (%s). Credential files are "
-            "normally stored under the hermes home directory instead.", parent, _INSTALL_ROOT,
+            "clawd install directory (%s). Credential files are "
+            "normally stored under the clawd home directory instead.", parent, _INSTALL_ROOT,
         )
         return
     with contextlib.suppress(OSError):
@@ -1396,7 +1513,7 @@ def project_venv_dir(project_root) -> Path | None:
 
 
 def _venv_installs_checkout(venv: Path, root: Path) -> bool:
-    """Is *venv*'s own ``hermes-agent`` installed from *root*?
+    """Is *venv*'s own ``clawd`` distribution installed from *root*?
 
     Where this module was loaded from does not answer that: ``PYTHONPATH=<checkout>
     <other install>/bin/python`` runs one checkout's code on another install's interpreter,
@@ -1411,7 +1528,7 @@ def _venv_installs_checkout(venv: Path, root: Path) -> bool:
 
     from pm.environments import site_packages
 
-    for dist in distributions(name="hermes-agent", path=[str(site_packages(venv))]):
+    for dist in distributions(name="clawd", path=[str(site_packages(venv))]):
         try:
             raw = dist.read_text("direct_url.json")  # windows-footgun: ok — importlib.metadata API, reads utf-8, no encoding=
             url = json.loads(raw or "{}").get("url", "")

@@ -1,5 +1,7 @@
 # Contributing to Hermes Agent
 
+> **本检出产品名是 clawd，不是 clawed。** 下文仍描述上游 Hermes Agent 仓库 [NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent) 的贡献流程。这里不声明 clawd 仓库、官网或安全联系方式。许可证与版权留在 `LICENSE`（MIT，Copyright (c) 2025 Nous Research），不在此改写。文中的 `hermes` 命令和 `HERMES_HOME` 是上游流程或兼容标识，不是本检出的产品命令；产品命令见根 README 的 `clawd`。
+
 Thank you for contributing to Hermes Agent! This guide covers everything you need: setting up your dev environment, understanding the architecture, deciding what to build, and getting your PR merged.
 
 ---

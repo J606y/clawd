@@ -494,7 +494,7 @@ export function SessionPanel({ info, maxWidth, sid, t }: SessionPanelProps) {
             {T.runPrefix}
           </Text>
           <Text bold color={t.color.warn}>
-            {info.update_command || 'hermes update'}
+            {info.update_command || 'clawd update'}
           </Text>
           <Text bold={false} color={t.color.warn} dimColor>
             {T.toUpdate}

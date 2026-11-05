@@ -1,0 +1,1323 @@
+/* f852fac hp-live-dock / hp-task-live / hp-agent-dock。
+   宿主类名 dock-live / dock-task / dock-agent 留给壳的选择器。
+   内部类名和数值按旧模板。选择器加重，避开壳的 .stage / .scrim。 */
+
+.dock-live,
+.dock-task,
+.dock-agent {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  color: var(--text);
+  box-sizing: border-box;
+}
+
+.dock-live button,
+.dock-task button,
+.dock-agent button,
+.dock-live [role="button"],
+.dock-task [role="button"],
+.dock-agent summary {
+  transition:
+    background-color 180ms var(--ease-nav, cubic-bezier(0.32, 0.72, 0, 1)),
+    color 180ms var(--ease-nav, cubic-bezier(0.32, 0.72, 0, 1)),
+    border-color 180ms var(--ease-nav, cubic-bezier(0.32, 0.72, 0, 1)),
+    box-shadow 180ms var(--ease-nav, cubic-bezier(0.32, 0.72, 0, 1)),
+    opacity 180ms var(--ease-nav, cubic-bezier(0.32, 0.72, 0, 1));
+}
+
+.dock-live.dock-live {
+  background: var(--bg-sidebar);
+  border-left: 1px solid var(--border);
+  padding-top: var(--safe-top);
+  position: relative;
+}
+
+.dock-live.dock-live header {
+  min-height: var(--topbar-h);
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 6px 16px;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+}
+
+.dock-live .titles {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.dock-live .titles b,
+.dock-live .titles small {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dock-live .titles b {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.dock-live .titles small {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.dock-live button {
+  font: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+  color: var(--text-secondary);
+  min-height: 0;
+}
+
+.dock-live button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.dock-live .tb {
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  font-size: 13px;
+  border-radius: var(--radius-m);
+  flex: none;
+}
+
+.dock-live .tb:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.dock-live .tb.stop {
+  color: var(--danger);
+}
+
+.dock-live .tb.primary {
+  color: #fff;
+  background: var(--accent);
+}
+
+.dock-live .tb.primary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 88%, #000);
+  color: #fff;
+}
+
+.dock-live .tb.icon {
+  width: 32px;
+  padding: 0;
+  justify-content: center;
+}
+
+.dock-live.dock-live .stage {
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+  position: relative;
+  overflow: hidden;
+  display: block;
+  background: #000;
+  touch-action: none;
+}
+
+.dock-live .screen {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.dock-live .screen,
+.dock-live .screen * {
+  touch-action: none;
+}
+
+.dock-live .overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 12px;
+  color: #ddd;
+  font-size: 14px;
+  text-align: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.dock-live .overlay button {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.16);
+  padding: 8px 16px;
+  border-radius: var(--radius-m);
+}
+
+.dock-live .notice {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  top: 12px;
+  padding: 8px 12px;
+  border-radius: var(--radius-m);
+  background: color-mix(in srgb, var(--danger) 85%, #000);
+  color: #fff;
+  font-size: 13px;
+}
+
+.dock-live .bar {
+  flex: none;
+  display: flex;
+  justify-content: center;
+  gap: 12px;
+  padding: 12px 16px calc(12px + var(--safe-bottom));
+  border: none;
+  background: transparent;
+}
+
+.dock-live .big {
+  height: 48px;
+  min-width: 0;
+  flex: 1;
+  max-width: 200px;
+  border-radius: var(--radius-l);
+  font-size: 16px;
+  color: var(--text);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+}
+
+.dock-live .big.primary {
+  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.dock-live .pill {
+  display: flex;
+  flex: 1;
+  max-width: 200px;
+  height: 48px;
+  border-radius: var(--radius-l);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  overflow: hidden;
+  padding: 0;
+}
+
+.dock-live .pill button {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  color: var(--text-secondary);
+  height: auto;
+  padding: 0;
+  border-radius: 0;
+}
+
+.dock-live .pill button[aria-pressed="true"] {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.dock-live .ime {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  font-size: 16px;
+  border: none;
+  padding: 0;
+  resize: none;
+  margin: 0;
+}
+
+.dock-live .ime.visible {
+  position: static;
+  opacity: 1;
+  width: calc(100% - 24px);
+  height: 72px;
+  flex: none;
+  margin: 0 12px 12px;
+  padding: 8px;
+  color: var(--text);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-m);
+}
+
+.dock-live .desktop-tools {
+  padding: 8px 12px;
+  justify-content: flex-start;
+  gap: 6px;
+}
+
+.dock-live .desktop-tools .tb {
+  background: var(--bg-elevated);
+}
+
+dialog.live-confirm:modal {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 24px;
+  border: 0;
+  border-radius: 0;
+  overflow: visible;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  box-shadow: none;
+  display: grid;
+  place-items: center;
+  animation: none;
+  transform: none;
+  touch-action: manipulation;
+  pointer-events: auto;
+}
+
+dialog.live-confirm::backdrop {
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  animation: dock-fade-in var(--pop-ms, 280ms) var(--ease-nav, cubic-bezier(0.32, 0.72, 0, 1)) both;
+}
+
+dialog.live-confirm[data-state="leave"] {
+  pointer-events: none;
+}
+
+dialog.live-confirm[data-state="leave"]::backdrop {
+  animation: dock-fade-out var(--pop-ms, 280ms) var(--ease-nav, cubic-bezier(0.32, 0.72, 0, 1)) both;
+}
+
+dialog.live-confirm .dialog {
+  width: min(340px, 100%);
+  padding: 18px;
+  border-radius: var(--radius-l);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 10px;
+  transform-origin: center bottom;
+  animation: dock-sheet-in var(--pop-ms, 280ms) var(--ease-nav, cubic-bezier(0.32, 0.72, 0, 1)) both;
+  pointer-events: auto;
+  touch-action: manipulation;
+}
+
+dialog.live-confirm[data-state="leave"] .dialog {
+  animation: dock-sheet-out var(--pop-ms, 280ms) var(--ease-nav, cubic-bezier(0.32, 0.72, 0, 1)) both;
+}
+
+dialog.live-confirm .dialog h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+dialog.live-confirm .dialog p {
+  margin: 0 0 6px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+dialog.live-confirm .dialog button {
+  height: 40px;
+  min-height: 0;
+  border: none;
+  border-radius: var(--radius-m);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  color: var(--text);
+  background: var(--bg-hover);
+  touch-action: manipulation;
+  pointer-events: auto;
+}
+
+dialog.live-confirm .dialog button.danger {
+  color: #fff;
+  background: var(--danger);
+}
+
+dialog.live-confirm .dialog button.primary {
+  color: #fff;
+  background: var(--accent);
+}
+
+.dock-task.dock-task {
+  background: var(--bg-sidebar);
+  border-left: 1px solid var(--border);
+  padding-top: var(--safe-top, env(safe-area-inset-top, 0px));
+  overflow: hidden;
+}
+
+.dock-task header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--topbar-h, 52px);
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-elevated);
+  flex: 0 0 auto;
+}
+
+.dock-task .badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: var(--radius-s);
+  flex: none;
+}
+
+.dock-task .badge[data-status="active"] {
+  background: color-mix(in srgb, var(--accent) 15%, transparent);
+  color: var(--accent);
+}
+
+.dock-task .badge[data-status="waiting"] {
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+}
+
+.dock-task .badge[data-status="ended"] {
+  background: var(--bg-hover);
+  color: var(--text-tertiary);
+}
+
+.dock-task .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.dock-task .dot.pulse {
+  animation: dock-task-pulse 1.2s ease-in-out infinite;
+}
+
+.dock-task .title {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 550;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dock-task .icon-btn {
+  background: none;
+  border: none;
+  padding: 6px;
+  min-width: 32px;
+  min-height: 32px;
+  border-radius: var(--radius-s);
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+
+.dock-task .icon-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.dock-task .viewport {
+  flex: 1 1 0%;
+  min-height: 0;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+  overflow: hidden;
+}
+
+.dock-task img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+}
+
+.dock-task img[data-controlled="true"] {
+  cursor: crosshair;
+}
+
+.dock-task .notice {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  top: 12px;
+  z-index: 2;
+  padding: 8px 12px;
+  border-radius: var(--radius-s);
+  background: rgba(24, 24, 27, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #fff;
+  font-size: 12px;
+  line-height: 1.45;
+  cursor: pointer;
+}
+
+.dock-task .state-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 24px;
+  color: #fff;
+  text-align: center;
+}
+
+.dock-task .state-box svg {
+  opacity: 0.7;
+}
+
+.dock-task .state-box p {
+  margin: 0;
+  font-size: 13px;
+  color: #bbb;
+  max-width: 260px;
+  line-height: 1.5;
+}
+
+.dock-task .state-box .error-text {
+  color: #f87171;
+}
+
+.dock-task .state-box button {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 6px 14px;
+  border-radius: var(--radius-s);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.dock-task .kbd-bar {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-elevated);
+}
+
+.dock-task .kbd-bar input {
+  flex: 1 1 140px;
+  min-width: 0;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 16px;
+}
+
+.dock-task .kbd-bar button {
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: var(--bg-sidebar);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.dock-task .kbd-bar button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.dock-task footer.bar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 10px 14px calc(10px + var(--safe-bottom, env(safe-area-inset-bottom, 0px)));
+  border-top: 1px solid var(--border);
+  background: var(--bg-elevated);
+}
+
+.dock-task .bar-btn {
+  flex: 1;
+  max-width: 200px;
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: var(--radius-l);
+  border: 1px solid var(--border);
+  background: var(--bg-sidebar);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.dock-task .bar-btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.dock-task .bar-btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.dock-task .bar-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.dock-agent.dock-agent {
+  background: var(--bg-sidebar);
+  border-left: 1px solid var(--border);
+  padding-top: var(--safe-top);
+}
+
+.dock-agent header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--topbar-h);
+  padding: 8px 8px 8px 16px;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+}
+
+.dock-agent .head {
+  flex: 1;
+  min-width: 0;
+}
+
+.dock-agent header h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dock-agent .sub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.dock-agent .st {
+  padding: 1px 8px;
+  border-radius: var(--radius-l);
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+}
+
+.dock-agent .st[data-s="running"] { color: var(--accent); }
+.dock-agent .st[data-s="stalled"] { color: var(--warning); }
+.dock-agent .st[data-s="done"] { color: var(--success); }
+
+.dock-agent .btn {
+  flex: none;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 10px;
+  font: inherit;
+  font-size: 13px;
+  color: var(--text-secondary);
+  background: none;
+  border: none;
+  border-radius: var(--radius-s);
+  cursor: pointer;
+  white-space: nowrap;
+  min-height: 0;
+}
+
+.dock-agent .btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.dock-agent .btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.dock-agent .btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.dock-agent .body {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 14px 16px calc(20px + var(--safe-bottom));
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  gap: 14px;
+  font-size: 14px;
+}
+
+.dock-agent .task {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-l);
+  padding: 8px 12px;
+  font-size: 13px;
+}
+
+.dock-agent .task summary {
+  cursor: pointer;
+  color: var(--text-secondary);
+}
+
+.dock-agent .task pre {
+  margin: 8px 0 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font: 12px/1.6 var(--font-mono);
+  max-height: 40vh;
+  overflow: auto;
+}
+
+.dock-agent .bubble {
+  justify-self: end;
+  max-width: 90%;
+  padding: 8px 12px;
+  background: var(--bg-hover);
+  border-radius: var(--radius-l);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.dock-agent .note {
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+.dock-agent .error {
+  color: var(--danger);
+  font-size: 13px;
+}
+
+.dock-agent .center {
+  padding: 40px 0;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.dock-agent details.reasoning {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  min-width: 0;
+  overflow-wrap: anywhere;
+  border: none;
+  background: none;
+  padding: 0;
+}
+
+.dock-agent details.reasoning > div {
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.dock-agent .assistant {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.dock-agent .md {
+  overflow-wrap: anywhere;
+  line-height: 1.65;
+}
+
+.dock-agent .md > :first-child { margin-top: 0; }
+.dock-agent .md > :last-child { margin-bottom: 0; }
+.dock-agent .md p,
+.dock-agent .md ul,
+.dock-agent .md ol,
+.dock-agent .md blockquote,
+.dock-agent .md table { margin: 0 0 12px; }
+.dock-agent .md h1,
+.dock-agent .md h2,
+.dock-agent .md h3,
+.dock-agent .md h4 { margin: 20px 0 8px; line-height: 1.3; letter-spacing: -0.01em; }
+.dock-agent .md h1 { font-size: 1.4em; }
+.dock-agent .md h2 { font-size: 1.25em; }
+.dock-agent .md h3 { font-size: 1.1em; }
+.dock-agent .md ul,
+.dock-agent .md ol { padding-left: 1.4em; }
+.dock-agent .md li + li { margin-top: 4px; }
+.dock-agent .md a { color: var(--accent); text-decoration: none; }
+.dock-agent .md a:hover { text-decoration: underline; }
+.dock-agent .md blockquote {
+  padding: 2px 0 2px 12px;
+  border-left: 3px solid var(--border);
+  color: var(--text-secondary);
+}
+.dock-agent .md img,
+.dock-agent .shot {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius-m);
+}
+.dock-agent .md :not(pre) > code {
+  font-family: var(--font-mono);
+  font-size: 0.88em;
+  padding: 1px 5px;
+  border-radius: var(--radius-l);
+  background: var(--bg-hover);
+}
+
+/* f852fac hp-steps / hp-assistant-content。宿主是同名元素，样式挂在 dock-agent 下。 */
+.dock-agent hp-steps,
+.dock-agent hp-steps *,
+.dock-agent hp-assistant-content,
+.dock-agent hp-assistant-content * {
+  box-sizing: border-box;
+  touch-action: manipulation;
+}
+
+.dock-agent hp-steps {
+  display: block;
+  max-width: 100%;
+  min-width: 0;
+  font-size: 13px;
+}
+
+.dock-agent hp-steps .summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  min-width: 0;
+  font: inherit;
+  color: var(--text-secondary);
+  background: none;
+  border: none;
+  padding: 4px 6px;
+  margin-left: -6px;
+  border-radius: var(--radius-s);
+  cursor: pointer;
+  text-align: left;
+}
+
+.dock-agent hp-steps .summary .now {
+  display: inline-flex;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.dock-agent hp-steps .summary .chev,
+.dock-agent hp-steps .summary .dot,
+.dock-agent hp-steps .summary .fail {
+  flex: none;
+}
+
+.dock-agent hp-steps .watch {
+  font: inherit;
+  font-size: 12px;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border: none;
+  border-radius: var(--radius-s);
+  padding: 2px 8px;
+  margin-left: 4px;
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .dock-agent hp-steps .summary:hover {
+    background: var(--bg-hover);
+    color: var(--text);
+  }
+  .dock-agent hp-steps .row:hover {
+    background: var(--bg-hover);
+  }
+}
+
+.dock-agent hp-steps .chev {
+  transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.dock-agent hp-steps .summary[aria-expanded="true"] .chev {
+  transform: rotate(90deg);
+}
+
+.dock-agent hp-steps .fail {
+  color: var(--danger);
+}
+
+.dock-agent hp-steps ol {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0 0 0 10px;
+  border-left: 2px solid var(--border);
+}
+
+.dock-agent hp-steps li {
+  margin: 2px 0;
+  animation: step-in 0.28s cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+.dock-agent hp-steps .fold {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.dock-agent hp-steps .fold[data-open] {
+  grid-template-rows: 1fr;
+}
+
+@starting-style {
+  .dock-agent hp-steps .fold[data-open] { grid-template-rows: 0fr; }
+}
+
+.dock-agent hp-steps .fold > div {
+  overflow: hidden;
+  min-height: 0;
+}
+
+.dock-agent hp-steps .row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: var(--radius-s);
+  padding: 4px 6px;
+  cursor: pointer;
+  min-width: 0;
+}
+
+.dock-agent hp-steps .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex: none;
+  background: var(--success);
+}
+
+.dock-agent hp-steps .dot[data-s="running"] {
+  background: var(--accent);
+  animation: hp-steps-pulse 1.2s ease-in-out infinite;
+}
+
+.dock-agent hp-steps .dot[data-s="failed"] {
+  background: var(--danger);
+}
+
+.dock-agent hp-steps .name {
+  flex: 0 0 auto;
+  min-width: 4.5em;
+  max-width: 42%;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dock-agent hp-steps .hint {
+  flex: none;
+  color: var(--text-tertiary);
+  font-size: 11px;
+}
+
+.dock-agent hp-steps .preview {
+  display: flex;
+  gap: 8px;
+  margin: 0 0 4px 21px;
+  color: var(--text-secondary);
+  font: 12px/1.5 var(--font-mono);
+  min-width: 0;
+}
+
+.dock-agent hp-steps .preview pre {
+  margin: 0;
+  min-width: 0;
+  max-height: 360px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.dock-agent hp-steps .preview[data-s="failed"] { color: var(--danger); }
+.dock-agent hp-steps .branch { flex: none; color: var(--text-tertiary); }
+
+.dock-agent hp-steps .detail summary {
+  padding: 4px 10px;
+  font: 11px var(--font-mono);
+  color: var(--text-tertiary);
+  cursor: pointer;
+}
+
+.dock-agent hp-steps .arg {
+  flex: 1 1 0;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.dock-agent hp-steps .note {
+  text-align: left;
+  font-size: inherit;
+  color: var(--text-secondary);
+  padding: 4px 6px;
+  min-width: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.dock-agent hp-steps .detail {
+  margin: 2px 0 6px 21px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-s);
+  background: var(--code-bg);
+  overflow: hidden;
+}
+
+.dock-agent hp-steps .detail h4 {
+  margin: 0;
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-tertiary);
+  border-bottom: 1px solid var(--border);
+}
+
+.dock-agent hp-steps .detail pre {
+  margin: 0;
+  padding: 8px 10px;
+  max-height: 360px;
+  overflow: auto;
+  font: 12px/1.5 var(--font-mono);
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.dock-agent hp-steps .partial {
+  padding: 0 10px 8px;
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+.dock-agent hp-steps .more {
+  font: inherit;
+  font-size: 12px;
+  color: var(--accent);
+  background: none;
+  border: none;
+  padding: 4px 10px 8px;
+  cursor: pointer;
+}
+
+.dock-agent hp-assistant-content { display: block; min-width: 0; }
+.dock-agent hp-assistant-content .artifacts { display: grid; gap: 12px; margin: 12px 0; min-width: 0; }
+.dock-agent hp-assistant-content .artifact { min-width: 0; border: 1px solid var(--border); border-radius: var(--radius-l); padding: 12px; overflow-wrap: anywhere; }
+.dock-agent hp-assistant-content .name { display: block; font-weight: 600; margin-bottom: 8px; }
+.dock-agent hp-assistant-content .artifact img { display: block; max-width: 100%; max-height: 360px; height: auto; object-fit: contain; border-radius: var(--radius-l); }
+.dock-agent hp-assistant-content .actions { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 10px; }
+.dock-agent hp-assistant-content .artifact a,
+.dock-agent hp-assistant-content .artifact button.save { color: var(--accent); background: none; border: 0; padding: 0; font: inherit; cursor: pointer; }
+.dock-agent hp-assistant-content .artifact a:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.dock-agent hp-assistant-content .error { color: var(--text-secondary); }
+
+.dock-agent hp-assistant-content dialog {
+  box-sizing: border-box;
+  inset: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px);
+  max-width: min(calc(100vw - 32px), 960px);
+  max-height: calc(100dvh - 32px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  margin: auto;
+  padding: clamp(12px, 3vw, 20px);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-l);
+  background: var(--bg-elevated);
+  color: var(--text);
+  overflow: auto;
+}
+
+.dock-agent hp-assistant-content dialog::backdrop {
+  background: rgba(0, 0, 0, .75);
+  backdrop-filter: blur(2px);
+}
+
+.dock-agent hp-assistant-content dialog[open] {
+  transform-origin: center;
+  animation: hp-ac-preview-in 280ms cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+.dock-agent hp-assistant-content dialog[open]::backdrop {
+  animation: hp-ac-preview-fade-in 280ms cubic-bezier(0.32, 0.72, 0, 1) both;
+}
+
+.dock-agent hp-assistant-content dialog[open][data-leave] {
+  animation: hp-ac-preview-out 280ms cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+
+.dock-agent hp-assistant-content dialog[open][data-leave]::backdrop {
+  animation: hp-ac-preview-fade-out 280ms cubic-bezier(0.32, 0.72, 0, 1) forwards;
+}
+
+.dock-agent hp-assistant-content dialog img {
+  display: block;
+  max-width: 100%;
+  max-height: calc(100dvh - 140px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  height: auto;
+  object-fit: contain;
+  margin: 0 auto;
+  border-radius: var(--radius-l);
+}
+
+.dock-agent hp-assistant-content dialog img[hidden],
+.dock-agent hp-assistant-content dialog [hidden] {
+  display: none;
+}
+
+.dock-agent hp-assistant-content dialog .preview-error {
+  color: var(--text-secondary);
+  font-size: 14px;
+  margin: 16px 0;
+  text-align: center;
+}
+
+.dock-agent hp-assistant-content dialog .actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.dock-agent hp-assistant-content dialog button,
+.dock-agent hp-assistant-content dialog .download-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-l);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.dock-agent hp-assistant-content dialog button:focus-visible,
+.dock-agent hp-assistant-content dialog .download-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.dock-agent hp-assistant-content .md a { -webkit-touch-callout: none; }
+.dock-agent hp-assistant-content .md .code { margin: 0 0 12px; }
+.dock-agent hp-assistant-content .md hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
+.dock-agent hp-assistant-content .md table { display: block; overflow-x: auto; border-collapse: collapse; font-size: 14px; }
+.dock-agent hp-assistant-content .md th,
+.dock-agent hp-assistant-content .md td { border: 1px solid var(--border); padding: 6px 10px; text-align: left; }
+.dock-agent hp-assistant-content .md th { background: var(--bg-hover); font-weight: 600; }
+.dock-agent hp-assistant-content .code { border: 1px solid var(--border); border-radius: var(--radius-m); overflow: hidden; background: var(--code-bg); }
+.dock-agent hp-assistant-content .code-head { display: flex; align-items: center; justify-content: space-between; padding: 4px 6px 4px 12px; font-size: 12px; color: var(--text-secondary); border-bottom: 1px solid var(--border); }
+.dock-agent hp-assistant-content .code-head button { font: inherit; color: var(--text-secondary); background: none; border: none; border-radius: var(--radius-s); padding: 2px 8px; cursor: pointer; }
+.dock-agent hp-assistant-content .code-head button:hover { background: var(--bg-hover); color: var(--text); }
+.dock-agent hp-assistant-content pre { margin: 0; padding: 12px; overflow-x: auto; font: 13px/1.55 var(--font-mono); tab-size: 4; }
+.dock-agent hp-assistant-content .hljs-comment,
+.dock-agent hp-assistant-content .hljs-quote { color: var(--hl-comment); font-style: italic; }
+.dock-agent hp-assistant-content .hljs-keyword,
+.dock-agent hp-assistant-content .hljs-selector-tag,
+.dock-agent hp-assistant-content .hljs-built_in,
+.dock-agent hp-assistant-content .hljs-meta .hljs-keyword { color: var(--hl-keyword); }
+.dock-agent hp-assistant-content .hljs-string,
+.dock-agent hp-assistant-content .hljs-regexp,
+.dock-agent hp-assistant-content .hljs-addition,
+.dock-agent hp-assistant-content .hljs-attribute .hljs-string { color: var(--hl-string); }
+.dock-agent hp-assistant-content .hljs-number,
+.dock-agent hp-assistant-content .hljs-literal,
+.dock-agent hp-assistant-content .hljs-symbol,
+.dock-agent hp-assistant-content .hljs-bullet { color: var(--hl-number); }
+.dock-agent hp-assistant-content .hljs-title,
+.dock-agent hp-assistant-content .hljs-section,
+.dock-agent hp-assistant-content .hljs-title.function_ { color: var(--hl-title); }
+.dock-agent hp-assistant-content .hljs-attr,
+.dock-agent hp-assistant-content .hljs-attribute,
+.dock-agent hp-assistant-content .hljs-variable,
+.dock-agent hp-assistant-content .hljs-template-variable,
+.dock-agent hp-assistant-content .hljs-property { color: var(--hl-attr); }
+.dock-agent hp-assistant-content .hljs-type,
+.dock-agent hp-assistant-content .hljs-class .hljs-title,
+.dock-agent hp-assistant-content .hljs-title.class_ { color: var(--hl-type); }
+.dock-agent hp-assistant-content .hljs-deletion { color: var(--danger); }
+.dock-agent hp-assistant-content .hljs-meta { color: var(--hl-comment); }
+
+@media (prefers-reduced-motion: reduce) {
+  .dock-agent hp-steps .dot[data-s="running"] { animation: none; }
+  .dock-agent hp-steps .fold,
+  .dock-agent hp-steps .chev,
+  .dock-agent hp-steps li { transition: none; animation: none; }
+  .dock-agent hp-assistant-content dialog[open],
+  .dock-agent hp-assistant-content dialog[open]::backdrop,
+  .dock-agent hp-assistant-content dialog[open][data-leave],
+  .dock-agent hp-assistant-content dialog[open][data-leave]::backdrop { animation: none; }
+}
+
+@media (max-width: 768px) {
+  .dock-live .tb,
+  .dock-live .tb.icon { min-height: 44px; }
+  .dock-live .tb.icon { width: 44px; }
+  .dock-task .icon-btn { min-width: 44px; min-height: 44px; padding: 10px; }
+  .dock-task .bar-btn { min-height: 44px; border-radius: var(--radius-l); font-size: 15px; }
+  .dock-agent header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 44px;
+    gap: 8px;
+    padding: 12px 12px 8px 16px;
+  }
+  .dock-agent .head { grid-column: 1; grid-row: 1; }
+  .dock-agent header h2 {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    line-height: 1.4;
+  }
+  .dock-agent .sub { margin-top: 6px; line-height: 1.5; }
+  .dock-agent .btn[aria-label="关闭"] {
+    grid-column: 2;
+    grid-row: 1;
+    align-self: start;
+    justify-content: center;
+  }
+  .dock-agent .btn[title] {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-self: start;
+    padding-left: 0;
+    color: var(--accent);
+  }
+  .dock-agent .btn { min-width: 44px; height: 44px; }
+  .dock-agent .body { padding-bottom: 20px; }
+}
+
+@keyframes dock-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes dock-fade-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes dock-sheet-in {
+  from { opacity: 0; transform: translateY(16px) scale(0.96); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes dock-sheet-out {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translateY(16px) scale(0.96); }
+}
+@keyframes dock-task-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.85); }
+}
+@keyframes step-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes hp-steps-pulse {
+  50% { opacity: 0.3; }
+}
+@keyframes hp-ac-preview-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.96); }
+  to { opacity: 1; transform: none; }
+}
+@keyframes hp-ac-preview-out {
+  from { opacity: 1; transform: none; }
+  to { opacity: 0; transform: translateY(10px) scale(0.96); }
+}
+@keyframes hp-ac-preview-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes hp-ac-preview-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  dialog.live-confirm,
+  dialog.live-confirm::backdrop,
+  dialog.live-confirm .dialog,
+  .dock-task .dot.pulse,
+  .dock-live button,
+  .dock-task button,
+  .dock-agent button,
+  .dock-agent summary {
+    animation: none;
+    transition: none;
+  }
+}

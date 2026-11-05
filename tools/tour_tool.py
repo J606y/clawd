@@ -94,7 +94,7 @@ TOUR_SCHEMA = {
     # without them the model guesses selectors on re-rendering UI.
     # See #95681.
     "description": (
-        "Run a guided desktop GUI tour: dim the screen, highlight elements, add popovers. Surfaces: 'app' (Hermes itself) "
+        "Run a guided desktop GUI tour: dim the screen, highlight elements, add popovers. Surfaces: 'app' (upstream Hermes desktop, not part of clawd) "
         "or 'preview' (the page in the preview pane). A general look around "
         "the app is ONE call: action='start' with no steps runs the app's "
         "built-in tour (preset 'quick' or 'full', default full). For a "

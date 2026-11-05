@@ -13,11 +13,11 @@ Division of labour (the Live API has no tools of its own in client mode):
   (``POST /v1/live/sessions``), so the key never reaches the client;
 * the renderer turns each ``session.delegation.created`` into a normal ``prompt.submit`` on the
   active session (surface ``voice-live``) and streams the reply back as
-  ``session.commentary.append`` — Hermes' answer is what the voice speaks.
+  ``session.commentary.append`` — clawd's answer is what the voice speaks.
 
 Vendor contract: https://developers.openai.com/api/docs/guides/live (+ live-delegation,
 voice-webrtc). Billing is $0.05/min of session time on the OpenAI key, separate from the
-Hermes turn.
+clawd turn.
 """
 
 from __future__ import annotations

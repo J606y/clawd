@@ -12,7 +12,7 @@ Every local client (classic CLI, Ink TUI, Desktop, ACP) attaches to the one gate
 the session. A slash command either runs in the client against a canonical verb
 (`session.mutate`, `session.create`, `prompt.receipt`, ...), or goes to the owner as
 `slash.exec`, where `gateway/session_commands.py` runs only the reviewed reads below and refuses
-the rest (`unsupported_command`). The classic CLI (`hermes chat`) is main's `HermesCLI` with a
+the rest (`unsupported_command`). The classic CLI (`clawd chat`) is main's `HermesCLI` with a
 gateway-backed agent and session store: its column names the main handler it runs in-process
 (turns, tools and session writes go to the gateway through `hermes_cli/gateway_agent.py` /
 `gateway_session_store.py`). The `--stream-json` / safe-mode transport client keeps its own
@@ -111,7 +111,7 @@ handler does; `client-local (cli_only)` commands are terminal/UI features of a c
 | `/skin` | refused | HermesCLI._handle_skin_command | config.get, config.set | action: skin | slash.exec: refused | client-local (cli_only) |
 | `/snapshot` (/snap) | refused | HermesCLI._handle_snapshot_command | slash.exec: refused | unavailable: terminal | slash.exec: refused | client-local (cli_only) |
 | `/start` | refused | messaging-only: unknown command | slash.exec: refused | slash.exec: refused | slash.exec: refused | messaging-only |
-| `/status` | read | HermesCLI._show_session_status | canonical route | slash.exec (rpc fallback) | slash.exec | TUI session: main's `Hermes TUI Status` |
+| `/status` | read | HermesCLI._show_session_status | canonical route | slash.exec (rpc fallback) | slash.exec | TUI session: main's `clawd TUI Status` |
 | `/statusbar` (/sb) | refused | HermesCLI._cmd_statusbar | local (preference not saved) | unavailable: terminal | slash.exec: refused | client-local (cli_only) |
 | `/steer` (/s) | refused | HermesCLI._cmd_steer | canonical route | action: steer | session.steer |  |
 | `/stop` | refused | HermesCLI._handle_stop_command | canonical route | action: stop | slash.exec: refused |  |

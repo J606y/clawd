@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>folder off-page fixture</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      const onpage = {
+        id: "onpage", source: "tui", title: "页内归属", model: null,
+        started_at: 1700000100, last_active: 1700000200, message_count: 2,
+        preview: "页内预览", pinned: false, archived: false,
+      };
+      const unfiled = {
+        id: "unfiled", source: "tui", title: "主列表对话", model: null,
+        started_at: 1700000300, last_active: 1700000400, message_count: 4,
+        preview: "主列表预览", pinned: false, archived: false,
+      };
+      const offpage = {
+        id: "offpage", source: "tui", title: "页外归属", model: null,
+        started_at: 1600000000, last_active: 1600000100, message_count: 8,
+        preview: "页外预览", pinned: true, archived: false,
+      };
+      const later = {
+        id: "later", source: "tui", title: "更早未归属", model: null,
+        started_at: 1500000000, last_active: 1500000100, message_count: 1,
+        preview: "更早预览", pinned: false, archived: false,
+      };
+      const cronoff = {
+        id: "cronoff", source: "cron", title: "定时归属", model: null,
+        started_at: 1600000200, last_active: 1600000300, message_count: 1,
+        preview: "定时预览", pinned: false, archived: false,
+      };
+      const cronUnfiled = { ...cronoff, id: "cron-unfiled", title: "主列表定时" };
+      const liveUnfiled = { ...unfiled, id: "live-unfiled", title: "主列表实时", running: true };
+      window.calls = [];
+      window.unmatched = [];
+      window.listRequests = [];
+      localStorage.setItem("hp_project_collapsed", JSON.stringify({ "folder-off": true }));
+      sessionStorage.removeItem("hp_pending_new_chat_project");
+      window.projects = [
+        { id: "folder-on", name: "页内夹", primary_path: "/tmp/folder-on", archived: false, created_at: 1 },
+        { id: "folder-off", name: "页外夹", primary_path: "/tmp/folder-off", archived: false, created_at: 1 },
+      ];
+      function projectSessions(id) {
+        if (id === "folder-on") return [{ session_id: "onpage", title: "页内归属", created_at: 1700000100, last_activity_at: 1700000200, message_count: 2 }];
+        if (id === "folder-off") return [
+          { session_id: "offpage", title: "页外归属", created_at: 1600000000, last_activity_at: 1600000100, message_count: 8 },
+          { session_id: "cronoff", title: "定时归属", created_at: 1600000200, last_activity_at: 1600000300, message_count: 1 },
+        ];
+        return null;
+      }
+      function page(source, offset) {
+        if (source == null || source === "tui") {
+          if (offset > 0) return { data: [offpage, later], has_more: false };
+          return { data: [unfiled, onpage], has_more: true };
+        }
+        if (source === "cron") {
+          if (offset > 0) return { data: [cronoff], has_more: false };
+          return { data: [cronUnfiled], has_more: true };
+        }
+        return { data: [], has_more: false };
+      }
+      function json(body, status) {
+        return new Response(JSON.stringify(body), {
+          status: status || 200,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      window.fetch = async function (input, init) {
+        const raw = typeof input === "string" ? input : (input instanceof URL ? input.href : input.url);
+        const url = new URL(raw, location.href);
+        const method = (init && init.method) || "GET";
+        if (url.pathname.endsWith("/sessions/folders")) return json({ folders: [], assignments: {} });
+        if (url.pathname.includes("/api/projects/migrations/preview")) {
+          return json({
+            operation: "preview",
+            read_only: true,
+            applied: false,
+            success: true,
+            source_missing: true,
+            source_preserved: true,
+            source_write_attempted: false,
+            guessed_paths: false,
+            folders: [],
+            message: "没有旧文件夹库",
+          });
+        }
+        if (url.pathname.includes("/api/projects/") && url.pathname.endsWith("/sessions")) {
+          const parts = url.pathname.split("/");
+          const id = decodeURIComponent(parts[parts.length - 2]);
+          const sessions = projectSessions(id);
+          if (!sessions) return json({ error: "project_not_found", message: "missing" }, 404);
+          return json({ project_id: id, sessions });
+        }
+        if (url.pathname.endsWith("/api/projects")) return json({ projects: window.projects });
+        if (url.pathname.endsWith("/sessions/active")) return json({ data: [{ ...onpage, running: true }, liveUnfiled] });
+        if (url.pathname.endsWith("/api/sessions")) {
+          const source = url.searchParams.get("source");
+          const offset = Number(url.searchParams.get("offset") || "0");
+          window.listRequests.push({ source, offset, limit: url.searchParams.get("limit") });
+          return json(page(source, offset));
+        }
+        window.unmatched.push(method + " " + url.pathname + url.search);
+        return json({ error: { message: "夹具没有这条路由", code: "fixture_not_found" } }, 404);
+      };
+    </script>
+    <script type="module">
+      import { createElement } from "react";
+      import { createRoot } from "react-dom/client";
+      import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+      import { SessionList } from "/src/react/shell/session-list.tsx";
+
+      const client = new QueryClient({
+        defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+      });
+      createRoot(document.getElementById("root")).render(
+        createElement(QueryClientProvider, { client },
+          createElement("div", { className: "shell" },
+            createElement("aside", null,
+              createElement(SessionList, {
+                onSelect() {},
+                onDeleted() {},
+                onRenamed() {},
+              }),
+            ),
+          ),
+        ),
+      );
+      window.ready = true;
+    </script>
+  </body>
+</html>

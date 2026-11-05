@@ -19,6 +19,12 @@ import sys
 import threading
 import time
 
+print(
+    "refused: clawd does not run the official desktop update. This entry is unsupported.",
+    file=sys.stderr,
+)
+raise SystemExit(2)
+
 html_path, status_path = sys.argv[1], sys.argv[2]
 started_at = float(sys.argv[3]) if len(sys.argv) > 3 else time.time()
 owner_pid = int(sys.argv[4]) if len(sys.argv) > 4 else 0

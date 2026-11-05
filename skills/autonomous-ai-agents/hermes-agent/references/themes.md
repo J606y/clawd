@@ -1,6 +1,6 @@
-# Themes / Skins — Author a Hermes Color Theme
+# Themes / Skins — Author a clawd Color Theme
 
-Author a Hermes **skin** — one YAML file that themes the CLI, the TUI, and the
+Author a clawd **skin** — one YAML file that themes the CLI, the TUI, and the
 desktop GUI at once. The skin engine (`hermes_cli/skin_engine.py`) resolves the
 active skin and the gateway pushes it to every surface, so a file dropped in
 `~/.hermes/skins/` is the theme analogue of a plugin: no code, all surfaces. This
@@ -10,7 +10,7 @@ editors or ship built-in presets.
 ## When to Use
 
 - The user asks for a custom look ("make me a synthwave theme", "dark forest
-  vibes", "match my brand colors") for Hermes itself.
+  vibes", "match my brand colors") for clawd itself.
 - The user wants the CLI/TUI/desktop to share one coordinated palette.
 - The user wants to iterate live ("that coral is too loud, make it teal") — edit
   the active skin's YAML and every surface repaints as your tool finishes.
@@ -18,16 +18,16 @@ editors or ship built-in presets.
 ## Prerequisites
 
 - Write access to the Hermes home dir — `~/.hermes` by default, or `$HERMES_HOME`
-  / the active profile's dir. Skins live in `<hermes-home>/skins/`.
+  / the active profile's dir. Skins live in `<clawd-home>/skins/`.
 - Native tools: `write_file` (create the YAML), `read_file` / `search_files`
-  (inspect existing skins), `terminal` (activate via `hermes config set`).
+  (inspect existing skins), `terminal` (activate via `clawd config set`).
 
 ## How to Run
 
 1. Pick a lowercase, hyphen-safe `name` (e.g. `synthwave`).
 2. Copy `templates/skin.yaml` and fill in the palette (keep every key — missing
    keys inherit the `default` skin).
-3. `write_file` it to `<hermes-home>/skins/<name>.yaml`.
+3. `write_file` it to `<clawd-home>/skins/<name>.yaml`.
 4. Activate it (see Procedure). Confirm the change landed.
 
 ## Quick Reference — element → key
@@ -65,12 +65,12 @@ so to recolor *only* tool calls (the classic "change the gold `●`") set `ui_to
    clears WCAG AA against it (~4.5:1) so labels stay legible — the GUI enforces
    contrast but a low-contrast accent still looks washed out. Keep
    `ui_ok`/`ui_warn`/`ui_error` recognizably green/amber/red.
-2. **Write the file** to `<hermes-home>/skins/<name>.yaml`. Every top-level
+2. **Write the file** to `<clawd-home>/skins/<name>.yaml`. Every top-level
    `colors` key from the template should be present.
 3. **Apply it yourself — never hand-edit `config.yaml`.** Run the safe writer via
    `terminal`:
    ```
-   hermes config set display.skin <name>
+   clawd config set display.skin <name>
    ```
    The gateway's skin watcher notices the change and **repaints every surface live
    within ~a second** — CLI, TUI, and desktop — and the skin appears in
@@ -78,7 +78,7 @@ so to recolor *only* tool calls (the classic "change the gold `●`") set `ui_to
    `/skin` (they still can, but it's your job). The writer emits valid YAML — a
    hand-edit can corrupt the file and break the live gateway (including `/`).
 4. **Confirm the new look landed** and tell the user how to revert: run
-   `hermes config set display.skin default` (or they can `/skin default`).
+   `clawd config set display.skin default` (or they can `/skin default`).
 
 ## Tweak the active look (change one thing)
 
@@ -87,14 +87,14 @@ background"), use the one deterministic command — it edits the ACTIVE skin's O
 key in place, so everything else (background included) is untouched:
 
 ```
-hermes skin set <key> <hex>      # e.g. hermes skin set ui_tool "#00FFFF"
+clawd skin set <key> <hex>      # e.g. clawd skin set ui_tool "#00FFFF"
 ```
 
 It edits the active skin's file (a built-in is forked into an editable copy that
 keeps its full palette), the watcher repaints live, and nothing else moves. Do
 NOT hand-write a new skin from `default` for a tweak — that drops the current
-palette and resets the background. `hermes skin set background "#08201f"` changes
-only the background; `hermes skin use <name>` / `hermes skin list` switch and
+palette and resets the background. `clawd skin set background "#08201f"` changes
+only the background; `clawd skin use <name>` / `clawd skin list` switch and
 enumerate.
 
 ## Pitfalls
@@ -108,10 +108,10 @@ enumerate.
 - **Name collisions**: a skin named like a desktop built-in (`mono`, `slate`,
   `cyberpunk`, `nous`, `midnight`, `ember`) won't override that built-in on the
   GUI. Pick a fresh name.
-- **Never hand-edit `config.yaml` to activate.** Use `hermes config set
+- **Never hand-edit `config.yaml` to activate.** Use `clawd config set
   display.skin <name>` — a stray indent in a manual edit corrupts the file and
   can break the live gateway (including `/`). One command, always valid.
-- **You apply it, not the user.** `hermes config set display.skin <name>` is
+- **You apply it, not the user.** `clawd config set display.skin <name>` is
   enough — the gateway's watcher repaints every surface within ~a second. Don't
   defer to "type /skin yourself"; that's the old behavior.
 - **To change one color, edit the ACTIVE skin — never fork `default`.** Forking
@@ -121,7 +121,7 @@ enumerate.
 
 ## Verification
 
-- `read_file` the written `<hermes-home>/skins/<name>.yaml` and confirm valid
+- `read_file` the written `<clawd-home>/skins/<name>.yaml` and confirm valid
   YAML with the intended `name` and `colors`.
-- Run `hermes config get display.skin` and confirm it reports `<name>`.
+- Run `clawd config get display.skin` and confirm it reports `<name>`.
 - The repaint lands as this turn ends — ask the user to confirm the new look.

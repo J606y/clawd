@@ -1,7 +1,7 @@
 ---
 sidebar_position: 12
 title: "Cron Troubleshooting"
-description: "Diagnose and fix common Hermes cron issues — jobs not firing, delivery failures, skill loading errors, and performance problems"
+description: "Diagnose and fix common clawd cron issues — jobs not firing, delivery failures, skill loading errors, and performance problems"
 ---
 
 # Cron Troubleshooting
@@ -15,7 +15,7 @@ When a cron job isn't behaving as expected, work through these checks in order. 
 ### Check 1: Verify the job exists and is active
 
 ```bash
-hermes cron list
+clawd cron list
 ```
 
 Look for the job and confirm its state is `[active]` (not `[paused]` or `[completed]`). If it shows `[completed]`, the repeat count may be exhausted — edit the job to reset it.
@@ -38,7 +38,7 @@ If the job fires once and then disappears from the list, it's a one-shot schedul
 
 Cron jobs are fired by the gateway's background ticker thread, which ticks every 60 seconds. A regular CLI chat session does **not** automatically fire cron jobs.
 
-If you're expecting jobs to fire automatically, you need a running gateway (`hermes gateway` for foreground, or `hermes gateway start` for the installed service). For one-off debugging, you can manually trigger a tick with `hermes cron tick` — but that tick still needs the gateway: it never starts one, and with no gateway running it skips agent jobs (logged, shown in `hermes cron list`) until the next tick after `hermes gateway start`.
+If you're expecting jobs to fire automatically, you need a running gateway (`clawd gateway` for foreground, or `clawd gateway start` for the installed service). For one-off debugging, you can manually trigger a tick with `clawd cron tick` — but that tick still needs the gateway: it never starts one, and with no gateway running it skips agent jobs (logged, shown in `clawd cron list`) until the next tick after `clawd gateway start`.
 
 **Desktop app:** the desktop's primary backend runs its own ticker, and it ticks **every local profile's** cron store — so jobs on a secondary profile keep firing even while that profile's backend is asleep (the desktop puts idle profile backends to sleep after ~10 minutes). You do not need to keep a profile open for its scheduled jobs to run.
 
@@ -48,7 +48,7 @@ Jobs use the local timezone. If your machine's clock is wrong or in a different 
 
 ```bash
 date
-hermes cron list   # Compare next_run times with local time
+clawd cron list   # Compare next_run times with local time
 ```
 
 ---
@@ -61,20 +61,20 @@ Delivery targets are case-sensitive and require the correct platform to be confi
 
 | Target | Requires |
 |--------|----------|
-| `telegram` | `TELEGRAM_BOT_TOKEN` in `~/.hermes/.env` |
-| `discord` | `DISCORD_BOT_TOKEN` in `~/.hermes/.env` |
-| `slack` | `SLACK_BOT_TOKEN` in `~/.hermes/.env` |
+| `telegram` | `TELEGRAM_BOT_TOKEN` in `~/.clawd/.env` |
+| `discord` | `DISCORD_BOT_TOKEN` in `~/.clawd/.env` |
+| `slack` | `SLACK_BOT_TOKEN` in `~/.clawd/.env` |
 | `whatsapp` | WhatsApp gateway configured |
 | `signal` | Signal gateway configured |
 | `matrix` | Matrix homeserver configured |
 | `email` | SMTP configured in `config.yaml` |
 | `sms` | SMS provider configured |
-| `local` | Write access to `~/.hermes/cron/output/` |
+| `local` | Write access to `~/.clawd/cron/output/` |
 | `origin` | Delivers to the chat where the job was created |
 
 Other supported platforms include `mattermost`, `homeassistant` (plugin), `dingtalk`, `feishu`, `wecom`, `weixin`, `bluebubbles`, `qqbot`, and `webhook`. You can also target a specific chat with `platform:chat_id` syntax (e.g., `telegram:-1001234567890`).
 
-If delivery fails, the job still runs — it just won't send anywhere. Check `hermes cron list` for updated `last_error` field (if available).
+If delivery fails, the job still runs — it just won't send anywhere. Check `clawd cron list` for updated `last_error` field (if available).
 
 ### Check 2: Check `[SILENT]` usage
 
@@ -99,12 +99,12 @@ cron:
   wrap_response: false
 ```
 
-### Check 5: Relay-fronted platforms (Hermes Cloud / Team Gateway)
+### Check 5: Relay-fronted platforms (clawd Cloud / Team Gateway)
 
 When a platform's credential lives in the relay connector (e.g. Slack or Discord fronted by a Team Gateway) rather than in your local `.env`, the **running gateway's live relay adapter is the only sender** — there is no standalone delivery path.
 
 - Scheduled fires work as long as the gateway is running: its ticker owns relay-fronted delivery.
-- A standalone `hermes cron run <id>` automatically **forwards the run to the gateway** over the api_server (`POST /api/jobs/{id}/run`). This requires the `api_server` platform to be enabled with an `API_SERVER_KEY` (16+ characters). A `--prompt` / `cronjob(action='run', prompt=...)` context is forwarded with it and applies to that single fire only.
+- A standalone `clawd cron run <id>` automatically **forwards the run to the gateway** over the api_server (`POST /api/jobs/{id}/run`). This requires the `api_server` platform to be enabled with an `API_SERVER_KEY` (16+ characters). A `--prompt` / `cronjob(action='run', prompt=...)` context is forwarded with it and applies to that single fire only.
 - If the gateway is not reachable, the run fails with a "relay-fronted … start the gateway" error instead of the misleading `platform 'slack' not configured/enabled`. Start the gateway and retry.
 
 ---
@@ -114,14 +114,14 @@ When a platform's credential lives in the relay connector (e.g. Slack or Discord
 ### Check 1: Verify skills are installed
 
 ```bash
-hermes skills list
+clawd skills list
 ```
 
-Skills must be installed before they can be attached to cron jobs. If a skill is missing, install it first with `hermes skills install <skill-name>` or via `/skills` in the CLI.
+Skills must be installed before they can be attached to cron jobs. If a skill is missing, install it first with `clawd skills install <skill-name>` or via `/skills` in the CLI.
 
 ### Check 2: Check skill name vs. skill folder name
 
-Skill names are case-sensitive and must match the installed skill's folder name. If your job specifies `ai-funding-report` but the skill folder is `ai-funding-daily-report`, confirm the exact name from `hermes skills list`.
+Skill names are case-sensitive and must match the installed skill's folder name. If your job specifies `ai-funding-report` but the skill folder is `ai-funding-daily-report`, confirm the exact name from `clawd skills list`.
 
 ### Check 3: Skills that require interactive tools
 
@@ -148,20 +148,20 @@ In this example, `context-skill` loads before `target-skill`.
 If a job ran and failed, you may see error context in:
 
 1. The chat where the job delivers (if delivery succeeded)
-2. `~/.hermes/logs/agent.log` for scheduler messages (or `errors.log` for warnings)
-3. The job's `last_run` metadata via `hermes cron list`
+2. `~/.clawd/logs/agent.log` for scheduler messages (or `errors.log` for warnings)
+3. The job's `last_run` metadata via `clawd cron list`
 
 ### Check 2: Common error patterns
 
 **"No such file or directory" for scripts**
-The `script` path must be an absolute path (or relative to the Hermes config directory). Verify:
+The `script` path must be an absolute path (or relative to the clawd config directory). Verify:
 ```bash
-ls ~/.hermes/scripts/your-script.py   # Must exist
-hermes cron edit <job_id> --script ~/.hermes/scripts/your-script.py
+ls ~/.clawd/scripts/your-script.py   # Must exist
+clawd cron edit <job_id> --script ~/.clawd/scripts/your-script.py
 ```
 
 **"Skill not found" at job execution**
-The skill must be installed on the machine running the scheduler. If you move between machines, skills don't automatically sync — reinstall them with `hermes skills install <skill-name>`.
+The skill must be installed on the machine running the scheduler. If you move between machines, skills don't automatically sync — reinstall them with `clawd skills install <skill-name>`.
 
 **Job runs but delivers nothing**
 Likely a delivery target issue (see Delivery Failures above), no output, or a response containing the cron quiet marker `[SILENT]`.
@@ -175,17 +175,17 @@ The scheduler uses file-based locking to prevent overlapping ticks. If two gatew
 
 Kill duplicate gateway processes:
 ```bash
-ps aux | grep hermes
+ps aux | grep clawd
 # Kill duplicate processes, keep only one
 ```
 
 ### Check 4: Permissions on jobs.json
 
-Jobs are stored in `~/.hermes/cron/jobs.json`. If this file is not readable/writable by your user, the scheduler will fail silently:
+Jobs are stored in `~/.clawd/cron/jobs.json`. If this file is not readable/writable by your user, the scheduler will fail silently:
 
 ```bash
-ls -la ~/.hermes/cron/jobs.json
-chmod 600 ~/.hermes/cron/jobs.json   # Your user should own it
+ls -la ~/.clawd/cron/jobs.json
+chmod 600 ~/.clawd/cron/jobs.json   # Your user should own it
 ```
 
 ---
@@ -209,11 +209,11 @@ Scripts that dump megabytes of output will slow down the agent and may hit token
 ## Diagnostic Commands
 
 ```bash
-hermes cron list                    # Show all jobs, states, next_run times
-hermes cron run <job_id>            # Schedule for next tick (for testing)
-hermes cron edit <job_id>           # Fix configuration issues
-hermes logs                         # View recent Hermes logs
-hermes skills list                  # Verify installed skills
+clawd cron list                    # Show all jobs, states, next_run times
+clawd cron run <job_id>            # Schedule for next tick (for testing)
+clawd cron edit <job_id>           # Fix configuration issues
+clawd logs                         # View recent clawd logs
+clawd skills list                  # Verify installed skills
 ```
 
 ---
@@ -222,8 +222,8 @@ hermes skills list                  # Verify installed skills
 
 If you've worked through this guide and the issue persists:
 
-1. Run the job with `hermes cron run <job_id>` (fires on next gateway tick) and watch for errors in the chat output
-2. Check `~/.hermes/logs/agent.log` for scheduler messages and `~/.hermes/logs/errors.log` for warnings
+1. Run the job with `clawd cron run <job_id>` (fires on next gateway tick) and watch for errors in the chat output
+2. Check `~/.clawd/logs/agent.log` for scheduler messages and `~/.clawd/logs/errors.log` for warnings
 3. Open an issue at [github.com/NousResearch/hermes-agent](https://github.com/NousResearch/hermes-agent) with:
    - The job ID and schedule
    - The delivery target

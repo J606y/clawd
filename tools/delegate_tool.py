@@ -146,11 +146,13 @@ def _open_child_session_db(parent_agent) -> Any:
         return reserve_child_store(parent_session_db)
     if parent_session_db is None:
         return None
-    with _quiet("subagent: failed to open dedicated SessionDB; child persistence disabled", exc_info=True):
-        from hermes_state_registry import acquire
-        _parent_db_path = getattr(parent_session_db, "db_path", None)
-        return acquire(_parent_db_path) if _parent_db_path is not None else acquire()
-    return None
+    # A missing parent path is not permission to open the process home. The caller
+    # refuses to publish a child whose profile cannot be proved from state.db.
+    parent_db_path = getattr(parent_session_db, "db_path", None)
+    if parent_db_path is None:
+        return None
+    from hermes_state_registry import acquire
+    return acquire(parent_db_path)
 
 def _apply_child_cache_ttl(child) -> None:
     """A delegated child never uses the 1h cache tier. The tier is priced for a person who steps
@@ -198,6 +200,53 @@ def _apply_child_compression_cap(child, delegation_cfg: dict) -> None:
     cc.threshold_tokens_cap = min(cap, existing) if isinstance(existing, int) and existing > 0 else cap
     if cc._threshold_tokens is not None:  # already resolved: re-clamp now
         cc._apply_threshold_tokens_cap()
+
+
+def _child_session_id_for_project(parent_sid, child_session_db, parent_home):
+    """Session id for AIAgent after a same-profile snapshot, or a refusal to publish.
+
+    A reserved worker id was snapshotted inside the owner transaction. Do not
+    bind it again: ``force=True`` would skip idle, and any rebind would overwrite
+    a snapshot or undo an explicit unbind. An in-process id with no row is
+    inserted here so ``_insert_session_row`` copies the parent project inside
+    that state write, before AIAgent() reads the binding. ``projects.db`` is not
+    committed first.
+
+    ``parent_home`` is not a projects.db location. Process home, URL, and
+    ancestors are not consulted. A missing ``state.db`` path is not identity
+    and does not publish a runnable child.
+    """
+    del parent_home  # retained so callers keep the signature; not a profile source
+    from clawd_projects.inheritance import ProjectInheritanceError
+
+    reserved = getattr(child_session_db, "reserved_session_id", None)
+    if isinstance(reserved, str) and reserved.strip():
+        return reserved.strip()
+    if not parent_sid:
+        return None
+    state_path = getattr(child_session_db, "db_path", None)
+    if state_path is None:
+        raise ProjectInheritanceError(
+            "child publish has no trusted state.db path; refusing to guess a profile"
+        )
+    from clawd_projects.inheritance import trusted_state_db_home
+    trusted_state_db_home(state_path)
+    from hermes_state_ids import new_session_id
+    child_sid = new_session_id()
+    existing = getattr(child_session_db, "get_session", None)
+    if callable(existing) and existing(child_sid) is not None:
+        raise ProjectInheritanceError(
+            "refusing to publish a new child onto an existing session id"
+        )
+    create = getattr(child_session_db, "create_session", None)
+    if not callable(create):
+        raise ProjectInheritanceError(
+            "child store cannot insert a session row; refusing to pre-bind projects.db"
+        )
+    # New row only. The insert copies the parent's current project before its
+    # own state commit. Do not call bind_session_to_project, with or without force.
+    create(str(child_sid), "subagent", parent_session_id=str(parent_sid))
+    return str(child_sid)
 
 
 def _build_child_agent(
@@ -270,6 +319,7 @@ def _build_child_agent(
         depth=max(0, child_depth - 1),  # 0 = first-level child for the UI
         model=model or getattr(parent_agent, "model", None), toolsets=child_toolsets, session_ref=child_session_ref,
     )
+    # Project profile comes from the child state.db path, not process home.
     with delegated_profile_scope(profile_home):
         rt = _resolve_child_runtime(
             parent_agent, delegation_cfg, parent_api_key, model=model, override_provider=override_provider,
@@ -288,6 +338,14 @@ def _build_child_agent(
             request_overrides = {} if override_provider else dict(getattr(parent_agent, "request_overrides", {}) or {})
         parent_sid = getattr(parent_agent, "session_id", None)
         child_session_db = _open_child_session_db(parent_agent)
+        try:
+            child_sid = _child_session_id_for_project(parent_sid, child_session_db, None)
+        except BaseException:
+            if child_session_db is not None:
+                with _quiet(None):
+                    from hermes_state_registry import release_or_close
+                    release_or_close(child_session_db)
+            raise
         with delegated_child_context():
             try:
                 child = AIAgent(
@@ -301,7 +359,7 @@ def _build_child_agent(
                         if child_progress_cb else None
                     ),
                     session_db=child_session_db, parent_session_id=parent_sid, request_overrides=request_overrides,
-                    session_id=getattr(child_session_db, "reserved_session_id", None),
+                    session_id=child_sid,
                     tool_progress_callback=child_progress_cb,
                     iteration_budget=None,  # fresh budget per subagent
                     # A profile route carries that profile's identity (its SOUL.md under the bound home).
@@ -447,6 +505,68 @@ def _route_overrides(route: Any) -> dict[str, Any]:
     }
 
 
+def _explicit_todo_id(task: Any) -> Optional[str]:
+    """Caller-supplied checklist id only. Goal text is not an id."""
+    if not isinstance(task, dict):
+        return None
+    raw = task.get("todo_id")
+    if not isinstance(raw, str):
+        return None
+    text = raw.strip()
+    return text or None
+
+
+def _stamp_child_dispatch_link(child, *, todo_id: Optional[str] = None, delegation_id: Optional[str] = None) -> None:
+    """Write the dispatch link onto the child and its session row.
+
+    ``subagent_id`` is the registry id. It is never the session id. A missing
+    session patch is not success: the init config still carries the link so the
+    first persist does not drop it.
+    """
+    session_id = getattr(child, "session_id", None)
+    subagent_id = getattr(child, "_subagent_id", None)
+    if not isinstance(subagent_id, str) or not subagent_id or subagent_id == session_id:
+        subagent_id = None
+    patch: dict[str, str] = {}
+    if todo_id:
+        patch["_clawd_todo_id"] = todo_id
+        child._clawd_todo_id = todo_id
+    if delegation_id:
+        patch["_clawd_delegation_id"] = delegation_id
+        child._delegation_id = delegation_id
+    if subagent_id:
+        patch["_clawd_subagent_id"] = subagent_id
+    if not patch:
+        return
+    init = getattr(child, "_session_init_model_config", None)
+    if isinstance(init, dict):
+        init.update(patch)
+    db = getattr(child, "_session_db", None)
+    if db is None or not isinstance(session_id, str) or not session_id:
+        return
+    writer = getattr(db, "patch_session_model_config", None)
+    if not callable(writer):
+        return
+    try:
+        writer(session_id, patch)
+    except Exception:
+        logger.debug("child dispatch link was not stored on the session row", exc_info=True)
+
+
+def _child_dispatch_echo(index: int, task: Any, child, delegation_id: Optional[str]) -> dict[str, Any]:
+    session_id = getattr(child, "session_id", None)
+    subagent_id = getattr(child, "_subagent_id", None)
+    if not isinstance(subagent_id, str) or not subagent_id or subagent_id == session_id:
+        subagent_id = None
+    return {
+        "task_index": index,
+        "todo_id": _explicit_todo_id(task),
+        "delegation_id": delegation_id if isinstance(delegation_id, str) and delegation_id else None,
+        "subagent_id": subagent_id,
+        "child_session_id": session_id if isinstance(session_id, str) and session_id else None,
+    }
+
+
 def _build_children(
     task_list: list[dict[str, Any]], task_schemas: list[Optional[dict[str, Any]]], routes: list[Any], *,
     top_role: str, max_iterations: int, parent_agent,
@@ -479,6 +599,7 @@ def _build_children(
                 _close_child(built, "Failed to close child after a refused sibling")
             return [], str(exc)
         pin_child_service_tier(child, route.creds)
+        _stamp_child_dispatch_link(child, todo_id=_explicit_todo_id(t))
         if _task_schema is not None:
             with _quiet("Could not attach output schema to child %d", i):
                 child._delegate_output_schema = _task_schema
@@ -828,6 +949,11 @@ DELEGATE_TASK_SCHEMA = {
                             "is enabled; otherwise the whole call returns as one message). Tasks sharing a group return "
                             "together in ONE message; ungrouped tasks return individually as each finishes. This does not "
                             "order execution; if B needs A's output, dispatch B after A returns.",
+                        ),
+                        "todo_id": _p(
+                            "string",
+                            "Optional explicit checklist item id for this child. Pass only the id the caller already "
+                            "has. Never infer it from the goal text, the task index, or a similar row.",
                         ),
                     },
                     "required": ["goal"],

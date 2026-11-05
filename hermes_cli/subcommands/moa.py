@@ -1,4 +1,4 @@
-"""``hermes moa`` subcommand parser."""
+"""``clawd moa`` subcommand parser."""
 
 from __future__ import annotations
 

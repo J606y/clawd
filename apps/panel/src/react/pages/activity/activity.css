@@ -1,0 +1,379 @@
+/* f852fac hp-activity.ts + page.ts + hp-subagents.ts（compact list-only）。数值原样，选择器挂在 .activity-page 下。 */
+
+.activity-page {
+  display: block;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.activity-page .page {
+  display: block;
+  flex: none;
+  width: 100%;
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 24px 20px calc(32px + var(--safe-bottom));
+  background: transparent;
+}
+
+.activity-page .head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.activity-page .head h1 {
+  margin: 0;
+  flex: 1;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.activity-page .sub {
+  margin: -8px 0 16px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.activity-page .card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-l);
+  box-shadow: none;
+}
+
+.activity-page .card.list > * + * {
+  border-top: 1px solid var(--border);
+}
+
+.activity-page .error {
+  color: var(--danger);
+  font-size: 13px;
+}
+
+.activity-page .empty,
+.activity-page .loading {
+  padding: 40px 0;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.activity-page .now {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.activity-page .now .card {
+  padding: 12px 16px;
+}
+
+.activity-page .now .k {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.activity-page .now .v {
+  font-size: 24px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.activity-page .item {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 14px;
+  font: inherit;
+  font-size: 14px;
+  color: inherit;
+  text-align: left;
+  background: none;
+  border: none;
+  border-radius: 0;
+  cursor: pointer;
+  min-height: 0;
+}
+
+.activity-page .item:hover {
+  background: var(--bg-hover);
+}
+
+.activity-page .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--success);
+}
+
+.activity-page .dot[data-s="failed"] {
+  background: var(--danger);
+}
+
+.activity-page .dot[data-s="pending"] {
+  background: var(--accent);
+}
+
+.activity-page .what {
+  min-width: 0;
+}
+
+.activity-page .what b {
+  font-weight: 500;
+}
+
+.activity-page .what code {
+  font: 12px var(--font-mono);
+  color: var(--text-secondary);
+  margin-left: 6px;
+}
+
+.activity-page .what small {
+  display: block;
+  font-size: 12px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.activity-page .what > span {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.activity-page .activity-section {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-l);
+  background: var(--bg-elevated);
+  margin-bottom: 16px;
+}
+
+.activity-page .activity-section > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 48px;
+  padding: 12px 16px;
+  cursor: pointer;
+  list-style: none;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.activity-page .activity-section > summary::-webkit-details-marker {
+  display: none;
+}
+
+.activity-page .activity-section > summary::after {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(45deg);
+  margin-left: auto;
+}
+
+.activity-page .activity-section[open] > summary::after {
+  transform: rotate(225deg);
+}
+
+.activity-page .activity-section > summary:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -3px;
+}
+
+.activity-page .section-body {
+  padding: 0 14px 14px;
+}
+
+.activity-page .when {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
+/* hp-subagents.ts，活动页只挂 compact + list-only 那一支。 */
+.activity-page .hp-subagents {
+  display: block;
+}
+
+.activity-page .hp-subagents .list {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  margin: 4px 0 8px;
+  max-height: min(38vh, 340px);
+  overflow-y: auto;
+}
+
+.activity-page .hp-subagents[list-only] .list {
+  max-height: none;
+  overflow: visible;
+  margin: 8px 0 0;
+}
+
+.activity-page .hp-subagents .card {
+  min-width: 0;
+  overflow: hidden;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-l);
+  padding: 10px 12px;
+  display: grid;
+  gap: 4px;
+  box-shadow: none;
+}
+
+.activity-page .hp-subagents .top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.activity-page .hp-subagents .title {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.activity-page .hp-subagents .st {
+  flex: none;
+  font-size: 11px;
+  padding: 1px 8px;
+  border-radius: var(--radius-l);
+  background: var(--bg-hover);
+  color: var(--text-secondary);
+}
+
+.activity-page .hp-subagents .st[data-s="running"] {
+  color: var(--accent);
+}
+
+.activity-page .hp-subagents .st[data-s="stalled"] {
+  color: var(--warning);
+}
+
+.activity-page .hp-subagents .st[data-s="done"] {
+  color: var(--success);
+}
+
+.activity-page .hp-subagents .spin {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  animation: hp-subagents-spin 0.9s linear infinite;
+}
+
+.activity-page .hp-subagents .dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--text-tertiary);
+}
+
+.activity-page .hp-subagents .dot[data-s="done"] {
+  background: var(--success);
+}
+
+.activity-page .hp-subagents .dot[data-s="stalled"] {
+  background: var(--warning);
+}
+
+.activity-page .hp-subagents .dot[data-s="failed"] {
+  background: var(--text-tertiary);
+}
+
+@keyframes hp-subagents-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.activity-page .hp-subagents .meta,
+.activity-page .hp-subagents .tool,
+.activity-page .hp-subagents .snip {
+  min-width: 0;
+  line-height: 16px;
+  min-height: 16px;
+  font-size: 12px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.activity-page .hp-subagents .tool {
+  color: var(--text-secondary);
+}
+
+.activity-page .hp-subagents .tool code {
+  font: 12px var(--font-mono);
+  line-height: 16px;
+  margin-left: 6px;
+  color: var(--text-tertiary);
+}
+
+.activity-page .hp-subagents .view {
+  font: inherit;
+  font-size: 12px;
+  color: var(--accent);
+  background: none;
+  border: none;
+  border-radius: 0;
+  padding: 0;
+  cursor: pointer;
+  flex: none;
+  min-height: 0;
+}
+
+.activity-page button,
+.activity-page [role="button"],
+.activity-page summary {
+  transition:
+    background-color 180ms var(--ease-nav, cubic-bezier(0.32, 0.72, 0, 1)),
+    color 180ms var(--ease-nav, cubic-bezier(0.32, 0.72, 0, 1)),
+    border-color 180ms var(--ease-nav, cubic-bezier(0.32, 0.72, 0, 1)),
+    box-shadow 180ms var(--ease-nav, cubic-bezier(0.32, 0.72, 0, 1)),
+    opacity 180ms var(--ease-nav, cubic-bezier(0.32, 0.72, 0, 1));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .activity-page .hp-subagents .spin {
+    animation: none;
+  }
+  .activity-page button,
+  .activity-page [role="button"],
+  .activity-page summary {
+    transition: none;
+  }
+}
+
+@media (max-width: 768px) {
+  .activity-page .page {
+    padding: 16px 14px calc(24px + var(--safe-bottom));
+  }
+}

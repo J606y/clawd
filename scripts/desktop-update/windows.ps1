@@ -80,6 +80,9 @@ param(
     [int]$CustodyOf = 0
 )
 
+Write-Error "refused: clawd does not run the official desktop update. This entry is unsupported."
+exit 2
+
 if ($MarkerOp -and -not $InstallRoot) {
     [Console]::Error.WriteLine("-MarkerOp needs -InstallRoot")
     exit 64

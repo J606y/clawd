@@ -28,6 +28,9 @@
 
 set -euo pipefail
 
+echo "refused: clawd does not run the official desktop update. This entry is unsupported." >&2
+exit 2
+
 MODE="${1:-help}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"

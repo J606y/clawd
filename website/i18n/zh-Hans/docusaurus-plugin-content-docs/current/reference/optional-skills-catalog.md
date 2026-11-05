@@ -1,7 +1,7 @@
 ---
 sidebar_position: 9
 title: "可选技能目录"
-description: "hermes-agent 附带的官方可选技能 — 通过 hermes skills install official/<category>/<skill> 安装"
+description: "hermes-agent 附带的官方可选技能 — 通过 clawd skills install official/<category>/<skill> 安装"
 ---
 
 # 可选技能目录
@@ -9,14 +9,14 @@ description: "hermes-agent 附带的官方可选技能 — 通过 hermes skills 
 可选技能随 hermes-agent 一起发布，位于 `optional-skills/` 目录下，但**默认未激活**。请显式安装：
 
 ```bash
-hermes skills install official/<category>/<skill>
+clawd skills install official/<category>/<skill>
 ```
 
 示例：
 
 ```bash
-hermes skills install official/blockchain/solana
-hermes skills install official/mlops/flash-attention
+clawd skills install official/blockchain/solana
+clawd skills install official/mlops/flash-attention
 ```
 
 下方每个技能均链接至专属页面，包含完整定义、配置和使用说明。
@@ -24,7 +24,7 @@ hermes skills install official/mlops/flash-attention
 卸载方式：
 
 ```bash
-hermes skills uninstall <skill-name>
+clawd skills uninstall <skill-name>
 ```
 
 ## autonomous-ai-agents
@@ -32,7 +32,7 @@ hermes skills uninstall <skill-name>
 | 技能 | 描述 |
 |-------|-------------|
 | [**blackbox**](/user-guide/skills/optional/autonomous-ai-agents/autonomous-ai-agents-blackbox) | 将编码任务委托给 Blackbox AI CLI agent。内置评判机制的多模型 agent，通过多个 LLM 运行任务并选出最佳结果。需要 blackbox CLI 和 Blackbox AI API 密钥。 |
-| [**honcho**](/user-guide/skills/optional/autonomous-ai-agents/autonomous-ai-agents-honcho) | 配置并使用 Honcho 记忆与 Hermes — 跨会话用户建模、多配置文件对等隔离、观测配置、辩证推理、会话摘要及上下文预算执行。适用于配置 Honcho、故障排查等场景。 |
+| [**honcho**](/user-guide/skills/optional/autonomous-ai-agents/autonomous-ai-agents-honcho) | 配置并使用 Honcho 记忆与 clawd — 跨会话用户建模、多配置文件对等隔离、观测配置、辩证推理、会话摘要及上下文预算执行。适用于配置 Honcho、故障排查等场景。 |
 
 ## blockchain
 
@@ -59,7 +59,7 @@ hermes skills uninstall <skill-name>
 | [**excalidraw**](/user-guide/skills/optional/creative/creative-excalidraw) | 手绘风格的 Excalidraw JSON 图表（架构、流程、时序）。 |
 | [**heartmula**](/user-guide/skills/optional/creative/creative-heartmula) | HeartMuLa：根据歌词 + 标签生成类 Suno 风格的歌曲。 |
 | [**hyperframes**](/user-guide/skills/optional/creative/creative-hyperframes) | 使用 HyperFrames 创建基于 HTML 的视频合成、动态标题卡、社交叠层、字幕访谈视频、音频响应视觉效果及着色器转场。HTML 是视频的唯一来源。适用于用户希望制作任何视频内容的场景。 |
-| [**kanban-video-orchestrator**](/user-guide/skills/optional/creative/creative-kanban-video-orchestrator) | 规划、搭建并监控由 Hermes Kanban 支撑的多 agent 视频制作流水线。适用于用户希望制作任何类型视频的场景 — 叙事影片、产品/营销视频、MV、解说视频、ASCII/终端艺术、抽象/生成式循环等。 |
+| [**kanban-video-orchestrator**](/user-guide/skills/optional/creative/creative-kanban-video-orchestrator) | 规划、搭建并监控由 clawd Kanban 支撑的多 agent 视频制作流水线。适用于用户希望制作任何类型视频的场景 — 叙事影片、产品/营销视频、MV、解说视频、ASCII/终端艺术、抽象/生成式循环等。 |
 | [**meme-generation**](/user-guide/skills/optional/creative/creative-meme-generation) | 通过选取模板并使用 Pillow 叠加文字来生成真实的 meme 图片，输出实际的 .png 文件。 |
 | [**pretext**](/user-guide/skills/optional/creative/creative-pretext) | 使用 @chenglou/pretext 构建创意浏览器 demo——无 DOM 的文本布局，支持 ASCII 艺术、绕障碍物的排版流、文字即几何游戏、动态排版和文字驱动的生成艺术。生成单文件 HTML。 |
 | [**sketch**](/user-guide/skills/optional/creative/creative-sketch) | 一次性 HTML 原型：生成 2-3 个设计变体供对比。 |
@@ -168,7 +168,7 @@ hermes skills uninstall <skill-name>
 | [**shop**](/user-guide/skills/optional/productivity/productivity-shop) | Shop.app：商品搜索、订单追踪、退货、重新下单。 |
 | [**shopify**](/user-guide/skills/optional/productivity/productivity-shopify) | 通过 curl 使用 Shopify Admin 和 Storefront GraphQL API。支持商品、订单、客户、库存、元字段。 |
 | [**siyuan**](/user-guide/skills/optional/productivity/productivity-siyuan) | 通过 curl 使用 SiYuan Note API，在自托管知识库中搜索、读取、创建和管理块与文档。 |
-| [**telephony**](/user-guide/skills/optional/productivity/productivity-telephony) | 为 Hermes 添加电话能力，无需修改核心工具。配置并持久化 Twilio 号码，发送和接收 SMS/MMS，拨打直接通话，并通过 Bland.ai 或 Vapi 发起 AI 驱动的外呼。 |
+| [**telephony**](/user-guide/skills/optional/productivity/productivity-telephony) | 为 clawd 添加电话能力，无需修改核心工具。配置并持久化 Twilio 号码，发送和接收 SMS/MMS，拨打直接通话，并通过 Bland.ai 或 Vapi 发起 AI 驱动的外呼。 |
 
 ## research
 

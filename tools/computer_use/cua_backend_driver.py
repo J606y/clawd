@@ -144,7 +144,7 @@ def _manifest_contract_reason(manifest: Optional[dict[str, Any]]) -> str:
     if not match:
         return "driver manifest does not report a semantic version"
     if tuple(int(part) for part in match.groups()) < _CUA_DRIVER_RUNTIME_CONTRACT_MIN:
-        return "Hermes computer use requires cua-driver 0.20.0 or newer"
+        return "clawd computer use requires cua-driver 0.20.0 or newer"
     if not _valid_mcp_args(manifest.get("mcp_invocation")):
         return "driver manifest does not provide an MCP launch command"
     advertised: dict[str, set[str]] = {

@@ -14,10 +14,10 @@ Plan-in-code fan-outs, adversarial verification, waves.
 
 | | |
 |---|---|
-| Source | Optional — install with `hermes skills install official/autonomous-ai-agents/dynamic-workflow` |
+| Source | Optional — install with `clawd skills install official/autonomous-ai-agents/dynamic-workflow` |
 | Path | `optional-skills/autonomous-ai-agents/dynamic-workflow` |
 | Version | `2.0.0` |
-| Author | Teknium + Hermes Agent |
+| Author | Teknium + clawd |
 | License | MIT |
 | Platforms | linux, macos, windows |
 | Tags | `orchestration`, `fan-out`, `subagents`, `delegation`, `verification`, `migration`, `audit`, `research`, `campaign` |
@@ -26,7 +26,7 @@ Plan-in-code fan-outs, adversarial verification, waves.
 ## Reference: full SKILL.md
 
 :::info
-The following is the complete skill definition that Hermes loads when this skill is triggered. This is what the agent sees as instructions when the skill is active.
+The following is the complete skill definition that clawd loads when this skill is triggered. This is what the agent sees as instructions when the skill is active.
 :::
 
 # Dynamic Workflow Skill

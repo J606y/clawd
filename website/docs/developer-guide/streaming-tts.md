@@ -5,7 +5,7 @@ description: "Sentence chunker, streaming provider ABC, capability matrix and ho
 
 # Streaming TTS
 
-Hermes can stream TTS audio as it arrives from the provider, instead of waiting
+clawd can stream TTS audio as it arrives from the provider, instead of waiting
 for the full audio before playing. This is used by voice mode (CLI/TUI live
 conversation), the dashboard speak-stream WebSocket, and — via the gateway
 `StreamingTTSConsumer` — any platform adapter that opts into streaming audio.
@@ -97,7 +97,7 @@ same `tts.voice` / `tts.model` / `tts.speed` as `synthesize()`. A configured
 plugin streams first. Under `tts.streaming.provider: auto` it is tried only after
 the built-in priority list. `streams_pcm`, `stream_sample_rate` and
 `is_available()` are read every time a streamer is resolved. If the rate is
-missing or the provider reports unavailable, Hermes keeps per-sentence synthesis.
+missing or the provider reports unavailable, clawd keeps per-sentence synthesis.
 As with the built-in streamers, the speaker pipeline prefetches up to three
 sentences, so a plugin's `stream()` must tolerate concurrent calls (the sync
 path serializes `synthesize()`; this path does not).

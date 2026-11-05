@@ -1,4 +1,4 @@
-"""``hermes doctor`` — diagnose (and with --fix, repair) a Hermes install.
+"""``clawd doctor`` — diagnose (and with --fix, repair) a clawd install.
 
 ``run_doctor`` walks ``DOCTOR_CHECKS`` in order; each check prints its own rows and returns a ``Finding``.
 Check bodies live in the ``doctor_*`` siblings.
@@ -76,7 +76,7 @@ def _check_auth_providers(should_fix: bool, f: Finding) -> None:
     with warn_on_error("Auth provider status", "(could not check: {e})"):
         from hermes_cli.auth import get_nous_auth_status_local, get_codex_auth_status, get_minimax_oauth_auth_status
         _login_row("Nous Portal auth", get_nous_auth_status_local())
-        # Native OAuth is Hermes' own device-code flow; the Codex CLI only imports existing ~/.codex/auth.json
+        # Native OAuth is clawd' own device-code flow; the Codex CLI only imports existing ~/.codex/auth.json
         # tokens, so the hint sits under the Codex row (not as another provider's remedy).
         if not _login_row("OpenAI Codex auth", get_codex_auth_status(), show_error=True) and not _safe_which("codex"):
             check_info("codex CLI not installed (optional — only required to import tokens from an existing Codex CLI login)")
@@ -134,7 +134,7 @@ DOCTOR_CHECKS = (
 
 
 def _ack_advisory(ack_target: str) -> None:
-    """`hermes doctor --ack <id>`: persist the ack and return without running diagnostics."""
+    """`clawd doctor --ack <id>`: persist the ack and return without running diagnostics."""
     from hermes_cli.security_advisories import ADVISORIES, ack_advisory
     valid_ids = {a.id for a in ADVISORIES}
     if ack_target not in valid_ids:
@@ -144,8 +144,8 @@ def _ack_advisory(ack_target: str) -> None:
         print(color(f"  ✓ Acknowledged advisory {ack_target}. It will no longer trigger startup banners.", Colors.GREEN))
     else:
         print(color(f"  ✗ Could not save the acknowledgement for {ack_target}. Make sure {_DHH}/config.yaml is "
-                    f"writable (`hermes config path` prints the exact file), then re-run "
-                    f"`hermes doctor --ack {ack_target}`.", Colors.RED))
+                    f"writable (`clawd config path` prints the exact file), then re-run "
+                    f"`clawd doctor --ack {ack_target}`.", Colors.RED))
         sys.exit(1)
 
 
@@ -166,7 +166,7 @@ def _print_summary(should_fix: bool, total: Finding) -> None:
         print()
         print(numbered)
         if not should_fix and total.issues:
-            print(color("  Tip: run 'hermes doctor --fix' to auto-fix what's possible.", Colors.DIM))
+            print(color("  Tip: run 'clawd doctor --fix' to auto-fix what's possible.", Colors.DIM))
     else:
         print(color("─" * 60, Colors.GREEN))
         print(color("  All checks passed! 🎉", Colors.GREEN, Colors.BOLD))
@@ -182,7 +182,7 @@ def run_doctor(args):
         return _ack_advisory(args.ack)
     print()
     for line in ("┌─────────────────────────────────────────────────────────┐",
-                 "│                 🩺 Hermes Doctor                        │",
+                 "│                 🩺 clawd Doctor                        │",
                  "└─────────────────────────────────────────────────────────┘"):
         print(color(line, Colors.CYAN))
     total = Finding()

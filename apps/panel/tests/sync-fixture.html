@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>scroll layout</title>
+  <style>
+    html, body, #root { margin: 0; height: 100%; }
+    #root { display: flex; flex-direction: column; }
+    #chat-host, #anchor-host { display: flex; flex-direction: column; min-height: 0; }
+    #chat-host { flex: 1; }
+    #anchor-host { height: 240px; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script>
+    const messages = Array.from({ length: 30 }, (_, n) => ({
+      id: n + 1,
+      role: n % 2 ? "assistant" : "user",
+      content: `Synthetic message ${n}\n\n${"Long content for layout verification. ".repeat(12)}`,
+      timestamp: n + 1,
+    }));
+    window.fetch = async (input) => {
+      const raw = typeof input === "string" ? input : (input instanceof URL ? input.href : input.url);
+      const url = new URL(raw, location.href);
+      const json = (body) => new Response(JSON.stringify(body), { headers: { "Content-Type": "application/json" } });
+      if (url.pathname.includes("/messages")) return json({ data: messages, pagination: { returned: messages.length } });
+      if (url.pathname.includes("/sessions/run")) return json({ run: null, busy: false, execution: null });
+      if (url.pathname.includes("/background")) return json({ processes: [] });
+      if (url.pathname.includes("/model")) return json({ model: "test-model", provider: "test-provider", providers: [] });
+      if (url.pathname.includes("/context")) return json({ used: 0, window: 1000, source: "fixture" });
+      if (url.pathname.includes("/subagents")) return json({ data: [], running: 0, now: 1 });
+      if (url.pathname.includes("/sessions/folders")) return json({ folders: [], assignments: {} });
+      if (url.pathname.includes("/sessions/active")) return json({ data: [] });
+      if (url.pathname.includes("/api/sessions")) return json({ data: [], has_more: false });
+      return json({ data: [] });
+    };
+  </script>
+  <script type="module">
+    import { createElement, useRef, useState } from "react";
+    import { createRoot } from "react-dom/client";
+    import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+    import { ChatPage } from "/src/react/pages/chat/chat-page.tsx";
+    import { ChatStyles } from "/src/react/pages/chat/chat-styles.tsx";
+    import { MessageList } from "/src/react/pages/chat/message-list.tsx";
+    import { useUiStore } from "/src/react/stores/ui.ts";
+    import "/src/react/styles/index.css";
+
+    const SPECIAL = "special:test [val]=\"1\" & hello";
+    useUiStore.setState({ selectedSessionId: "sync-test" });
+
+    function AnchorHarness() {
+      const ref = useRef(null);
+      const [hold, setHold] = useState(null);
+      const [stick, setStick] = useState(false);
+      const keys = Array.from({ length: 24 }, (_, n) => n === 10 ? SPECIAL : `row:${n}`);
+      window.anchor = {
+        scroller: () => document.querySelector("#anchor-host .scroll"),
+        capture: () => ref.current?.capture() ?? null,
+        restore: (key, offset) => setHold({ key, offset }),
+        setStick: (value) => setStick(value),
+      };
+      return createElement("div", { id: "anchor-host", className: "hp-chat" },
+        createElement(ChatStyles),
+        createElement(MessageList, {
+          keys,
+          stick,
+          hold,
+          listRef: ref,
+          onStick() {},
+          onNearTop() {},
+          onUserScroll() {},
+        }, createElement("div", { className: "col" }, keys.map((key) => createElement("div", {
+          className: "past",
+          "data-history-source": key,
+          key,
+          style: { height: "80px" },
+        }, key)))),
+      );
+    }
+
+    createRoot(document.getElementById("root")).render(
+      createElement(QueryClientProvider, { client: new QueryClient({ defaultOptions: { queries: { retry: false } } }) },
+        createElement("div", { id: "chat-host" }, createElement(ChatPage)),
+        createElement(AnchorHarness),
+      ),
+    );
+    window.ready = true;
+  </script>
+</body>
+</html>

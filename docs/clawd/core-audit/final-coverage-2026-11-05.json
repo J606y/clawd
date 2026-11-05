@@ -1,0 +1,484 @@
+{
+  "model": "grok-4.7",
+  "method": "static-read-only",
+  "not_run": true,
+  "not_a_fix": true,
+  "kernel_safe": false,
+  "third_party_judged_safe": false,
+  "baseline": "c314285f077e91937c995d419b9fa40af9eb4981",
+  "written_at": "2026-11-05T05:51:45.311754+08:00",
+  "counts_source": "/root/hermes-workspace/clawd/docs/clawd/core-audit/final-findings-2026-11-05.json",
+  "identity": {
+    "original_origins": 63,
+    "finding_ids": 63,
+    "mapping_rows": 63,
+    "origin_id_pairs": 64,
+    "status_sum": 63,
+    "active_severity_sum": 46,
+    "initial_unverified": 33,
+    "initial_unverified_resolved": 33,
+    "pair_explain": "63 unique origins and 63 findings. appr-tui binds two origins to one finding, so origin-id pairs are 64. provider.md#高-补括号 is the one origin that maps to two findings; that duplicate listing is why pairs exceed unique origins by 1.",
+    "ok": true
+  },
+  "counts": {
+    "active": 46,
+    "fixed": 1,
+    "false_positive": 13,
+    "unverified": 3,
+    "active_severity": {
+      "high": 10,
+      "medium": 25,
+      "low": 11
+    }
+  },
+  "not_a_total_of_prior_reports": {
+    "reviewed_active": 27,
+    "remaining_transport_items": 10,
+    "remaining_background_active": 2,
+    "remaining_native_storage_items": 14,
+    "forbidden_sum": 53,
+    "reason": "结构不同，且后续报告覆盖了初次 unverified。最终总数只取本文件 counts。"
+  },
+  "initial_unverified_final_status": {
+    "appr-auto": "false_positive",
+    "appr-timeout": "false_positive",
+    "appr-grace": "false_positive",
+    "ctx-positional": "active",
+    "ctx-skill-id": "false_positive",
+    "inp-empty-key": "active",
+    "inp-webhook-v1": "active",
+    "inp-password": "active",
+    "inp-lazy": "active",
+    "prov-drip": "active",
+    "prov-pool": "active",
+    "prov-cancel": "active",
+    "prov-url": "active",
+    "prov-retry": "active",
+    "prov-name": "unverified",
+    "prov-finish-error": "active",
+    "prov-jitter": "active",
+    "bg-plan": "false_positive",
+    "bg-window": "active",
+    "bg-approval-key": "false_positive",
+    "bg-swallow": "active",
+    "bg-claim-true": "false_positive",
+    "bg-sidecar": "false_positive",
+    "nat-peek": "false_positive",
+    "nat-console": "false_positive",
+    "nat-cuda": "false_positive",
+    "nat-job": "unverified",
+    "nat-cf": "active",
+    "nat-pe": "unverified",
+    "nat-close": "active",
+    "stor-s8": "active",
+    "stor-s9": "active",
+    "stor-a1": "active"
+  },
+  "split_and_merge": {
+    "merged": {
+      "appr-tui": [
+        "approval.md#高-任意choice",
+        "approval.md#中-TUI身份"
+      ]
+    },
+    "split": {
+      "provider.md#高-补括号": [
+        "prov-short-string",
+        "prov-prefix"
+      ]
+    }
+  },
+  "special_rechecks": {
+    "inp-empty-key": "启动门禁在加路由之前拒绝；检查器空密钥放行不是已确认远程绕鉴权",
+    "prov-redirect": "当前 SDK 跟随重定向，httpx 跨源不删 X-Api-Key",
+    "appr-fifo": "当前无 request_id 仍 pop(0)",
+    "ctx-commit-fail": "当前提交前重建提示，失败仍写 in_place=False",
+    "bg-receipt": "当前 create_task 返回后立即写回执，不看 completed"
+  },
+  "file_hashes": {
+    "agent/agent_runtime_helpers.py": {
+      "sha256": "36914aaf5c7ac3ed92c9f6d0d7da253a97e4268f4a054319e5f96e41d3b4b341",
+      "mtime": 1793718015.9768558,
+      "size": 205957
+    },
+    "agent/anthropic_adapter.py": {
+      "sha256": "d40c5260063e222cc85424c70d77883d80d67b60bcc5fe9b136b3c2bbf1bc164",
+      "mtime": 1793718015.9768558,
+      "size": 50090
+    },
+    "agent/api_error_summary.py": {
+      "sha256": "52b242bc394d0081d351c7e57a7b91b11c13eef14f4fcb937ab5052da56b3ce4",
+      "mtime": 1793718015.9768558,
+      "size": 12851
+    },
+    "agent/chat_completion_helpers.py": {
+      "sha256": "521197b064685590a239277be83070c04dbb6ff683625dfd7b884cc587fbd98b",
+      "mtime": 1793718015.9804664,
+      "size": 224116
+    },
+    "agent/chat_completion_helpers_tool_calls.py": {
+      "sha256": "eadf07162dbf3a1506a894a7e9ac26ec9d8295ab126977a0504007644a3d7903",
+      "mtime": 1793718015.9804664,
+      "size": 5751
+    },
+    "agent/chat_completion_nonstream.py": {
+      "sha256": "34d4afad0a0c7228a0518eed4a2521ba1a340f509c83784c74abceb56f1becb7",
+      "mtime": 1793718015.9804664,
+      "size": 17817
+    },
+    "agent/chat_completion_stream_monitor.py": {
+      "sha256": "1c74313db79042c0831a94b2a008074d0cd5f2b30ec51dd252fe905582c74112",
+      "mtime": 1793718015.9804664,
+      "size": 17798
+    },
+    "agent/codex_responses_adapter.py": {
+      "sha256": "32f9899f4451b7965ceebb3919e503fedf61173a47078c8b8335872e42d1610f",
+      "mtime": 1793718015.9804664,
+      "size": 74607
+    },
+    "agent/conversation_compression.py": {
+      "sha256": "796494d28180659f2843599420840832e1f528ecad2110b498a59f53e34e6bcb",
+      "mtime": 1793718015.9844663,
+      "size": 249759
+    },
+    "agent/conversation_loop.py": {
+      "sha256": "bc1a44a42e254c9500cee099aa0d81590534aecb0ae6986f0f5bce6f24849d49",
+      "mtime": 1793718015.9844663,
+      "size": 101156
+    },
+    "agent/message_sanitization.py": {
+      "sha256": "154e3bf8f59214df4aa8c34cfe210222737c06aa1fb897fe6484834631be2d82",
+      "mtime": 1793718015.992095,
+      "size": 51703
+    },
+    "agent/process_bootstrap.py": {
+      "sha256": "baa6239634aede3eff2a1628d07070df7beeb0bf1d93fe5cbad8ee3014192499",
+      "mtime": 1793718015.9962516,
+      "size": 14838
+    },
+    "agent/retry_utils.py": {
+      "sha256": "4c643880c012dd536dca08041f1bae93b6a58477186b5cf0b4e27ec3c640014c",
+      "mtime": 1793718015.9981823,
+      "size": 9128
+    },
+    "agent/stream_max_lifetime.py": {
+      "sha256": "40a009765a4c87ca2a485a4bb4ec9c96eff50f51ff19276b1d40ba7e76c7295c",
+      "mtime": 1793718016.0004663,
+      "size": 2966
+    },
+    "agent/tool_executor.py": {
+      "sha256": "c85e239d1d56ad415902db2371e9e28c2216f6fd72e29860cff7f97b2e05a0c2",
+      "mtime": 1793718016.0044663,
+      "size": 98198
+    },
+    "agent/transports/codex_event_projector.py": {
+      "sha256": "bd3b548d795067fc7b46082ba4301c747e65ed664dfb3f37c6eb9c7a9a872588",
+      "mtime": 1793718016.0091794,
+      "size": 8261
+    },
+    "agent/turn_overflow.py": {
+      "sha256": "14d483d7043f1fc39b01f5fd15521392ef734cbbff05e9ce68a7597100f18235",
+      "mtime": 1793718016.0091794,
+      "size": 26566
+    },
+    "agent/turn_preflight.py": {
+      "sha256": "5909b32461c37fa50afd4b537f84e120f14bad22bbb9c5f0f197d9ec6bdfb0b4",
+      "mtime": 1793718016.0091794,
+      "size": 21901
+    },
+    "agent/turn_tool_validation.py": {
+      "sha256": "cd5e412e4311bc12238f7774b084d5440c91e40710eafdeaac7c1bfa2ddb0ac4",
+      "mtime": 1793718016.0091794,
+      "size": 11395
+    },
+    "apps/panel/sidecar/hermes_panel_sidecar.py": {
+      "sha256": "c8e2b0890e489e2f5c96183068f06a5d923ae67356f6fdfa2fba751288fd9bc8",
+      "mtime": 1793823304.6651888,
+      "size": 312088
+    },
+    "apps/panel/sidecar/image_studio.py": {
+      "sha256": "8d658411e827ee2adee269d88760db8d3743c6ee6504c554c93d0d89389e439d",
+      "mtime": 1793823245.4996939,
+      "size": 33039
+    },
+    "clawd_server/auth.py": {
+      "sha256": "db2dc7f169dbe4e4da6e9c1b9f1b8858c9ca2ecee3577e515e1b2c2d4b9e96ca",
+      "mtime": 1793821916.0229306,
+      "size": 12521
+    },
+    "clawd_server/bind.py": {
+      "sha256": "a0cfe9432fbd526d11850105d040d0d0cf1e85f9ceabada2aa57ff04f20d101b",
+      "mtime": 1793819847.665546,
+      "size": 6262
+    },
+    "clawd_server/effort_service.py": {
+      "sha256": "8cd685880f82709654679de6e99dac558e7735b9c7dc85fa16c92fcc2aec2d98",
+      "mtime": 1793821531.7079246,
+      "size": 21855
+    },
+    "clawd_server/server.py": {
+      "sha256": "ea3534ab92e054fe38c79f6533b8797c86dea07facdfb09d3badc5a060dd03ab",
+      "mtime": 1793823602.6889174,
+      "size": 15855
+    },
+    "cli.py": {
+      "sha256": "de7f37805b839d632b5e96e3fe3fefef9978e62599f53476222def34243e2832",
+      "mtime": 1793718016.2365012,
+      "size": 82448
+    },
+    "gateway/clawd_continuation.py": {
+      "sha256": "300f059641a218a78bf8be30fe7a1e4e162f44053b3105efe0bfc78341bbe476",
+      "mtime": 1793802015.8853352,
+      "size": 15881
+    },
+    "gateway/clawd_continuation_admit.py": {
+      "sha256": "57e699c2ce583fa8f1d024442a5da01be3d1524ce906d16e4357132ee0a35282",
+      "mtime": 1793801863.9240584,
+      "size": 8490
+    },
+    "gateway/clawd_continuation_decision.py": {
+      "sha256": "9bd9fd9d65e78a7f9d9ebd240b63d10b5262c4e1c82557c0110bad53285751e1",
+      "mtime": 1793720582.8067222,
+      "size": 13615
+    },
+    "gateway/clawd_continuation_gates.py": {
+      "sha256": "6d2fa59a5c89ecf198799fb41e51fd7c3c6e671a0e23d2008ea0324ea1511ae9",
+      "mtime": 1793719447.9787078,
+      "size": 4469
+    },
+    "gateway/platforms/api_server.py": {
+      "sha256": "b95284ed570ea9f3ed4f0218af12eff91891373a32a93f60f89658b43ba839de",
+      "mtime": 1793823759.8514988,
+      "size": 231254
+    },
+    "gateway/platforms/api_server_runs.py": {
+      "sha256": "554cb28b411b323fab038d4f24dedc7e4876b7266f2044bc5f3730e528fa122b",
+      "mtime": 1793823065.2664835,
+      "size": 86506
+    },
+    "gateway/platforms/webhook.py": {
+      "sha256": "31e8fcc00d4649ad760aaeba8fe0bfda47e97dc4587622d74b8e1674285907f8",
+      "mtime": 1793718016.2926414,
+      "size": 64951
+    },
+    "gateway/relay/adapter.py": {
+      "sha256": "0b97cedf6cf6908c13a2d3ecfbedcc06694d4877dcb2f31abc946dad4d1dd817",
+      "mtime": 1793824497.5497136,
+      "size": 120358
+    },
+    "gateway/run_adapters.py": {
+      "sha256": "df6c3ad0b2ffe944636192aa8d0c0719601a7aa3f5dd8830b957e6fbcbb06325",
+      "mtime": 1793718016.2976828,
+      "size": 106319
+    },
+    "gateway/session.py": {
+      "sha256": "ea2e48b1313fcb24054dccbbdc631321c7cad5526097588b65d20ab86346a870",
+      "mtime": 1793718016.3044662,
+      "size": 71541
+    },
+    "gateway/session_api_turn.py": {
+      "sha256": "f03d140bf5e14f341e3bd0de6b3b5e368161ba1d69aa780e250cea001896b190",
+      "mtime": 1793823759.7745004,
+      "size": 35604
+    },
+    "gateway/session_persistence.py": {
+      "sha256": "92ab8f19425afe80e99e444b9a0475707049528697572cd8513106318bd3f08e",
+      "mtime": 1793718016.3124664,
+      "size": 36774
+    },
+    "gateway/session_recovery.py": {
+      "sha256": "6fa7af72184b49bb4623bcfc487897bbe586ecd36fd09c9906261b83b87ef385",
+      "mtime": 1793718016.3124664,
+      "size": 25188
+    },
+    "gateway/session_transcript.py": {
+      "sha256": "b1e427996751310287ac56c99f2265122f26c001acee2cd2b5198519c402f9e2",
+      "mtime": 1793718016.3124664,
+      "size": 37098
+    },
+    "gateway/slash_access.py": {
+      "sha256": "9b3edefcf37560d90ce65f16d8aee7d09bb02ca2c8182a6305b28d76172a699d",
+      "mtime": 1793718016.3164663,
+      "size": 7413
+    },
+    "gateway/slash_commands.py": {
+      "sha256": "2cfa1105bc963d24a67c268c7e86f9b78ffa8dcdb7e0007a86d16fa319267351",
+      "mtime": 1793718016.3164663,
+      "size": 82306
+    },
+    "gateway/slash_commands_session.py": {
+      "sha256": "2d207bda33466ad9c80e2b62df5f4697dababeeb068ecd18f3da52836d5e04dd",
+      "mtime": 1793718016.3164663,
+      "size": 78674
+    },
+    "gateway/wake.py": {
+      "sha256": "7fe985e4606b769355c942ba137e5d52037cd96d61c1a6072a2e837f782b1a32",
+      "mtime": 1793766422.521143,
+      "size": 18244
+    },
+    "hermes_bootstrap.py": {
+      "sha256": "f242036b2d35b92283b9a7e97c7059e537607fc4b02026f657a6d00cb4683f69",
+      "mtime": 1793718016.3164663,
+      "size": 29373
+    },
+    "hermes_cli/cli_chat_turn_mixin.py": {
+      "sha256": "aad4a245b8187ec2da7e0d5bb9a33bc9d68fb2e3a873015c3c1fa02118fdbab8",
+      "mtime": 1793718016.3244665,
+      "size": 45845
+    },
+    "hermes_cli/config_defaults.py": {
+      "sha256": "2c7f02045f582d03565dbb59972f09fc21fcac71a26adb5117d5754759ccb634",
+      "mtime": 1793718016.3324664,
+      "size": 213217
+    },
+    "hermes_cli/local_runtime/hardware.py": {
+      "sha256": "83ba7592a640ba6b2d1502ec7febe1006232dea26c361a1ee0ca703d3b66f923",
+      "mtime": 1793718016.3564198,
+      "size": 28266
+    },
+    "hermes_cli/process_identity.py": {
+      "sha256": "0e30d07f84e2bae9dee41fd6260e2e83b791a46b0a0042a665a6b72f25f143be",
+      "mtime": 1793718016.3684664,
+      "size": 52485
+    },
+    "hermes_cli/providers.py": {
+      "sha256": "e16d4b818c1af482024bb891003bc134f2ab0b347908abbdb2386e02391d1c8e",
+      "mtime": 1793718016.3724663,
+      "size": 38897
+    },
+    "hermes_cli/update_lock.py": {
+      "sha256": "2e02db3e627de248b88d912c1f9421a40a738899ebdef9d93998ce8d09e01a8d",
+      "mtime": 1793718016.3884664,
+      "size": 74692
+    },
+    "hermes_platform/host/darwin_pci.py": {
+      "sha256": "2ecbf4c68873f16f6de855794503c3ba781e3f26ea8da910a8ce5cd513f96fcb",
+      "mtime": 1793718016.402903,
+      "size": 3439
+    },
+    "hermes_platform/host/facts.py": {
+      "sha256": "52eef216017ca8e18d7365ec10a9494b2d261280cfc70d9e0b94a2cc7b363d7a",
+      "mtime": 1793718016.402903,
+      "size": 16137
+    },
+    "hermes_platform/resolver/app.py": {
+      "sha256": "ee5ff2a8d9d67534df22e722d7a7235e4c98810aeeedaf2d3948ea5d53db0063",
+      "mtime": 1793718016.4031618,
+      "size": 18464
+    },
+    "hermes_state.py": {
+      "sha256": "d8f229db6de935a4892a3aaef038b396036c1e661f38fe169161864884a32fed",
+      "mtime": 1793824497.5556254,
+      "size": 95320
+    },
+    "hermes_state_compression.py": {
+      "sha256": "8b6e2df32259d1d1c89a6f7215c8ba23ff7a91f69ecb83bcc9f3ff9a52863670",
+      "mtime": 1793799047.905237,
+      "size": 55740
+    },
+    "plugins/platforms/feishu/adapter.py": {
+      "sha256": "3525af4876e9b9725d5752721357d2c669d858338c83b8c50d44c0c422e844fb",
+      "mtime": 1793718016.5559287,
+      "size": 228761
+    },
+    "plugins/platforms/matrix/adapter.py": {
+      "sha256": "2a48bc2713c7b6007450e26bd4e4343928e697c3ee60cf979741b4eeb9ee1693",
+      "mtime": 1793718016.5581975,
+      "size": 180714
+    },
+    "plugins/platforms/qqbot/adapter.py": {
+      "sha256": "725904c6affa34d490717b75e69f24e1f605ae38603fdfa1f2707c09901af2e3",
+      "mtime": 1793718016.5607429,
+      "size": 85130
+    },
+    "plugins/platforms/slack/adapter.py": {
+      "sha256": "0f658a0db64f81f4cfacde86c2ae618a4c4c9135fe35c10c69b163e4f9ed7299",
+      "mtime": 1793718016.5622926,
+      "size": 373948
+    },
+    "plugins/platforms/teams/adapter.py": {
+      "sha256": "0907587f25b8cee4ca72f8f82d7f589af9a2967a8e166bc3181e6511b8985bc1",
+      "mtime": 1793718016.5641446,
+      "size": 49733
+    },
+    "plugins/platforms/telegram/adapter.py": {
+      "sha256": "5e247fbbd3a2c4a66adda439717d5283c237af4ccad589004d64244316a49c2f",
+      "mtime": 1793718016.564452,
+      "size": 442589
+    },
+    "plugins/platforms/whatsapp_cloud/adapter.py": {
+      "sha256": "2ab0ac2937efc54d6add3def830b1143100439f27e91691fa484b0f232aaa38b",
+      "mtime": 1793718016.5679786,
+      "size": 65539
+    },
+    "pm/install.py": {
+      "sha256": "2f48a18bb2b8c452432ddd675599bb859e7a1dcdcbadd5326b252376d1b4b1a0",
+      "mtime": 1793718016.571872,
+      "size": 51799
+    },
+    "tools/approval.py": {
+      "sha256": "f981161d1f8a2679f74f5ac0e84c576f985c6b5cd5b50e361252abd5b1d616ad",
+      "mtime": 1793825194.9414294,
+      "size": 68666
+    },
+    "tools/approval_gateway_wait.py": {
+      "sha256": "cb637ab95a335feec3141ecb05f27df4783c341ad53e2dcf7d794057e0f7e45c",
+      "mtime": 1793718016.9586434,
+      "size": 14580
+    },
+    "tools/async_delegation.py": {
+      "sha256": "a76a78ee29576b6b40d42044666b350f63d33e8b42a792b17bcb0cbd73069082",
+      "mtime": 1793823382.7858133,
+      "size": 83919
+    },
+    "tools/environments/base_output.py": {
+      "sha256": "e951f16776fa76589e03ea035d8ec40543993eb85e80ea609963190781a8d0b5",
+      "mtime": 1793718016.971186,
+      "size": 20420
+    },
+    "tools/file_tools.py": {
+      "sha256": "925ebccc2a70b5a1b55541242cb19ed6614a18e82df1d6bc29474dc22c4f0dee",
+      "mtime": 1793718016.9724665,
+      "size": 73867
+    },
+    "tools/mcp_oauth.py": {
+      "sha256": "b25655d6a2ca717b3697f2fe98b5f817da5605c203ebdce8823da55398a8b99f",
+      "mtime": 1793718016.9724665,
+      "size": 67845
+    },
+    "tools/mcp_tool_agent.py": {
+      "sha256": "cddaeb9e8e035c2982a7299c35ad288ab3187eb4848562a16c57b64559a87447",
+      "mtime": 1793718016.9724665,
+      "size": 26575
+    },
+    "tools/terminal_tool.py": {
+      "sha256": "23954745416973b02cb92e248a6003a4cc02c91ac4b79077c191205c5fefcf7e",
+      "mtime": 1793825206.5012515,
+      "size": 85938
+    },
+    "tui_gateway/methods_prompt.py": {
+      "sha256": "b8baa13c15e8ddee29b40e0e2403fe0f63016bfa49dd9fd09c9f1de9e8d0e54c",
+      "mtime": 1793800487.5767562,
+      "size": 84062
+    },
+    "tui_gateway/server.py": {
+      "sha256": "a37a2bbc308a1d679c2397a87c0f03e479ea229105e1904897879f045c73892c",
+      "mtime": 1793766422.5140047,
+      "size": 109354
+    }
+  },
+  "evidence_hashes": {
+    ".venv/lib/python3.14/site-packages/aiohttp/web_response.py": "78aa643c57d0c94b7f41b5e8b4d2e68f63aaae80d02fb2dd01278384eaf92e74",
+    ".venv/lib/python3.14/site-packages/anthropic/_base_client.py": "978a8c5f342a05f14e9cfecd5a49f291f57f11b9320a9431dd568f230fa22711",
+    ".venv/lib/python3.14/site-packages/anthropic/_client.py": "2a650913f060195b5a53905002246a900d632c0411fe3343ed6f74e7412a0b01",
+    ".venv/lib/python3.14/site-packages/httpx/_client.py": "c43f941baefe58c91e96d00039e1868fe719d91453026d7db1647194563bff8d",
+    ".venv/lib/python3.14/site-packages/openai/_base_client.py": "5539c83d01c27e1bbf1ad34e59cc872202feb6c8bf81b56fadbeeb2b81a3e869",
+    "artifacts/core-audit-native-reference/callproc.c": "6800f829135dc34940011243dbcd733eaeca8aa29074f3aa94a980469185ce69",
+    "artifacts/core-audit-native-reference/_ctypes.c": "78482188c25a175a1fe5fbf97bbfa828d28abaf667b29c5935576df80c2c419d",
+    "artifacts/core-audit-native-reference/cfield.c": "99fff496490463379e645fdccc2bfa398874eae3983b3ec93a90364a55c99f92",
+    "artifacts/core-audit-native-reference/cursor.c": "6571430ca1981d6927a54627273d75b7ad52f6ef7f2c92a0165e85ad47c57dba",
+    "/usr/lib/python3.13/ctypes/wintypes.py": "5c4d9ba1a21683838ed1d1f007b6038304e42aacf34c576e820311d26cb243f3"
+  },
+  "drift_since_read": [],
+  "needs_final_recheck_ids": []
+}

@@ -164,3 +164,44 @@ class FrameTrackingMixin:
         "Target.attachedToTarget": _on_target_attached,
         "Target.detachedFromTarget": _on_target_detached,
     }
+
+
+def walk_to_top(frames: dict[str, FrameInfo], frame_id: str) -> Optional[str]:
+    """Follow ``parent_frame_id`` to a parentless frame. A missing hop is not a guess."""
+    seen: set[str] = set()
+    current: Optional[str] = frame_id
+    while current and current not in seen:
+        seen.add(current)
+        frame = frames.get(current)
+        if frame is None:
+            return None
+        parent = frame.parent_frame_id
+        if not parent:
+            return current
+        current = parent
+    return None
+
+
+def dialog_target_ids(session_id: Optional[str], frame_id: Optional[str],
+                      owned: dict[str, dict[str, str]], frames: dict[str, FrameInfo]) -> list[str]:
+    """Targets whose create/attach receipt explains this dialog. Empty means unproven."""
+    hits: list[str] = []
+    for target_id, binding in owned.items():
+        if session_id and session_id == binding.get("session_id"):
+            hits.append(target_id)
+            continue
+        top = binding.get("top_frame_id")
+        if frame_id and top and walk_to_top(frames, frame_id) == top:
+            hits.append(target_id)
+    return hits
+
+
+def oopif_session_id(frame_id: str, frames: dict[str, FrameInfo], owned_tops: set[str]) -> Optional[str]:
+    """Child session only when ``frame_id`` is an OOPIF whose parent walk hits an owned top."""
+    frame = frames.get(frame_id)
+    if frame is None or not frame.is_oopif or not frame.cdp_session_id:
+        return None
+    top = walk_to_top(frames, frame_id)
+    if top is None or top not in owned_tops:
+        return None
+    return frame.cdp_session_id

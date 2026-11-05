@@ -139,7 +139,7 @@ def ensure_cdp_supervisor(task_id: str) -> None:
         with _bs._cleanup_lock:
             session_cdp = str((_bs._active_sessions.get(task_id) or {}).get("cdp_url") or "")
         cdp_url = resolve_cdp_override(session_cdp) if session_cdp else ""
-    if not cdp_url:
+    if not cdp_url or str(cdp_url).startswith("wss://"):
         return
     try:
         from tools.browser_supervisor import SUPERVISOR_REGISTRY

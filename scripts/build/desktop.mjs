@@ -3,14 +3,10 @@ import { execFileSync } from 'node:child_process'
 import { cpSync, existsSync, readdirSync } from 'node:fs'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { bundleElectronMain, electronOutputs } from '../../apps/desktop/scripts/bundle-electron-main.mjs'
-import { checkDistBuilt } from '../../apps/desktop/scripts/assert-dist-built.mjs'
-import { classifyNativeBinary } from '../../apps/desktop/scripts/stage-native-deps.mjs'
-import { copyNativeTree } from '../../apps/desktop/scripts/prepared-native-deps.mjs'
-import { frontendArgs, isMain, productOutput, withProduct, workspaceTool } from './frontend-common.mjs'
+import { isMain, productOutput, withProduct, workspaceTool } from './frontend-common.mjs'
 import { recordProduct, buildInputs, rendererCurrent } from './freshness.mjs'
 
-function validateNativeTree(nativeDeps, platform) {
+function validateNativeTree(nativeDeps, platform, classifyNativeBinary) {
   const pty = join(nativeDeps, 'node-pty')
   if (!existsSync(join(pty, 'package.json'))) throw new Error(`Missing prepared node-pty: ${pty}`)
   const bindings = readdirSync(pty, { recursive: true }).filter(name => name.endsWith('.node'))
@@ -25,15 +21,13 @@ function validateNativeTree(nativeDeps, platform) {
   }
 }
 
-// Only main/preload bake the install stamp (bundleElectronMain); the renderer is a function of
-// the source tree, icons and native inputs alone. A new commit with no desktop change therefore
-// leaves the published renderer valid: reuse it when the receipt proves those inputs and the
-// output bytes are unchanged, and rebuild only what carries the stamp. The native trees are
-// recopied from nativeDeps below either way.
-const notReused = new Set([...Object.values(electronOutputs), 'node_modules', 'native'])
-
 /** Pure desktop compilation. out is the dist directory, not the source app. */
 export async function buildDesktop({ source, out, icons, stamp, nativeDeps, typecheck = false, platform = process.platform }) {
+  const { bundleElectronMain, electronOutputs } = await import('../../apps/desktop/scripts/bundle-electron-main.mjs')
+  const { checkDistBuilt } = await import('../../apps/desktop/scripts/assert-dist-built.mjs')
+  const { classifyNativeBinary } = await import('../../apps/desktop/scripts/stage-native-deps.mjs')
+  const { copyNativeTree } = await import('../../apps/desktop/scripts/prepared-native-deps.mjs')
+  const notReused = new Set([...Object.values(electronOutputs), 'node_modules', 'native'])
   if (!icons || !stamp || !nativeDeps) throw new Error('icons, stamp and nativeDeps are required prepared inputs')
   const app = 'apps/desktop'
   ;({ source, out } = productOutput(source, out, [
@@ -46,7 +40,7 @@ export async function buildDesktop({ source, out, icons, stamp, nativeDeps, type
   ]))
   const publicIcons = join(resolve(icons), app, 'public')
   if (!existsSync(join(publicIcons, 'apple-touch-icon.png'))) throw new Error(`Missing desktop icon: ${join(publicIcons, 'apple-touch-icon.png')}`)
-  validateNativeTree(resolve(nativeDeps), platform)
+  validateNativeTree(resolve(nativeDeps), platform, classifyNativeBinary)
   const inputs = buildInputs(source, 'desktop', { icons: publicIcons, stamp, nativeDeps })
   // A typechecked build must run the check: a reused renderer never passed through tsc here.
   const reuse = !typecheck && rendererCurrent(out, inputs)
@@ -88,9 +82,6 @@ export async function buildDesktop({ source, out, icons, stamp, nativeDeps, type
 }
 
 if (isMain(import.meta.url)) {
-  const args = frontendArgs(process.argv.slice(2), {
-    icons: { type: 'string' }, stamp: { type: 'string' }, 'native-deps': { type: 'string' },
-    typecheck: { type: 'boolean' }, platform: { type: 'string' },
-  })
-  await buildDesktop({ ...args, nativeDeps: args['native-deps'] })
+  console.error('refused: clawd does not build the official desktop app. This entry is unsupported.')
+  process.exit(2)
 }

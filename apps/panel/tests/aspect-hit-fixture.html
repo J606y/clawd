@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="zh-CN">
+<head><meta charset="utf-8"><title>aspect hit</title></head>
+<body>
+  <div class="hp-chat" style="width:390px">
+    <div id="mount"></div>
+  </div>
+  <script type="module">
+    import { createElement } from "react";
+    import { createRoot } from "react-dom/client";
+    import { UserAttachments, AssistantBody } from "/src/react/pages/chat/turns.tsx";
+    import { ChatStyles } from "/src/react/pages/chat/chat-styles.tsx";
+
+    const png = (w, h) => {
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#39f";
+      ctx.fillRect(0, 0, w, h);
+      return canvas.toDataURL("image/png");
+    };
+    const wide = png(1600, 40);
+    const tall = png(40, 1600);
+    createRoot(document.getElementById("mount")).render(createElement("div", null,
+      createElement(ChatStyles),
+      createElement("section", { id: "wide" }, createElement(UserAttachments, {
+        images: [wide], files: [], uploads: [], droppedImages: 0,
+      })),
+      createElement("section", { id: "tall" }, createElement(UserAttachments, {
+        images: [tall], files: [], uploads: [], droppedImages: 0,
+      })),
+      createElement("section", { id: "assistant-wide" }, createElement(AssistantBody, {
+        text: "wide", images: [wide], streaming: false, pace: false, ownerKey: "w",
+      })),
+      createElement("section", { id: "assistant-tall" }, createElement(AssistantBody, {
+        text: "tall", images: [tall], streaming: false, pace: false, ownerKey: "t",
+      })),
+    ));
+    window.ready = true;
+  </script>
+</body>
+</html>
