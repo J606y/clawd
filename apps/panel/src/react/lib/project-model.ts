@@ -18,8 +18,8 @@ export interface ProjectSessionRow {
 
 export interface CreateProjectBody {
   name: string;
-  primary_path: string;
-  create_directory: boolean;
+  primary_path?: string;
+  create_directory?: boolean;
 }
 
 const COLLAPSE_KEY = "hp_project_collapsed";
@@ -35,13 +35,18 @@ export function projectPathError(path: string): string {
   return "";
 }
 
-/** create_directory 只有调用方显式为 true 才为 true，不能靠缺省去创建目录。 */
+/** 显式目录创建仍原样传递。文件夹界面不要用这个，避免再要求手填路径。 */
 export function createProjectBody(name: string, primaryPath: string, createDirectory: boolean): CreateProjectBody {
   return {
     name: name.trim(),
     primary_path: primaryPath.trim(),
     create_directory: createDirectory === true,
   };
+}
+
+/** 只提交名称。目录由 POST /api/projects 自动生成，不传路径、不猜测。 */
+export function createNamedProjectBody(name: string): { name: string } {
+  return { name: name.trim() };
 }
 
 export function archivePatchBody(): { archived: true } {
@@ -282,4 +287,48 @@ export function migrationFailureText(error: unknown): string {
     if (typeof payload?.message === "string" && payload.message.trim()) return payload.message;
   }
   return projectActionError(error, "迁移失败，未当作成功");
+}
+
+export interface AutoMigrationError {
+  folder_id: string;
+  name: string;
+  message: string;
+}
+
+export interface AutoMigrationResult {
+  success: boolean;
+  pending: boolean;
+  errors: AutoMigrationError[];
+}
+
+/** 只接受契约字段。缺 pending 或 success 不是成功，也不把忙状态改写成完成。 */
+export function parseAutoMigration(payload: unknown): AutoMigrationResult | null {
+  if (!payload || typeof payload !== "object") return null;
+  const row = payload as { success?: unknown; pending?: unknown; errors?: unknown };
+  if (typeof row.success !== "boolean" || typeof row.pending !== "boolean" || !Array.isArray(row.errors)) return null;
+  const errors: AutoMigrationError[] = [];
+  for (const item of row.errors) {
+    if (!item || typeof item !== "object") {
+      errors.push({ folder_id: "", name: "", message: "" });
+      continue;
+    }
+    const err = item as { folder_id?: unknown; name?: unknown; message?: unknown };
+    errors.push({
+      folder_id: typeof err.folder_id === "string" ? err.folder_id : "",
+      name: typeof err.name === "string" ? err.name : "",
+      message: typeof err.message === "string" ? err.message : "",
+    });
+  }
+  return { success: row.success, pending: row.pending, errors };
+}
+
+/** 只有明确完成且没有错误才算迁移结束。pending 或错误都不是成功。 */
+export function autoMigrationApplied(result: AutoMigrationResult): boolean {
+  return result.success === true && result.pending === false && result.errors.length === 0;
+}
+
+/** 给界面的固定短句。不拼 folder_id、名称或服务端 message，避免露出内部 ID。 */
+export function autoMigrationHint(result: AutoMigrationResult): string {
+  if (result.pending) return "旧文件夹正在迁移，可重试";
+  return "旧文件夹迁移未完成，可重试";
 }

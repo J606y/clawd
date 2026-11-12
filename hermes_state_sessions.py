@@ -28,6 +28,28 @@ from hermes_state_compression import _CHAIN_CAP, _UNSET_CREATED_SQL
 # caplog tests pin the "hermes_state" logger name.
 logger = logging.getLogger("hermes_state")
 
+# Same-profile retry token for a committed delete whose project unbind or later
+# cleanup did not finish. Not a task queue. The retirement fence is per id and
+# does not store the removed set; ``emit_session_deleted`` does not persist it.
+_PENDING_UNBIND_PREFIX = "clawd.project_unbind_pending.v1."
+
+
+def _write_pending_unbind(conn, removed_ids: list[str], *, reason: str, primary: Optional[str]) -> None:
+    """Record the ids this transaction actually removed, keyed by every one of them."""
+    ids = list(dict.fromkeys(sid for sid in removed_ids if isinstance(sid, str) and sid))
+    if not ids:
+        return
+    primary_id = primary if isinstance(primary, str) and primary in ids else ids[0]
+    payload = json.dumps(
+        {"removed_ids": ids, "reason": reason, "primary": primary_id},
+        separators=(",", ":"),
+    )
+    conn.executemany(
+        "INSERT INTO state_meta(key, value) VALUES(?, ?) "
+        "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+        [(_PENDING_UNBIND_PREFIX + sid, payload) for sid in ids],
+    )
+
 
 def workspace_key(row: dict[str, Any]) -> Optional[str]:
     """Workspace grouping key: git repo root, else cwd, else None (branch excluded: a checkout must not
@@ -1726,12 +1748,144 @@ class SessionSessionsMixin:
             seen.update(local_conversation_ids(conn, sid))
         return list(seen)
 
+
+    def read_pending_project_unbind(self, session_id: str) -> Optional[dict[str, Any]]:
+        """Pending cleanup for *session_id* in this store only, or None.
+
+        The id must be a member of the stored removed set. A malformed record is
+        ignored so it cannot authorize unbinding some other id.
+        """
+        sid = str(session_id or "").strip()
+        if not sid:
+            return None
+        with self._read_ctx() as conn:
+            row = conn.execute(
+                "SELECT value FROM state_meta WHERE key=?",
+                (_PENDING_UNBIND_PREFIX + sid,),
+            ).fetchone()
+        if row is None:
+            return None
+        try:
+            payload = json.loads(row[0])
+        except (TypeError, ValueError):
+            logger.warning("ignoring malformed pending project unbind for %s", sid)
+            return None
+        if not isinstance(payload, dict) or not isinstance(payload.get("removed_ids"), list):
+            return None
+        ids = list(dict.fromkeys(
+            item for item in payload["removed_ids"] if isinstance(item, str) and item
+        ))
+        if sid not in ids:
+            return None
+        primary = payload.get("primary")
+        return {
+            "removed_ids": ids,
+            "reason": str(payload.get("reason") or ""),
+            "primary": primary if isinstance(primary, str) and primary in ids else ids[0],
+        }
+
+    def clear_pending_project_unbind(self, session_ids: list[str]) -> list[str]:
+        """Drop cleanup tokens whose rows are gone. Live rows keep their token.
+
+        Returns ids that still have a session row. Does not delete retirement fences.
+        """
+        ids = list(dict.fromkeys(sid for sid in session_ids if isinstance(sid, str) and sid))
+        kept: list[str] = []
+        if not ids:
+            return kept
+
+        def _do(conn):
+            for sid in ids:
+                if conn.execute("SELECT 1 FROM sessions WHERE id = ? LIMIT 1", (sid,)).fetchone():
+                    kept.append(sid)
+                    continue
+                conn.execute("DELETE FROM state_meta WHERE key=?", (_PENDING_UNBIND_PREFIX + sid,))
+
+        self._execute_write(_do)
+        return kept
+
+    def _finish_deleted_session_cleanup(
+        self, *, deleted: bool, removed_ids: list[str], reason: str,
+        primary: Optional[str], sessions_dir: Optional[Path],
+    ) -> None:
+        """Run event, unbind, media and file cleanup. One failure does not skip the rest.
+
+        No ``finally``: a later step cannot replace the original exception. The
+        pending-unbind record stays until the caller clears it after every step
+        it owns has succeeded. Does not report the delete as successful.
+        """
+        if not deleted:
+            try:
+                from hermes_state_media import collect_retired_media
+                collect_retired_media(self)
+            except Exception:
+                logger.warning("media cleanup after a refused delete failed", exc_info=True)
+            return
+        failures: list[BaseException] = []
+        try:
+            emit_session_deleted(
+                self, removed_ids, reason=reason, primary=primary, sessions_dir=sessions_dir,
+            )
+        except Exception as exc:
+            failures.append(exc)
+            logger.warning("session delete event failed", exc_info=True)
+        try:
+            self._release_deleted_project_bindings(removed_ids)
+        except Exception as exc:
+            failures.append(exc)
+        try:
+            from hermes_state_media import collect_retired_media
+            collect_retired_media(self)
+        except Exception as exc:
+            failures.append(exc)
+            logger.warning("media cleanup after session delete failed", exc_info=True)
+        for sid in removed_ids:
+            try:
+                self._remove_session_files(sessions_dir, sid)
+            except Exception as exc:
+                failures.append(exc)
+                logger.warning("session file cleanup failed for %s", sid, exc_info=True)
+        if not failures:
+            return
+        chosen = next(
+            (exc for exc in failures if type(exc).__name__ == "ProjectBindingReleaseError"),
+            failures[0],
+        )
+        for extra in failures:
+            if extra is chosen:
+                continue
+            note = getattr(chosen, "add_note", None)
+            text_note = f"additional cleanup failure: {type(extra).__name__}: {extra}"
+            if note is not None:
+                note(text_note)
+            else:
+                logger.warning("%s", text_note)
+        raise chosen
+
+    def _release_deleted_project_bindings(self, session_ids: list[str]) -> None:
+        """Release project membership after this delete has committed the row removal.
+
+        A failure propagates. Callers must not turn that into a successful return.
+        Not invoked when the active-write guard refuses the delete.
+        """
+        if not session_ids:
+            return
+        from clawd_projects.service import release_project_bindings_after_delete
+
+        release_project_bindings_after_delete(
+            list(session_ids),
+            state_db_path=Path(self.db_path),
+            session_db=self,
+        )
+
     def delete_session(
         self, session_id: str, sessions_dir: Optional[Path] = None,
         expected_delete_ids: Optional[list[str]] = None,
         expected_display_messages: Optional[dict[str, list[dict[str, Any]]]] = None,
         exclude_active_write_guards: bool = False,
         include_compression_chain: bool = False,
+        removed_ids_out: Optional[list[str]] = None,
+        retain_cleanup_record: bool = False,
     ) -> bool:
         """Delete a session and its messages; delegate children cascade, branch/compression children
         are orphaned. Optional expected ids fence delegate drift; expected display snapshots fence
@@ -1752,6 +1906,8 @@ class SessionSessionsMixin:
                 [session_id], sessions_dir=sessions_dir,
                 exclude_active_write_guards=exclude_active_write_guards,
                 include_compression_chain=True,
+                removed_ids_out=removed_ids_out,
+                retain_cleanup_record=retain_cleanup_record,
             ) > 0
         removed_ids: list[str] = []
         expected_ids = set(expected_delete_ids) if expected_delete_ids is not None else None
@@ -1787,14 +1943,17 @@ class SessionSessionsMixin:
             conn.executemany("DELETE FROM sessions WHERE id = ?", [(sid,) for sid in scope])
             self._delete_unreferenced_system_prompts(conn)
             removed_ids.extend(scope)
+            _write_pending_unbind(conn, removed_ids, reason="delete", primary=session_id)
             return True
         deleted = self._execute_write(_do)
-        if deleted:
-            emit_session_deleted(self, removed_ids, reason="delete", primary=session_id, sessions_dir=sessions_dir)
-        from hermes_state_media import collect_retired_media
-        collect_retired_media(self)
-        for sid in removed_ids:
-            self._remove_session_files(sessions_dir, sid)
+        if removed_ids_out is not None and deleted:
+            removed_ids_out.extend(removed_ids)
+        self._finish_deleted_session_cleanup(
+            deleted=bool(deleted), removed_ids=removed_ids, reason="delete",
+            primary=session_id, sessions_dir=sessions_dir,
+        )
+        if deleted and not retain_cleanup_record:
+            self.clear_pending_project_unbind(removed_ids)
         return bool(deleted)
 
     def discard_unadmitted_session(self, session_id: str) -> bool:
@@ -1849,20 +2008,23 @@ class SessionSessionsMixin:
             retire_sessions(conn, [session_id], expiring=[session_id])
             conn.execute("DELETE FROM sessions WHERE id = ?", (session_id,))
             self._delete_unreferenced_system_prompts(conn)
+            _write_pending_unbind(conn, [session_id], reason="empty_sweep", primary=session_id)
             return True
         deleted = self._execute_write(_do)
+        self._finish_deleted_session_cleanup(
+            deleted=bool(deleted), removed_ids=[session_id] if deleted else [],
+            reason="empty_sweep", primary=session_id, sessions_dir=sessions_dir,
+        )
         if deleted:
-            emit_session_deleted(self, [session_id], reason="empty_sweep", sessions_dir=sessions_dir)
-        from hermes_state_media import collect_retired_media
-        collect_retired_media(self)
-        if deleted:
-            self._remove_session_files(sessions_dir, session_id)
+            self.clear_pending_project_unbind([session_id])
         return deleted
 
     def delete_sessions(
         self, session_ids: list[str], sessions_dir: Optional[Path] = None,
         exclude_active_write_guards: bool = False, skipped_ids: Optional[list[str]] = None,
         include_compression_chain: bool = False,
+        removed_ids_out: Optional[list[str]] = None,
+        retain_cleanup_record: bool = False,
     ) -> int:
         """Bulk delete with :meth:`delete_session` semantics per row, in ONE transaction. Unknown ids
         are skipped (UI selection can race another tab's delete). With ``exclude_active_write_guards``, rows
@@ -1935,18 +2097,24 @@ class SessionSessionsMixin:
                 conn.execute(f"DELETE FROM sessions WHERE id IN ({ph})", chunk)
             self._delete_unreferenced_system_prompts(conn)
             removed_ids.extend(expanded)
+            _write_pending_unbind(
+                conn, removed_ids, reason="delete",
+                primary=unique_ids[0] if len(unique_ids) == 1 else None,
+            )
             # Count the ids the CALLER asked for, not the expanded chain links —
             # the dashboard toast should say "3 deleted" when the user selected
             # 3 rows, however many physical links those rows had.
             return len(existing)
         count = self._execute_write(_do)
-        if count:
-            emit_session_deleted(self, removed_ids, reason="delete", primary=unique_ids[0] if len(unique_ids) == 1 else None,
-                                 sessions_dir=sessions_dir)
-        from hermes_state_media import collect_retired_media
-        collect_retired_media(self)
-        for sid in removed_ids:
-            self._remove_session_files(sessions_dir, sid)
+        if removed_ids_out is not None and count:
+            removed_ids_out.extend(removed_ids)
+        self._finish_deleted_session_cleanup(
+            deleted=bool(count), removed_ids=removed_ids, reason="delete",
+            primary=unique_ids[0] if len(unique_ids) == 1 else None,
+            sessions_dir=sessions_dir,
+        )
+        if count and not retain_cleanup_record:
+            self.clear_pending_project_unbind(removed_ids)
         return count
 
     # Shared by count_empty_sessions / delete_empty_sessions so badge and sweep agree. message_count
@@ -1983,14 +2151,15 @@ class SessionSessionsMixin:
                 conn.execute(f"DELETE FROM sessions WHERE id IN ({ph})", chunk)
                 removed_ids.extend(chunk)
             self._delete_unreferenced_system_prompts(conn)
+            _write_pending_unbind(conn, removed_ids, reason="empty_sweep", primary=None)
             return len(session_ids)
         count = self._execute_write(_do)
+        self._finish_deleted_session_cleanup(
+            deleted=bool(count), removed_ids=removed_ids, reason="empty_sweep",
+            primary=None, sessions_dir=sessions_dir,
+        )
         if count:
-            emit_session_deleted(self, removed_ids, reason="empty_sweep", sessions_dir=sessions_dir)
-        from hermes_state_media import collect_retired_media
-        collect_retired_media(self)
-        for sid in removed_ids:
-            self._remove_session_files(sessions_dir, sid)
+            self.clear_pending_project_unbind(removed_ids)
         return count
 
     def archive_sessions(

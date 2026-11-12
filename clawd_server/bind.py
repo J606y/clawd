@@ -31,7 +31,9 @@ def prepare_env(home: Path, api_base: str) -> None:
     from clawd_server.resources import panel_root
 
     os.environ["PANEL_LIVE_STORE_MODULE"] = str(panel_root() / "sidecar" / "live_task_store.py")
-    os.environ["PANEL_LIVE_CDP"] = "127.0.0.1:9"
+    from clawd_server.live_browser_routes import panel_live_cdp
+
+    os.environ["PANEL_LIVE_CDP"] = panel_live_cdp(home)
     os.environ["PANEL_API_KEY_FILE"] = str(home / "panel" / "api-server.key")
     os.environ["PANEL_API_SERVER"] = api_base
     os.environ["PANEL_SIDECAR_KEY_FILE"] = str(home / "panel" / "sidecar.key")
@@ -94,12 +96,30 @@ def bind(mod, home: Path, command: str) -> None:
             spec["path"].mkdir(parents=True, mode=0o700, exist_ok=True)
     mod.DENY_PREFIXES = (Path("/etc"), Path("/root/.ssh"), home / ".env", Path("/root/.hermes"), _SYSTEM_SRC)
     mod.LOG_JOURNAL = {}
-    mod.SERVICES = [("clawd-panel", "clawd 面板")]
+    # Query this clawd process's actual systemd unit, not old Hermes services.
+    units = []
+    try:
+        for line in Path("/proc/self/cgroup").read_text(encoding="utf-8").splitlines():
+            fields = line.split(":", 2)
+            if len(fields) != 3:
+                continue
+            for part in fields[2].split("/"):
+                if part.startswith("clawd") and part.endswith(".service"):
+                    unit = part.removesuffix(".service")
+                    if unit not in units:
+                        units.append(unit)
+    except OSError:
+        log.exception("cannot read clawd process service ownership")
+    mod.SERVICES = [(unit, "clawd 服务") for unit in units]
+    if not units:
+        log.warning("clawd has no discoverable systemd unit; not inventing a stopped service")
+    mod.SERVICES.extend([
+        ("nginx", "Nginx"),
+        ("x-ui", "x-ui 代理"),
+        ("moss-agent", "Moss 监控"),
+        ("ssh", "SSH"),
+    ])
     mod.RESTARTABLE = set()
-    mod._service_states = lambda: [{
-        "name": "clawd-panel", "label": "clawd 面板", "active": "active", "sub": "running",
-        "memory": None, "memoryMax": None, "runningForS": None, "restartable": False,
-    }]
 
     def restart_service(name: str, force: bool = False):
         del force
@@ -115,18 +135,10 @@ def bind(mod, home: Path, command: str) -> None:
     def get_update_status():
         return {"running": False, "state": "idle", "runId": None, "logTail": "系统更新单元已禁用"}
 
-    def get_update_info(force: bool = False):
-        del force
-        return {
-            "version": "clawd", "commit": "", "localChanges": [], "behindBy": None,
-            "status": "disabled", "error": "更新检查不访问系统安装目录", "stale": False,
-        }
-
     mod.restart_service = restart_service
     mod.start_update = start_update
     mod.get_update_plan = get_update_plan
     mod.get_update_status = get_update_status
-    mod.get_update_info = get_update_info
     saved_watch = mod._continue_watcher
     saved_tick = getattr(mod, "_continue_tick", None)
     mod._clawd_saved_continue_watcher = saved_watch

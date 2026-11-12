@@ -37,6 +37,7 @@ _CHAIN_STEP_SQL = f"""
                       AND {_sql_json_extract('child.model_config', '$._delegate_from')} IS NULL
                       AND NOT ({_RESET_CHILD_SQL.format(a='child')})
                       AND COALESCE(child.source, '') != 'tool'
+                      AND (COALESCE(child.source, '') != 'subagent' OR parent.source = 'subagent')
                     ORDER BY
                       CASE
                         WHEN child.end_reason = 'compression' THEN 0

@@ -880,3 +880,92 @@
   border-color: var(--glass-border);
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18), var(--glass-inset);
 }
+
+.shell[data-project] .topbar { position: relative; }
+.shell[data-project] .topbar h2 {
+  position: absolute;
+  left: 64px;
+  right: 64px;
+  text-align: center;
+  pointer-events: none;
+  font-size: 17px;
+}
+.project-home { position: relative; height: 100%; background: var(--bg); }
+.project-home .project-body { padding: 12px 16px 96px; }
+.project-home .pills { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.project-home .pills button {
+  height: 40px;
+  border: none;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text) 14%, var(--bg));
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 560;
+  cursor: pointer;
+}
+.project-home .pills button[aria-pressed="true"] { background: color-mix(in srgb, var(--text) 22%, var(--bg)); }
+.project-home h2 { margin: 22px 4px 8px; font-size: 13px; font-weight: 560; color: var(--text-tertiary); }
+.project-home ul { list-style: none; margin: 0; padding: 0; }
+.project-home .row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr);
+  column-gap: 12px;
+  row-gap: 2px;
+  align-items: center;
+  text-align: left;
+  background: none;
+  border: none;
+  color: inherit;
+  font: inherit;
+  padding: 12px 2px;
+  cursor: pointer;
+}
+.project-home .icon { grid-row: 1 / span 2; color: var(--text-tertiary); display: grid; }
+.project-home .title { font-size: 16px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.project-home .time { font-size: 13px; color: var(--text-tertiary); }
+.project-home .new-chat {
+  position: fixed;
+  right: 16px;
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  z-index: 5;
+  height: 44px;
+  padding: 0 16px;
+  border: none;
+  border-radius: 999px;
+  background: var(--text);
+  color: var(--bg);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 650;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .28);
+  cursor: pointer;
+}
+.project-home .new-chat:disabled { opacity: .5; cursor: default; }
+.project-home form, .project-home .sheet { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.project-home input, .project-home textarea {
+  font: inherit;
+  color: var(--text);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+.project-home p { margin: 0; color: var(--text-secondary); font-size: 13px; }
+
+.project-home .pills button { background: transparent; border: 1px solid color-mix(in srgb, var(--text) 28%, transparent); }
+.project-sheet { position: fixed; inset: 0; z-index: 30; background: rgba(0,0,0,.5); display: flex; align-items: flex-end; }
+.project-sheet .panel { width: min(680px, 100%); margin: 0 auto; max-height: min(78dvh, 760px); overflow: auto; background: var(--bg-elevated); color: var(--text); border-radius: 18px 18px 0 0; padding: 8px 16px calc(16px + env(safe-area-inset-bottom)); }
+.project-sheet .grab { width: 36px; height: 4px; border-radius: 99px; background: var(--border); margin: 4px auto 12px; }
+.project-sheet header { display: grid; grid-template-columns: 36px 1fr 36px; align-items: center; margin-bottom: 12px; }
+.project-sheet h3 { margin: 0; text-align: center; font-size: 17px; }
+.project-sheet .x, .project-sheet .ok { width: 32px; height: 32px; border: none; border-radius: 50%; cursor: pointer; }
+.project-sheet .x { background: color-mix(in srgb, var(--text) 16%, var(--bg)); color: var(--text); }
+.project-sheet .ok { justify-self: end; background: var(--text); color: var(--bg); }
+.project-sheet .empty, .project-sheet p { color: var(--text-secondary); }
+.project-sheet .empty { text-align: center; padding: 28px 8px; }
+.project-sheet ul { list-style: none; margin: 0; padding: 0; }
+.project-sheet .mem { width: 100%; display: flex; justify-content: space-between; gap: 12px; padding: 14px 0; border: none; border-bottom: 1px solid var(--border); background: none; color: var(--text); text-align: left; font: inherit; cursor: pointer; }
+.project-sheet .add { width: 100%; height: 48px; margin-top: 12px; border: none; border-radius: 14px; background: var(--text); color: var(--bg); font: inherit; font-weight: 650; cursor: pointer; }
+.project-sheet textarea, .project-sheet input { width: 100%; box-sizing: border-box; }

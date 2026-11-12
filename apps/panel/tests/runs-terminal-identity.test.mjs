@@ -205,6 +205,13 @@ try {
             await waitFor(() => settle ? run.status !== 'running' : run.followDropped === true, sid);
             if (!settle) assert.match(run.error, UNCONFIRMED, sid);
             checkOutcome(run, settle, status, watch.finished, `${mod.root} follow ${status} ${name}`);
+            assert.equal(run.runId, runId, `${name}: run identity stays fixed`);
+            assert.equal(run.sessionId, sid, `${name}: session identity stays fixed`);
+            if (mod.root === '/src/react/lib' && name === 'wrong-session') {
+              assert.equal(run.locallyReleased, true, 'confirmed foreign ownership only releases local input');
+              assert.equal(mod.runs.isActive(sid), false, 'foreign observer cannot lock the main input');
+              assert.equal(stored(sid)?.runId, runId, 'foreign identity must not erase recovery');
+            }
           } catch (error) {
             failures.push(`${status}/${name}: ${error.message}`);
           } finally {
@@ -214,6 +221,42 @@ try {
         }
       }
       assert.deepEqual(failures, [], failures.join('\n'));
+    });
+
+    if (mod.root === '/src/react/lib') await test('foreign ownership release recovers only after matching run and session proof', async () => {
+      const sid = `foreign-recovery-${++seq}`;
+      const runId = `run-${sid}`;
+      let stream = holdStream();
+      const watch = arm(mod, sid);
+      mod.sidecar.sessionRun = async () => ({ busy: true, run: null });
+      mod.api.runStatus = async () => ({ run_id: runId, session_id: 'foreign-child', status: 'running' });
+      try {
+        mod.runs.observe(sid, runId, Date.now());
+        const run = mod.runs.get(sid);
+        await waitFor(() => stream.opened, sid);
+        stream.close();
+        await waitFor(() => run.followDropped === true, sid);
+        assert.equal(run.locallyReleased, true);
+        assert.equal(run.status, 'running');
+        assert.equal(watch.finished, 0);
+        assert.equal(stored(sid)?.runId, runId);
+        mod.api.runStatus = async () => ({ run_id: runId, session_id: sid, status: 'running' });
+        stream = holdStream();
+        assert.equal(mod.runs.resubscribe(sid, runId, run.startedAt), true);
+        await new Promise((resolve) => setTimeout(resolve, 300));
+        await waitFor(() => stream.opened, sid);
+        stream.close();
+        await waitFor(() => run.ownerConfirmed === true, sid);
+        assert.equal(run.locallyReleased, false);
+        assert.equal(run.followDropped, false);
+        assert.equal(run.error, '');
+        assert.equal(run.sessionId, sid);
+        assert.equal(run.runId, runId);
+        assert.equal(watch.finished, 0);
+      } finally {
+        watch.stop();
+        await release(mod, sid, stream);
+      }
     });
 
     await test(`${mod.root} lost-executor 200 terminal requires both ids`, async () => {

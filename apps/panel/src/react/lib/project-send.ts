@@ -101,3 +101,47 @@ export async function bindCreatedSessionOrBlock(input: {
     throw new ProjectBindBlocked(message, input.sessionId, projectId, status);
   }
 }
+
+
+const OPEN_KEY = "hp_open_project_view";
+
+let openMemory: string | null = null;
+let openLoaded = false;
+const openListeners = new Set<() => void>();
+
+function readOpen(): string {
+  try {
+    return globalThis.sessionStorage?.getItem(OPEN_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+function writeOpen(value: string): void {
+  try {
+    globalThis.sessionStorage?.setItem(OPEN_KEY, value);
+  } catch {
+    // 记不住时只保留本次内存选择，不猜测项目。
+  }
+}
+
+/** 当前打开的项目内页。空表示不遮住对话。不是绑定失败后的回退。 */
+export function getOpenProjectId(): string | null {
+  if (!openLoaded) {
+    openMemory = readOpen().trim();
+    openLoaded = true;
+  }
+  return openMemory ? openMemory : null;
+}
+
+export function setOpenProjectId(id: string | null): void {
+  openMemory = (id ?? "").trim();
+  openLoaded = true;
+  writeOpen(openMemory);
+  openListeners.forEach((listener) => listener());
+}
+
+export function subscribeOpenProject(listener: () => void): () => void {
+  openListeners.add(listener);
+  return () => openListeners.delete(listener);
+}

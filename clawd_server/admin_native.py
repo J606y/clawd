@@ -52,7 +52,6 @@ BLOCKED = {
     "start_update": "宿主 hermes update 保持禁用",
     "get_update_plan": "不执行 update --plan",
     "get_update_status": "不读更新单元",
-    "get_update_info": "不访问系统安装目录",
     "delete_profile": "现有请求只带名称，不能当确认；确认接口另挂，不调用会改写进程环境的核心删除",
     "recent_deliveries": "投递日志刮取没有进程内读接口",
     "use_profile_process_switch": "只写 sticky 文件，不修改 os.environ",
@@ -82,18 +81,10 @@ def _keep_host_disabled(mod: Any) -> None:
     def get_update_status() -> dict[str, Any]:
         return {"running": False, "state": "idle", "runId": None, "logTail": "系统更新单元已禁用"}
 
-    def get_update_info(force: bool = False) -> dict[str, Any]:
-        del force
-        return {
-            "version": "clawd", "commit": "", "localChanges": [], "behindBy": None,
-            "status": "disabled", "error": "更新检查不访问系统安装目录", "stale": False,
-        }
-
     mod.restart_service = restart_service
     mod.start_update = start_update
     mod.get_update_plan = get_update_plan
     mod.get_update_status = get_update_status
-    mod.get_update_info = get_update_info
 
 
 def _bind_skill_export(mod: Any) -> None:

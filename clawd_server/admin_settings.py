@@ -43,6 +43,38 @@ def _dig(data: Any, path: str) -> tuple[Any, bool]:
     return cur, True
 
 
+def _persisted_setting_path(key: Any, mapping: dict[str, Any]) -> str | None:
+    """Form key to raw path. Unknown map values are not treated as present."""
+    if not isinstance(key, str) or not key or "\x00" in key:
+        return None
+    if key not in mapping:
+        return key
+    target = mapping[key]
+    if not isinstance(target, str) or not target or "\x00" in target or target.startswith(("/", "\\")):
+        return None
+    return target
+
+
+def _user_set_keys(fields: Any, raw: Any, mapping: Any) -> list[str]:
+    """Raw presence at the persisted path. Missing is unset.
+
+    Explicit false, 0, empty string, and None stay set. A falsy value is not missing.
+    Read-only: does not write a context length or any other key.
+    """
+    table = mapping if isinstance(mapping, dict) else _KEY_MAP
+    if not isinstance(fields, dict) or not isinstance(raw, dict):
+        return []
+    present: list[str] = []
+    for key in fields:
+        path = _persisted_setting_path(key, table)
+        if path is None:
+            continue
+        _value, found = _dig(raw, path)
+        if found:
+            present.append(key)
+    return present
+
+
 def _stamp() -> tuple[Any, ...] | None:
     from hermes_cli.config import get_config_path
 
@@ -83,7 +115,7 @@ def _dump(mod: Any) -> dict[str, Any]:
         data = {
             "fields": fields,
             "values": {key: _dig(effective, key)[0] for key in fields},
-            "userSet": [key for key in fields if _dig(raw, key)[1]],
+            "userSet": _user_set_keys(fields, raw, getattr(mod, "SETTINGS_KEY_MAP", _KEY_MAP)),
         }
         _CACHE.update(stamp=stamp, at=time.monotonic(), data=data, home=home)
         return data

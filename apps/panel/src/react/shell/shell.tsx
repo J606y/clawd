@@ -1,11 +1,12 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
 import type { ReactNode } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router";
 import { ChatPage } from "@/pages/chat/chat-page";
 import { api, type SessionSummary } from "@/lib/api.js";
 import { clearCredential } from "@/lib/auth.js";
 import { saveLiveView, type LiveView } from "@/lib/live-view.js";
-import { useHealth } from "@/lib/queries";
+import { useHealth, useProjects } from "@/lib/queries";
+import { getOpenProjectId, subscribeOpenProject } from "@/lib/project-send";
 import { NAV_MS, reducedMotion } from "@/lib/route-motion.js";
 import { useResumeRuns } from "@/lib/stream";
 import { nextThemePref } from "@/lib/theme.js";
@@ -13,6 +14,7 @@ import { useUiStore } from "@/stores/ui";
 import { DockHost } from "./dock-host";
 import { EMPTY_DOCK, finishDockLeave, reduceDock, type DockState, type DockView } from "./dock-state";
 import { SessionList, type SessionListHandle } from "./session-list";
+import { resumeMainSession, resumeSelectsSubagent } from "./session-logic";
 import { readAgent, readId, readLiveOpen, readRename, readSession } from "./shell-events";
 import { consumeSkipRenameBlur, markSkipRenameBlur, setShellSession, useShellSession } from "./shell-session";
 import { useDocumentVisible, useNarrow } from "./viewport";
@@ -199,22 +201,27 @@ export function Shell() {
 
   useEffect(() => {
     const saved = useUiStore.getState().liveView;
-    if (saved?.sessionId && !useUiStore.getState().selectedSessionId) {
+    if (saved?.sessionId && !useUiStore.getState().selectedSessionId && !resumeSelectsSubagent(saved.sessionSource)) {
       setSelectedSessionId(saved.sessionId);
       setShellSession(placeholderSession(saved.sessionId, saved.sessionTitle, saved.sessionSource));
     }
   }, [setSelectedSessionId]);
 
   useEffect(() => {
-    if (useUiStore.getState().selectedSessionId || useUiStore.getState().liveView?.sessionId) return;
-    const id = resumed.at(-1);
-    if (!id) return;
-    setSelectedSessionId(id);
-    setShellSession(placeholderSession(id));
+    const saved = useUiStore.getState().liveView;
+    if (useUiStore.getState().selectedSessionId) return;
+    if (saved?.sessionId && !resumeSelectsSubagent(saved.sessionSource)) return;
+    const ids = resumed.filter((id) => id);
+    if (!ids.length) return;
+    let cancelled = false;
     void api.listSessions({ limit: 100 }).then((page) => {
-      const found = page.data.find((session) => session.id === id);
-      if (found && useUiStore.getState().selectedSessionId === id) setShellSession(found);
+      if (cancelled || useUiStore.getState().selectedSessionId) return;
+      const found = resumeMainSession(ids, page.data);
+      if (!found) return;
+      setSelectedSessionId(found.id);
+      setShellSession(found);
     }).catch(() => undefined);
+    return () => { cancelled = true; };
   }, [resumed, setSelectedSessionId]);
 
   useEffect(() => {
@@ -406,22 +413,39 @@ export function Shell() {
 
   const offline = linkDown || health.isError;
   const version = health.data?.version ?? "";
-  const title = onChat
-    ? (selectedId || shellSession ? shellSession?.title || "未命名对话" : "新对话")
-    : pageTitle(location.pathname);
+  const openProjectId = useSyncExternalStore(subscribeOpenProject, getOpenProjectId, () => null);
+  const projects = useProjects();
+  const openProject = openProjectId
+    ? projects.data?.projects.find((item) => item.id === openProjectId) ?? null
+    : null;
+  const title = openProject
+    ? openProject.name
+    : onChat
+      ? (selectedId || shellSession ? shellSession?.title || "未命名对话" : "新对话")
+      : pageTitle(location.pathname);
   const livePressed = dock.current?.kind === "live";
   const liveColumn = dock.current?.kind === "live" || dock.current?.kind === "task" || dock.leaving?.kind === "live" || dock.leaving?.kind === "task";
   const agentColumn = dock.current?.kind === "agent" || dock.leaving?.kind === "agent";
 
-  const logout = () => {
-    persistLive(null);
-    clearCredential();
-    window.location.reload();
+  const logout = async () => {
+    try {
+      const response = await fetch(new URL("panel-auth/logout", document.baseURI), {
+        method: "POST", credentials: "same-origin", cache: "no-store",
+      });
+      if (response.status !== 204) throw new Error(`退出失败：HTTP ${response.status}`);
+      clearCredential();
+      persistLive(null);
+      window.location.reload();
+    } catch (error) {
+      console.error("退出失败", error);
+      window.alert("退出失败，请重试。当前登录尚未注销。");
+    }
   };
 
   return (
     <div
       className="shell"
+      data-project={openProject ? "" : undefined}
       data-drawer={drawerOpen ? "" : undefined}
       data-live={liveColumn ? "" : undefined}
       data-agent={agentColumn ? "" : undefined}
@@ -517,10 +541,10 @@ export function Shell() {
             </svg>
           </button>
           <h2>{title}</h2>
-          <button type="button" className="icon-btn" title="新对话" aria-label="新对话" onClick={newChat}>
+          {openProject ? null : <button type="button" className="icon-btn" title="新对话" aria-label="新对话" onClick={newChat}>
             <PlusIcon />
-          </button>
-          <button
+          </button>}
+          {openProject ? null : <button
             type="button"
             className="icon-btn"
             title="实时画面：查看 clawd 正在操作的浏览器"
@@ -537,7 +561,7 @@ export function Shell() {
               <path d="M7 17h6M10 14v3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
               <circle cx="10" cy="8.75" r="1.6" fill="currentColor" />
             </svg>
-          </button>
+          </button>}
         </div>
         <div className="stage nav-stage" ref={stageRef}>
           {/* 现版出字仍由对话页负责。离开对话立即 hidden，不在这里换旧出字。 */}

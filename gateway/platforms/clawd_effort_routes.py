@@ -3,6 +3,11 @@
 Exported as ``register_effort_routes(app, adapter)`` for the parent integration
 layer. This module does not mount itself. Handlers enter the request profile
 scope and never mutate process env.
+
+GET and PUT ask ``resolve_execution_state(db, session_id, authority, adapter)``.
+A missing SessionAuthority is not a refusal by itself: the adapter that owns
+this store can still prove idle or running. Unknown still writes nothing.
+A missing session is 404, and that check is not replaced by the unknown refusal.
 """
 
 from __future__ import annotations
@@ -17,14 +22,16 @@ from aiohttp import web
 
 from clawd_server.effort_service import (
     EffortServiceError,
-    profile_execution_state,
+    _panel_effort,
     read_session_effort,
+    resolve_execution_state,
     write_session_effort,
 )
 
 logger = logging.getLogger("gateway.clawd_effort")
 
 _SESSION_ID_MAX = 256
+_UNAVAILABLE = "无法确认会话是否仍在运行，档位未写入"
 
 
 def _error(message: str, status: int, code: str) -> web.Response:
@@ -92,23 +99,68 @@ def _authority(adapter: Any) -> Any:
     return authority_for_home(runner, get_hermes_home())
 
 
+def _lookup_authority(adapter: Any, session_id: str) -> Any:
+    """Authority for this request, or None when this process has none.
+
+    A lookup failure is not idle and is not itself the HTTP refusal. The
+    resolver still sees the adapter.
+    """
+    try:
+        return _authority(adapter)
+    except Exception:
+        logger.warning("effort authority lookup failed for %s", session_id, exc_info=True)
+        return None
+
+
 def _run_state(adapter: Any, session_id: str, db: Any) -> str:
     """``running``, ``idle``, or ``unknown``.
 
-    Idle is only this profile's authority execution map plus its lease and
-    admission rows. ``adapter._run_statuses`` is not profile-scoped: the same
-    session id in another profile must not be treated as idle.
+    ``resolve_execution_state(db, session_id, authority, adapter)``. Idle is
+    not implied by a missing authority. Resolver failure stays unknown.
     """
+    authority = _lookup_authority(adapter, session_id)
     try:
-        authority = _authority(adapter)
-    except Exception:
-        logger.warning("effort authority lookup failed for %s", session_id, exc_info=True)
-        return "unknown"
-    try:
-        return profile_execution_state(db, session_id, authority)
+        return resolve_execution_state(db, session_id, authority, adapter)
     except Exception:
         logger.warning("effort run-state lookup failed for %s", session_id, exc_info=True)
         return "unknown"
+
+
+def _unavailable() -> EffortServiceError:
+    return EffortServiceError("effort_run_state_unavailable", _UNAVAILABLE, 503)
+
+
+def _commit_effort(
+    db: Any, session_id: str, effort: Any, authority: Any, adapter: Any,
+) -> dict[str, Any]:
+    """Validate, refuse unknown, then write through the same resolver.
+
+    Effort is checked before existence, so a bad tier on a missing session
+    stays 400. Existence is checked before the unknown refusal, so a missing
+    session stays 404. A missing authority is not a refusal. A failed
+    session read is unavailable, not idle and not 404.
+    """
+    _panel_effort(effort)
+    try:
+        session = db.get_session(session_id)
+    except Exception as exc:
+        raise _unavailable() from exc
+    if not isinstance(session, dict):
+        raise EffortServiceError("session_not_found", "会话不存在", 404)
+    try:
+        state = resolve_execution_state(db, session_id, authority, adapter)
+    except Exception as exc:
+        raise _unavailable() from exc
+    if state not in ("running", "idle"):
+        raise _unavailable()
+    return write_session_effort(
+        db,
+        session_id,
+        effort,
+        running=state == "running",
+        authority=authority,
+        adapter=adapter,
+    )
 
 
 class ClawdEffortRoutes:
@@ -173,26 +225,9 @@ class ClawdEffortRoutes:
         try:
             with _scope(self.adapter, profile):
                 db = await self._db()
-                authority: Any = None
-                state = "unknown"
-                try:
-                    authority = _authority(self.adapter)
-                    state = profile_execution_state(db, session_id, authority)
-                except Exception:
-                    logger.warning("effort run-state lookup failed for %s", session_id, exc_info=True)
-                    state = "unknown"
-                    authority = None
-                if state == "unknown" or authority is None:
-                    raise EffortServiceError(
-                        "effort_run_state_unavailable", "无法确认会话是否仍在运行，档位未写入", 503,
-                    )
+                authority = _lookup_authority(self.adapter, session_id)
                 view = await asyncio.to_thread(
-                    write_session_effort,
-                    db,
-                    session_id,
-                    body["effort"],
-                    running=state == "running",
-                    authority=authority,
+                    _commit_effort, db, session_id, body["effort"], authority, self.adapter,
                 )
         except EffortServiceError as exc:
             return _error(exc.message, exc.status, exc.code)

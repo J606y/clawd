@@ -6,7 +6,7 @@ import { ApiError, api, type ApprovalChoice, type Message, type OutgoingContent 
 import { buildSteerText, formatBytes, type Attachment } from "./attachments.js";
 import { getSse } from "./sse.js";
 import { sidecar, type SessionRunState } from "./sidecar.js";
-import { buildTurns, isTurnStart, type NoteStep, type Step, type ToolStep } from "./transcript.js";
+import { buildTurns, confirmedForeignSession, isTurnStart, type NoteStep, type Step, type ToolStep } from "./transcript.js";
 import { currentEffort } from "./effort.js";
 import { applyTurnUsage, createTurnUsage, formatTurnTokens } from "./turn-usage.js";
 import { clarifyIdentity, parseClarifyEvent, CLARIFY_ANSWER_MAX, type ClarifyAnswer, type ClarifyPrompt } from "./clarify.js";
@@ -74,6 +74,8 @@ export interface LiveRun {
    * 不是 streamGone，不能据此清思考；也不是终态。
    */
   followDropped?: boolean;
+  /** 已有状态或事件用相同 session_id 确认过这条运行属于当前会话。 */
+  ownerConfirmed?: boolean;
   /** 回放事件超限被服务器截断，旧步骤无法通过事件还原。 */
   replayTruncated?: boolean;
   /** Observable output estimate; unavailable after an incomplete replay. */
@@ -613,6 +615,11 @@ class RunStore extends EventTarget {
         if (held && held !== run) return;
         // 错配或缺身份的终态不能结算，也不能改写 runId。断线本身不是 completed。
         // 内容事件仍允许缺字段；状态体必须正向匹配后才能 finish。
+        if (st?.run_id === run.runId && confirmedForeignSession(run.sessionId, st?.session_id) && !run.ownerConfirmed) {
+          this.releaseUnconfirmedForeign(run);
+          return;
+        }
+        if (st?.run_id === run.runId && st.session_id === run.sessionId) run.ownerConfirmed = true;
         if (foreignIdentity(run, st) || (terminalClaim(st) && !trustedTerminalIdentity(run, st))) {
           if (terminalClaim(st) && !trustedTerminalIdentity(run, st)) this.noteUnconfirmedTerminal(run);
           this.dropFollow(run);
@@ -694,6 +701,25 @@ class RunStore extends EventTarget {
     if (this.runs.get(run.sessionId) === run) this.changed(run);
   }
 
+  /**
+   * 状态已经指出运行属于另一个会话，且当前订阅从未确认过主会话身份。
+   * 丢掉尚未确认的流式正文，不停止服务端任务，也不把这条运行留在主会话上重订阅。
+   */
+  private releaseUnconfirmedForeign(run: LiveRun): void {
+    if (run.ownerConfirmed || this.finished.has(run) || this.runs.get(run.sessionId) !== run || !isLive(run.status)) return;
+    run.text = "";
+    run.thinking = "";
+    run.steps = [];
+    run.approval = null;
+    run.clarify = null;
+    run.followDropped = true;
+    run.locallyReleased = true;
+    run.error = `${UNCONFIRMED_TERMINAL}。这次订阅返回了另一会话，已释放本地输入，原运行标识保留供核验。`;
+    // Wrong ownership is not an authoritative terminal for this session.
+    // Preserve the recovery record and do not emit RUN_FINISHED or stop upstream.
+    this.changed(run);
+  }
+
   /** 拒绝不可信终态后留在进行中，并写明原因。不改成 completed，也不把 error 清成空成功。 */
   private noteUnconfirmedTerminal(run: LiveRun): void {
     if (!isLive(run.status) || this.finished.has(run) || this.runs.get(run.sessionId) !== run) return;
@@ -703,10 +729,11 @@ class RunStore extends EventTarget {
 
   private acceptFollow(run: LiveRun): boolean {
     const dropped = run.followDropped === true;
-    const notice = run.error === MISMATCH_NOTICE || run.error === UNCONFIRMED_TERMINAL;
+    const notice = run.error === MISMATCH_NOTICE || run.error.startsWith(UNCONFIRMED_TERMINAL);
     if (!dropped && !notice) return false;
     if (dropped) run.followDropped = false;
     if (notice) run.error = "";
+    if (run.ownerConfirmed) run.locallyReleased = false;
     return true;
   }
 
@@ -792,6 +819,7 @@ class RunStore extends EventTarget {
   /** /v1/runs 事件名与 chat/stream 不同，统一翻译成 apply() 认识的那套。 */
   private applyRunEvent(run: LiveRun, d: Record<string, unknown>): void {
     if (foreignIdentity(run, d) || !isLive(run.status)) return;
+    if (typeof d.session_id === "string" && d.session_id === run.sessionId) run.ownerConfirmed = true;
     // 事件流终态仍走缺字段兼容，不在这里要求 session_id。可信状态体才走 finishFromStatus。
     if (
       d.event === "run.completed" || d.event === "run.cancelled"

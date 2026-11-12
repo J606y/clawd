@@ -1558,3 +1558,94 @@ const CSS = `
 export function ChatStyles() {
   return <style>{CSS}</style>;
 }
+
+const PROJECT_HOME_DELETE_CSS = `
+.project-home .session-line {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+.project-home .session-line > .row {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+}
+.project-home .session-delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  min-width: 44px;
+  min-height: 44px;
+  margin: 0;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--danger, #e85d66);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 1;
+  visibility: visible;
+}
+.project-home .session-delete:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.project-home .session-delete-confirm {
+  margin: 0 2px 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-elevated);
+}
+.project-home .session-delete-confirm p {
+  margin: 0;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.project-home .session-delete-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+.project-home .session-delete-actions button {
+  min-height: 40px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+.project-home .session-delete-actions button:first-child {
+  color: var(--danger, #e85d66);
+}
+.project-home .session-delete-actions button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+.project-home .session-delete-error {
+  margin: 8px 0 0;
+  color: var(--danger, #e85d66);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.project-home .session-delete:focus-visible,
+.project-home .session-delete-actions button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+`;
+
+export function ProjectHomeDeleteStyles() {
+  return <style>{PROJECT_HOME_DELETE_CSS}</style>;
+}

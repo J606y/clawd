@@ -34,6 +34,12 @@ function compact(n: number): string {
   return String(Math.round(n));
 }
 
+function contextTime(value: ContextUsage["at"]): string | null {
+  if (value == null || value === "") return null;
+  const date = typeof value === "number" ? new Date(value * 1000) : new Date(value);
+  return Number.isFinite(date.getTime()) ? date.toLocaleString() : null;
+}
+
 function Chevron() {
   return (
     <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
@@ -150,7 +156,7 @@ export function EffortPicker({
   model: string;
   stored: string;
   sessionId: string;
-  onChange: (level: string) => void;
+  onChange: (level: string) => void | Promise<void>;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const trackRef = useRef<HTMLDivElement>(null);
@@ -159,7 +165,31 @@ export function EffortPicker({
   const [offset, setOffset] = useState(0);
   const [dragging, setDragging] = useState(false);
   const levels = levelsFor(model);
-  const value = sliderEffort(model, stored);
+  const [preview, setPreview] = useState<string | null>(null);
+  const previewRef = useRef<string | null>(null);
+  const commitGen = useRef(0);
+  const value = sliderEffort(model, preview ?? stored);
+  const choose = (next: string) => {
+    commitGen.current += 1;
+    previewRef.current = next;
+    setPreview(next);
+  };
+  const commit = () => {
+    const next = previewRef.current;
+    previewRef.current = null;
+    if (next === null) return;
+    const gen = ++commitGen.current;
+    // Parent owns persistence errors; keep the preview until its receipt settles.
+    const finish = () => { if (commitGen.current === gen) setPreview(null); };
+    void Promise.resolve().then(() => onChange(next)).then(finish, finish);
+  };
+  useEffect(() => {
+    commitGen.current += 1;
+    previewRef.current = null;
+    dragRef.current = false;
+    setPreview(null);
+    setDragging(false);
+  }, [sessionId, model]);
   const index = Math.max(0, levels.findIndex((level) => level.id === value));
   const current = levels[index] ?? levels[0];
   const ultra = current?.id === "ultra";
@@ -172,7 +202,7 @@ export function EffortPicker({
     if (rect.width <= 0) return;
     const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
     const next = levels[Math.round(ratio * last)];
-    if (next) onChange(next.id);
+    if (next) choose(next.id);
   };
   useEffect(() => setOpen(false), [sessionId]);
   useEffect(() => {
@@ -234,6 +264,13 @@ export function EffortPicker({
                     seek(event.clientX);
                   }}
                   onPointerUp={(event) => {
+                    if (event.type === "pointercancel") {
+                      previewRef.current = null;
+                      setPreview(null);
+                    } else {
+                      seek(event.clientX);
+                      commit();
+                    }
                     dragRef.current = false;
                     if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId);
                     setDragging(false);
@@ -248,9 +285,18 @@ export function EffortPicker({
                 value={index}
                 aria-label="思考强度"
                 aria-valuetext={current?.label ?? ""}
+                onPointerDown={() => { dragRef.current = true; }}
+                onPointerUp={() => { dragRef.current = false; commit(); }}
+                onPointerCancel={() => {
+                  dragRef.current = false;
+                  previewRef.current = null;
+                  setPreview(null);
+                }}
+                onKeyUp={() => commit()}
+                onBlur={() => { dragRef.current = false; commit(); }}
                 onChange={(event) => {
                   const next = levels[Number(event.target.value)];
-                  if (next) onChange(next.id);
+                  if (next) choose(next.id);
                 }}
               />
             </div>
@@ -353,6 +399,7 @@ function ContextBody({ usage, pct, level, offset }: { usage: ContextUsage & { us
   const cached = Math.min(usage.cached ?? 0, usage.used);
   const fresh = usage.used - cached;
   const total = usage.session;
+  const at = contextTime(usage.at);
   return (
     <div className="pop" role="dialog" aria-label="上下文详情" style={{ left: offset }}>
       <div className="row"><b>上下文窗口</b><span>{compact(usage.used)}{win ? ` / ${compact(win)}（${pct}%）` : "（窗口大小未知）"}</span></div>
@@ -376,7 +423,7 @@ function ContextBody({ usage, pct, level, offset }: { usage: ContextUsage & { us
         {cached > 0 ? <div className="row"><span>缓存命中率</span><span>{Math.round((cached / usage.used) * 100)}%</span></div> : null}
         {typeof usage.out === "number" ? <div className="row"><span>输出</span><span>{usage.out.toLocaleString()} tokens</span></div> : null}
         <div className="row"><span>模型</span><span>{usage.model ?? "—"}</span></div>
-        {usage.at ? <div className="row"><span>时间</span><span>{usage.at.slice(5)}</span></div> : null}
+        {at ? <div className="row"><span>时间</span><span>{at}</span></div> : null}
       </div>
       {total ? (
         <div className="sec">

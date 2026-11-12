@@ -165,12 +165,22 @@ def project_run_wait(db, store, session_id: str, turn_started_at_ms: float | Non
     return view
 
 
-def background_view(session_id: str, *, gateway_bound: bool) -> dict[str, Any]:
+def background_view(
+    session_id: str, *, gateway_bound: bool, registry=None,
+) -> dict[str, Any]:
     from tools.process_registry import ProcessRegistryUnavailable, process_registry
 
-    if not gateway_bound:
-        raise ProcessRegistryUnavailable("api adapter is not bound to the gateway process")
-    return {"processes": process_registry.running_for_parent(session_id)}
+    if registry is None:
+        if not gateway_bound:
+            raise ProcessRegistryUnavailable("api adapter has no bound process registry")
+        registry = process_registry
+    reader = getattr(registry, "running_for_parent", None)
+    if not callable(reader):
+        raise ProcessRegistryUnavailable("bound process registry cannot be read")
+    processes = reader(session_id)
+    if not isinstance(processes, list):
+        raise ProcessRegistryUnavailable("bound process registry returned an invalid view")
+    return {"processes": processes}
 
 
 def http_routes(adapter) -> list[tuple[str, str, Any]]:
@@ -257,8 +267,9 @@ async def handle_run(adapter, request: web.Request) -> web.Response:
     if not callable(scoper):
         return _fail("运行索引暂不可用", 503, "session_run_unavailable")
     try:
-        import gateway.platforms.api_server as api_server
-        scope = scoper(request, _api_server=api_server)
+        # The bound adapter method owns its internal api_server dependency.
+        # Its public contract accepts only the request.
+        scope = scoper(request)
         if not isinstance(scope, str) or not scope:
             return _fail("运行索引暂不可用", 503, "session_run_unavailable")
     except Exception:
@@ -281,7 +292,9 @@ async def handle_background(adapter, request: web.Request) -> web.Response:
         return session_id
     try:
         payload = await asyncio.to_thread(
-            background_view, session_id, gateway_bound=getattr(adapter, "gateway_runner", None) is not None)
+            background_view, session_id,
+            gateway_bound=getattr(adapter, "gateway_runner", None) is not None,
+            registry=getattr(adapter, "_background_process_registry", None))
     except Exception as exc:
         logger.warning("background registry read failed", exc_info=True)
         return _fail("后台进程登记暂不可用", 503, "process_registry_unavailable")

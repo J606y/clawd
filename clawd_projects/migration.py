@@ -1,8 +1,11 @@
 """Explicit legacy-folder to directory-project migration.
 
-Reads only the active isolated home's ``panel_folders.db``. Never guesses a
-workspace path, never copies credentials or session transcripts, and never
-deletes folder rows, directories, memories, or sessions.
+Reads only the active isolated home's ``panel_folders.db``. The explicit
+mapping API never guesses a workspace path. ``auto_migrate_legacy_folders``
+creates a new system directory under that profile's ``projects/workspaces``;
+it does not search for or adopt a user's old directory. Never copies
+credentials or session transcripts, and never deletes folder rows,
+directories, memories, or sessions.
 
 projects.db, state.db, and panel_folders.db are not one transaction. A unique
 create intent is persisted before ``create_project``. That API does not accept
@@ -39,6 +42,7 @@ from clawd_projects.service import (
     is_session_busy,
     prepare_project_directory,
     read_session_write_token,
+    system_workspace_for_folder,
 )
 
 RECOVERY_TEXT = (
@@ -1862,3 +1866,142 @@ def get_migration_receipt(migration_id: str, hermes_home: Optional[Path] = None)
     if receipt is None:
         raise MigrationError("migration_not_found", "迁移回执不存在", 404)
     return _present(home, receipt)
+
+
+_AUTO_PENDING = frozenset({"session_busy", "session_check_failed"})
+
+
+def _auto_body(success: bool, pending: bool, errors: list[dict[str, str]]) -> dict[str, Any]:
+    return {"success": success, "pending": pending, "errors": errors}
+
+
+def _auto_item(folder_id: str, name: str, message: str) -> dict[str, str]:
+    return {"folder_id": folder_id, "name": name, "message": message}
+
+
+def _auto_codes(payload: dict[str, Any]) -> set[str]:
+    codes: set[str] = set()
+    error = payload.get("error")
+    if isinstance(error, str) and error:
+        codes.add(error)
+    conflicts = payload.get("conflicts")
+    if not isinstance(conflicts, list) and isinstance(payload.get("details"), dict):
+        conflicts = payload["details"].get("conflicts")
+    for item in conflicts or []:
+        if isinstance(item, dict) and item.get("code"):
+            codes.add(str(item["code"]))
+    for folder in payload.get("folders") or []:
+        if not isinstance(folder, dict):
+            continue
+        if folder.get("error"):
+            codes.add(str(folder["error"]))
+        for sess in folder.get("sessions") or []:
+            if isinstance(sess, dict) and sess.get("error"):
+                codes.add(str(sess["error"]))
+    return codes
+
+
+def _auto_pending(codes: set[str], message: str = "") -> bool:
+    if codes & _AUTO_PENDING:
+        return True
+    return "正在执行" in message or "无法确认会话" in message or "无法核实会话" in message
+
+
+def _auto_unbound(payload: dict[str, Any]) -> bool:
+    for folder in payload.get("folders") or []:
+        if isinstance(folder, dict) and folder.get("not_migrated_session_ids"):
+            return True
+    return False
+
+
+def _auto_refusal(exc: MigrationError) -> dict[str, Any]:
+    details = exc.details if isinstance(exc.details, dict) else {}
+    codes = {exc.code, *_auto_codes(details)}
+    return {"pending": _auto_pending(codes, exc.message), "message": exc.message}
+
+
+def _auto_key(folder_id: str) -> str:
+    return "auto-" + hashlib.sha256(folder_id.encode("utf-8")).hexdigest()[:32]
+
+
+def _auto_interpret(result: Any) -> Optional[dict[str, Any]]:
+    if not isinstance(result, dict):
+        return {"pending": False, "message": "迁移回执不是对象，未记为成功"}
+    if result.get("success") is True and result.get("status") == "applied":
+        if _auto_unbound(result):
+            return {
+                "pending": False,
+                "message": "回执已完成，但有后来加入的会话未绑定。未覆盖归属，也未另建项目。",
+            }
+        return None
+    message = str(result.get("message") or "迁移未完成，未记为成功")
+    return {"pending": _auto_pending(_auto_codes(result), message), "message": message}
+
+
+def _auto_one(home: Path, session_db: Any, folder_id: str) -> Optional[dict[str, Any]]:
+    """Plan, then execute. A plan refusal must not skip the receipt chain."""
+    mapping = [{
+        "folder_id": folder_id,
+        "primary_path": system_workspace_for_folder(home, folder_id),
+        "create_directory": True,
+    }]
+    plan_pending = False
+    try:
+        plan = plan_folder_migration(mapping, session_db, home)
+    except MigrationError as exc:
+        plan_pending = _auto_refusal(exc)["pending"]
+    else:
+        if isinstance(plan, dict):
+            plan_pending = _auto_pending(_auto_codes(plan), str(plan.get("message") or ""))
+    try:
+        result = execute_folder_migration(
+            mapping,
+            session_db,
+            confirm=True,
+            idempotency_key=_auto_key(folder_id),
+            hermes_home=home,
+        )
+    except MigrationError as exc:
+        refusal = _auto_refusal(exc)
+        refusal["pending"] = bool(refusal["pending"] or plan_pending)
+        return refusal
+    interpreted = _auto_interpret(result)
+    if interpreted is None:
+        return None
+    interpreted["pending"] = bool(interpreted["pending"] or plan_pending)
+    return interpreted
+
+
+def auto_migrate_legacy_folders(
+    session_db: Any,
+    hermes_home: Optional[Path] = None,
+) -> dict[str, Any]:
+    """Migrate every legacy folder into a new system workspace.
+
+    Does not guess a user directory. One applied folder is replayed and does
+    not skip the rest. Busy or unverifiable idle stays pending; bindings still
+    go through ``execute_folder_migration`` and its idle gate.
+    """
+    home = resolve_migration_home(hermes_home)
+    preview = preview_folder_migration(home)
+    if preview.get("source_missing"):
+        message = str(preview.get("message") or "当前隔离目录没有旧文件夹库，未猜测其他路径")
+        return _auto_body(False, False, [_auto_item("", "", message)])
+    errors: list[dict[str, str]] = []
+    pending = False
+    for folder in preview.get("folders") or []:
+        if not isinstance(folder, dict):
+            errors.append(_auto_item("", "", "旧文件夹记录不是对象，未迁移"))
+            continue
+        folder_id = str(folder.get("folder_id") or "").strip()
+        name = str(folder.get("name") or folder_id)
+        if not folder_id:
+            errors.append(_auto_item("", name, "folder_id 为空，未迁移"))
+            continue
+        outcome = _auto_one(home, session_db, folder_id)
+        if outcome is None:
+            continue
+        if outcome["pending"]:
+            pending = True
+        errors.append(_auto_item(folder_id, name, str(outcome["message"])))
+    return _auto_body(not errors and not pending, pending, errors)

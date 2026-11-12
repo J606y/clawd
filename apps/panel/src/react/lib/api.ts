@@ -60,7 +60,10 @@ async function parseError(res: Response): Promise<{ message: string; code?: stri
     const body: unknown = await res.json();
     if (body && typeof body === "object" && "error" in body) {
       const err = (body as { error: unknown }).error;
-      if (typeof err === "string") return { message: err };
+      if (typeof err === "string") {
+        const message = "message" in body && typeof body.message === "string" && body.message.trim() ? body.message : err;
+        return { message, code: err };
+      }
       if (err && typeof err === "object") {
         const message = "message" in err ? String((err as { message: unknown }).message) : `${res.status} ${res.statusText}`.trim();
         const code = "code" in err && typeof (err as { code: unknown }).code === "string" ? (err as { code: string }).code : undefined;

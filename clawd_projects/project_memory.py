@@ -105,16 +105,50 @@ class ProjectMemoryStore:
             blocks.append(p_block)
         return "\n\n".join(blocks) if blocks else None
 
-    def _render_project_block(self) -> str:
-        """Render frozen Project Memory snapshot."""
-        entries = self.project_store.memory_entries
-        if not entries:
+    def _project_instructions_text(self) -> str:
+        """Read this project's instructions file. Never the global memory file."""
+        mem = getattr(self.project_store, "memory_dir", None)
+        if not isinstance(mem, Path):
             return ""
-        content = ENTRY_DELIMITER.join(entries)
-        sep = "═" * 46
-        header = f"PROJECT MEMORY (notes for project '{self.project_name}')"
-        usage = self.project_store._usage_pct("memory", len(content))
-        return f"{sep}\n{header} [{usage}]\n{sep}\n{content}"
+        path = (Path(mem) / "INSTRUCTIONS.md").resolve()
+        try:
+            if path.parent.resolve() != Path(mem).resolve() or path.name != "INSTRUCTIONS.md":
+                return ""
+            if not path.is_file() or path.is_symlink():
+                return ""
+            text = path.read_text(encoding="utf-8").strip()
+        except OSError:
+            return ""
+        if len(text) > 8000:
+            text = text[:8000].strip()
+        if not text:
+            return ""
+        try:
+            from tools.threat_patterns import first_threat_message
+            if first_threat_message(text, scope="strict"):
+                return ""
+        except Exception:
+            return ""
+        return text
+
+    def _render_project_block(self) -> str:
+        """Frozen project instructions plus project memory. Global notes stay in the other block."""
+        blocks: list[str] = []
+        instructions = self._project_instructions_text()
+        if instructions:
+            blocks.append(
+                "PROJECT INSTRUCTIONS (this clawd project only; not global memory; "
+                "do not copy them into other projects)\n"
+                + instructions
+            )
+        entries = self.project_store.memory_entries
+        if entries:
+            content = ENTRY_DELIMITER.join(entries)
+            sep = "═" * 46
+            header = f"PROJECT MEMORY (notes for project '{self.project_name}')"
+            usage = self.project_store._usage_pct("memory", len(content))
+            blocks.append(f"{sep}\n{header} [{usage}]\n{sep}\n{content}")
+        return "\n\n".join(blocks)
 
     def format_for_system_prompt(self, kind: str) -> Optional[str]:
         """Frozen load-time snapshot (NOT live state — mid-session writes don't touch

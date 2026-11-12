@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <base href="/">
+  <title>project resources</title>
+  <style>
+    html, body { margin: 0; background: #000; }
+    #transformed { min-height: 100dvh; transform: translateZ(0); }
+  </style>
+</head>
+<body>
+  <div id="transformed"><div id="mount"></div></div>
+  <script>
+    window.ready = false;
+    window.projectId = "p1";
+    window.projectName = "测试项目";
+    window.archived = false;
+    window.useKey = false;
+    window.mode = "empty";
+    window.delays = {};
+    window.calls = [];
+    window.fetch = async function (input, init) {
+      const url = new URL(input instanceof URL ? input.href : typeof input === "string" ? input : input.url, location.href);
+      const parts = url.pathname.split("/");
+      const projectIndex = parts.indexOf("projects");
+      const projectId = projectIndex >= 0 ? decodeURIComponent(parts[projectIndex + 1] || "") : "";
+      window.calls.push({ pathname: url.pathname, method: (init && init.method) || "GET", projectId });
+      const delay = (window.delays && window.delays[projectId]) || 0;
+      await new Promise((resolve) => setTimeout(resolve, delay));
+      if (window.mode === "fail") {
+        return new Response(JSON.stringify({ error: { message: "读取失败，没有当成空内容" } }), {
+          status: 500,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      const payload = {
+        project_id: projectId,
+        archived: false,
+        instructions: "",
+        files: [],
+        memories: [],
+        limits: { file_bytes: 50 * 1024 * 1024, instructions_chars: 8000 },
+      };
+      if (window.mode === "files" || window.mode === "race") {
+        payload.files = [{
+          name: projectId === "p1" ? "仅甲项目.md" : "仅乙项目.md",
+          size: 12,
+          updated_at: 1700000000,
+          content_type: "text/markdown",
+        }];
+      }
+      if (window.mode === "memory") {
+        payload.memories = [{ id: "m1", title: "项目备忘", content: "只属于这个项目", updated_at: null }];
+      }
+      return new Response(JSON.stringify(payload), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    };
+  </script>
+  <script type="module">
+    import { createElement } from "react";
+    import { createRoot } from "react-dom/client";
+    import { ProjectResources } from "/src/react/pages/projects/project-resources.tsx";
+    import "/src/react/styles/index.css";
+
+    const root = createRoot(document.getElementById("mount"));
+    window.renderResources = () => {
+      const props = {
+        projectId: window.projectId,
+        projectName: window.projectName,
+        archived: window.archived === true,
+      };
+      if (window.useKey) props.key = window.projectId;
+      root.render(createElement(ProjectResources, props));
+    };
+    window.renderResources();
+    window.ready = true;
+  </script>
+</body>
+</html>

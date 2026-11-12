@@ -102,6 +102,8 @@ async function getStandardGates(target, repoRoot) {
       'tests/artifacts-browser.mjs',
       'tests/composer-sizing-browser.mjs',
       'tests/folders-browser.mjs',
+      'tests/project-resources-browser.mjs',
+      'tests/session-navigation-browser.mjs',
       'tests/mobile-nav-browser.mjs',
       'tests/image-preview-layer-browser.mjs',
       'tests/live-confirm-hit-browser.mjs',

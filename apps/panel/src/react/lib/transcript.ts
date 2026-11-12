@@ -301,6 +301,93 @@ export function continuationState(messages: Message[]): ContinuationState {
   return { trigger, limited: false };
 }
 
+/** 运行时读取会话 id。Message 类型没有该字段；缺字段或非字符串都不证明归属。 */
+export function rowSessionId(message: unknown): string {
+  if (message === null || typeof message !== "object") return "";
+  if (!("session_id" in message)) return "";
+  const value: unknown = message.session_id;
+  return typeof value === "string" ? value : "";
+}
+
+/**
+ * 已知子代理行不能冒充当前会话。缺 session_id 不证明归属。
+ * 其它会话 id（压缩续接等）不是这次接管，调用方必须原样保留。
+ */
+export function subagentTranscriptTakeover<T>(
+  requestedSessionId: string,
+  messages: readonly T[],
+  childIds: ReadonlySet<string>,
+): boolean {
+  if (!requestedSessionId || childIds.size === 0 || messages.length === 0) return false;
+  let childRows = 0;
+  for (const message of messages) {
+    const id = rowSessionId(message);
+    if (!id) continue;
+    if (id === requestedSessionId || !childIds.has(id)) return false;
+    childRows += 1;
+  }
+  return childRows > 0;
+}
+
+/** 从当前会话页面拿掉已知子代理行。未知会话和缺 id 的行留下。返回的是输入元素本身。 */
+export function withoutKnownChildRows<T>(
+  requestedSessionId: string,
+  messages: readonly T[],
+  childIds: ReadonlySet<string>,
+): T[] {
+  if (!requestedSessionId || childIds.size === 0) return [...messages];
+  return messages.filter((message) => {
+    const id = rowSessionId(message);
+    return !id || id === requestedSessionId || !childIds.has(id);
+  });
+}
+
+/**
+ * 只有能证明属于当前会话，或完全没有会话 id 的旧页，才可当作返回锚点。
+ * 子代理 id 尚未知道时，不能把整页都是别的会话的记录记成主会话。
+ */
+export function canAnchorHistory<T>(
+  requestedSessionId: string,
+  messages: readonly T[],
+  childIds: ReadonlySet<string>,
+): boolean {
+  if (!requestedSessionId || subagentTranscriptTakeover(requestedSessionId, messages, childIds)) return false;
+  let named = 0;
+  let requested = 0;
+  for (const message of messages) {
+    const id = rowSessionId(message);
+    if (!id) continue;
+    named += 1;
+    if (id === requestedSessionId) requested += 1;
+    else if (childIds.has(id)) return false;
+  }
+  return named === 0 || requested > 0;
+}
+
+export interface HistoryProjection<T> {
+  messages: T[];
+  blocked: boolean;
+}
+
+export function projectSessionHistory<T>(
+  requestedSessionId: string,
+  messages: readonly T[],
+  childIds: ReadonlySet<string>,
+): HistoryProjection<T> {
+  if (subagentTranscriptTakeover(requestedSessionId, messages, childIds)) {
+    return { messages: [], blocked: true };
+  }
+  return {
+    messages: withoutKnownChildRows(requestedSessionId, messages, childIds),
+    blocked: false,
+  };
+}
+
+/** 状态体给出了另一个非空会话 id。缺字段不是错主，不能据此改写当前运行。 */
+export function confirmedForeignSession(sessionId: string, payloadSessionId: unknown): boolean {
+  return typeof payloadSessionId === "string" && payloadSessionId !== "" && payloadSessionId !== sessionId;
+}
+
 /** 从 reasoning 里去掉整段出现的旁白（与 Hermes history_commentary 的做法一致：只删独占整行的片段）。 */
 function withoutCommentary(reasoning: string, notes: string[]): string {
   let rest = reasoning;

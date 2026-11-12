@@ -9,6 +9,7 @@ export interface ServiceState {
   name: string;
   label: string;
   active: string;
+  load?: string;
   sub: string;
   memory: number | null;
   memoryMax: number | null;
@@ -267,7 +268,7 @@ export interface ContextUsage {
   window: number | null;
   model?: string;
   calls?: number;
-  at?: string;
+  at?: number | string;
   out?: number | null;
   cached?: number;
   session?: { input: number; output: number; cacheRead: number; apiCalls: number; messages: number } | null;
@@ -319,10 +320,20 @@ export const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
  * 上传：原始请求体即文件内容（sidecar 不解析 multipart）。用 XHR 以便拿到进度。
  * `timeoutMs` 为 0 表示不限时（大文件）；照片存档这类不能卡住发送的上传要给上限。
  */
-export function uploadFile(file: File, root = "uploads", onProgress?: (fraction: number) => void, timeoutMs = 0): Promise<UploadResult> {
+function relativeUploadDir(dir: string | undefined): string | null {
+  if (typeof dir !== "string" || dir.length === 0) return null;
+  if (dir.startsWith("/") || dir.startsWith("\\") || dir.includes("\0") || /^[A-Za-z]:[\\/]/.test(dir)) {
+    throw new ApiError("server", 400, "不能上传到绝对路径");
+  }
+  return dir;
+}
+
+export function uploadFile(file: File, root = "uploads", onProgress?: (fraction: number) => void, timeoutMs = 0, dir?: string): Promise<UploadResult> {
   return new Promise((resolve, reject) => {
+    const relative = relativeUploadDir(dir);
     // 部分拖拽/粘贴来源的文件没有名字，服务端会拒绝空名。
     const q = new URLSearchParams({ root, name: file.name || (file.type.startsWith("image/") ? "图片" : "文件") });
+    if (relative) q.set("dir", relative);
     const xhr = new XMLHttpRequest();
     xhr.open("POST", new URL(`files/upload?${q}`, BASE));
     xhr.withCredentials = true;

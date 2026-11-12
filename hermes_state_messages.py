@@ -1481,6 +1481,9 @@ class SessionMessagesMixin(SessionDetachedResultsMixin, SessionTodoResultMixin):
                         f"  AND {_sql_json_extract('child.model_config', '$._reset_from')} IS NULL "
                         f"  AND NOT {_legacy_reset_child_sql('child', _RESET_END_REASONS_SQL)} "
                         "  AND COALESCE(child.source, '') != 'tool' "
+                        "  AND (COALESCE(child.source, '') != 'subagent' OR EXISTS ("
+                        "SELECT 1 FROM sessions AS origin WHERE origin.id = child.parent_session_id "
+                        "AND origin.source = 'subagent')) "
                         "ORDER BY child.started_at DESC, child.id DESC LIMIT 1", (current,)).fetchone()
                 except Exception:
                     return session_id

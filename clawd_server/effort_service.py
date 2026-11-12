@@ -13,6 +13,17 @@ idle. ``commit_deferred_effort`` is the runtime entry: it must be called while
 the caller holds that profile's admission lock, before the new run snapshots
 effort. It does not consult process-global ``_run_statuses``.
 
+The panel API adapter is not a SessionAuthority. ``resolve_execution_state``
+may prove ``running`` or ``idle`` only from the adapter object the caller
+passes, and only when that adapter's session store is this db and multiplex
+is off. A missing map, an unattributed in-flight turn, or a failed read stays
+``unknown``. A live lease or an attributable turn is ``running``. Unknown is not idle.
+Handler ``_inflight_agent_runs`` is not the executor lifetime: it drops when
+the handler task is cancelled while ``run_in_executor`` continues. Idle also
+requires ``api_worker_live_count()`` to be a non-negative int no greater than
+the attributed agent set. Import or type failure is unknown, not zero.
+``commit_deferred_effort`` still requires the admission lock.
+
 A same-request model-lock replace may pass that already-committed tier into
 the new lock. The helper changes only ``reasoning_effort``. It does not copy
 a still-pending pin, and it does not replace model, provider, route, or any
@@ -445,8 +456,275 @@ def _commit_config(config: dict[str, Any], level: str) -> dict[str, Any]:
     return config
 
 
+_LIVE_RUN = frozenset({"queued", "running", "waiting_for_approval", "stopping"})
+_TERMINAL_RUN = frozenset({"completed", "failed", "cancelled", "interrupted"})
+_DELEGATION_LIVE = frozenset({"running", "stalling", "finalizing"})
+_DELEGATION_KEYS = (
+    "origin_session_id",
+    "parent_session_id",
+    "origin_ui_session_id",
+    "session_key",
+    "session_id",
+)
+
+
+def _count(value: Any) -> Optional[int]:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        return None
+    return value
+
+
+def _merge_proof(*states: str) -> str:
+    """A running proof wins. Any other non-idle fact stays unknown, never idle."""
+    if any(state == "running" for state in states):
+        return "running"
+    if any(state != "idle" for state in states):
+        return "unknown"
+    return "idle"
+
+
+def _multiplex_active() -> Optional[bool]:
+    try:
+        from agent.secret_scope import is_multiplex_active
+        return bool(is_multiplex_active())
+    except Exception:
+        return None
+
+
+def _db_same(left: Any, right: Any) -> bool:
+    if left is None or right is None:
+        return False
+    if left is right:
+        return True
+    left_path = getattr(left, "db_path", None)
+    right_path = getattr(right, "db_path", None)
+    if not left_path or not right_path:
+        return False
+    try:
+        return Path(left_path).resolve() == Path(right_path).resolve()
+    except OSError:
+        return False
+
+
+def _adapter_same_store(adapter: Any, db: Any) -> bool:
+    opener = getattr(adapter, "_ensure_session_db", None)
+    if not callable(opener):
+        return False
+    try:
+        opened = opener()
+    except Exception:
+        return False
+    return _db_same(opened, db)
+
+
+def _lineage_ids(db: Any, session_id: str) -> Optional[set[str]]:
+    lineage = getattr(db, "get_compression_lineage", None)
+    tip = getattr(db, "get_compression_tip", None)
+    if not callable(lineage) or not callable(tip):
+        return None
+    try:
+        chain = lineage(session_id)
+        current = tip(session_id)
+    except Exception:
+        return None
+    if not isinstance(chain, (list, tuple)) or not chain:
+        return None
+    ids: set[str] = set()
+    for item in chain:
+        if not isinstance(item, str) or not item:
+            return None
+        ids.add(item)
+    if session_id not in ids:
+        return None
+    if not isinstance(current, str) or not current:
+        return None
+    ids.add(current)
+    return ids
+
+
+def _delegation_state(session_ids: set[str]) -> str:
+    try:
+        from tools.async_delegation import list_async_delegations
+        items = list_async_delegations()
+    except Exception:
+        return "unknown"
+    if not isinstance(items, list):
+        return "unknown"
+    for item in items:
+        if not isinstance(item, dict):
+            return "unknown"
+        if item.get("status") not in _DELEGATION_LIVE:
+            continue
+        for key in _DELEGATION_KEYS:
+            value = item.get(key)
+            if isinstance(value, str) and value in session_ids:
+                return "running"
+    return "idle"
+
+
+def _in_process_worker_count() -> Optional[int]:
+    """Executor threads still inside an API turn, or None if that read fails.
+
+    ``APIServerAdapter._inflight_agent_runs`` is released in the handler
+    ``finally`` even when the executor thread is still in the turn. The
+    surviving signal is ``api_worker_live_count``. It is process-global, so an
+    extra worker that is not one of this adapter's attributed agents stays
+    unknown rather than idle. A failed import or a non-count is unknown, not 0.
+    """
+    try:
+        from gateway.platforms.api_server_runs import api_worker_live_count
+        value = api_worker_live_count()
+    except Exception:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        return None
+    return value
+
+
+def _task_done(task: Any) -> Optional[bool]:
+    done = getattr(task, "done", None)
+    if not callable(done):
+        return None
+    try:
+        return bool(done())
+    except Exception:
+        return None
+
+
+def _adapter_memory_state(adapter: Any, session_ids: set[str]) -> str:
+    """Attributable turns on this adapter. A gap is unknown, not idle."""
+    statuses = getattr(adapter, "_run_statuses", None)
+    agents = getattr(adapter, "_shutdown_interruptible_agents", None)
+    active = getattr(adapter, "_active_run_agents", None)
+    tasks = getattr(adapter, "_active_run_tasks", None)
+    if not all(isinstance(item, dict) for item in (statuses, agents, active, tasks)):
+        return "unknown"
+    inflight = _count(getattr(adapter, "_inflight_agent_runs", None))
+    pending = _count(getattr(adapter, "_pending_agent_requests", None))
+    if inflight is None or pending is None:
+        return "unknown"
+    live: set[str] = set()
+    unattributed = pending > 0
+    for status in statuses.values():
+        if not isinstance(status, dict):
+            return "unknown"
+        kind = status.get("status")
+        sid = status.get("session_id")
+        if not isinstance(kind, str):
+            return "unknown"
+        if kind in _TERMINAL_RUN:
+            continue
+        if kind in _LIVE_RUN:
+            if isinstance(sid, str) and sid:
+                live.add(sid)
+            else:
+                unattributed = True
+            continue
+        if kind == "unknown" or not isinstance(sid, str) or not sid or sid in session_ids:
+            return "unknown"
+    seen: set[int] = set()
+    for agent in (*agents.values(), *active.values()):
+        if agent is None:
+            continue
+        ident = id(agent)
+        if ident in seen:
+            continue
+        seen.add(ident)
+        sid = getattr(agent, "session_id", None)
+        if isinstance(sid, str) and sid:
+            live.add(sid)
+        else:
+            unattributed = True
+    if inflight > len(seen):
+        unattributed = True
+    workers = _in_process_worker_count()
+    if workers is None:
+        return "unknown"
+    if workers > len(seen):
+        unattributed = True
+    for run_id, task in tasks.items():
+        finished = _task_done(task)
+        if finished is None:
+            return "unknown"
+        if finished:
+            continue
+        status = statuses.get(run_id)
+        sid = status.get("session_id") if isinstance(status, dict) else None
+        kind = status.get("status") if isinstance(status, dict) else None
+        if kind in _LIVE_RUN and isinstance(sid, str) and sid:
+            live.add(sid)
+            continue
+        unattributed = True
+    if session_ids & live:
+        return "running"
+    if unattributed:
+        return "unknown"
+    return "idle"
+
+
+def _unbound_adapter_state(db: Any, session_id: str, adapter: Any, ids: set[str]) -> str:
+    memory = _adapter_memory_state(adapter, ids)
+    if memory == "running":
+        return "running"
+    leased = _lease_state(db, session_id)
+    if leased == "running":
+        return "running"
+    delegated = _delegation_state(ids)
+    if delegated == "running":
+        return "running"
+    if memory != "idle" or leased != "idle" or delegated != "idle":
+        return "unknown"
+    reader = getattr(db, "_read_ctx", None)
+    if not callable(reader):
+        return "unknown"
+    ctx = reader()
+    if not hasattr(ctx, "__enter__") or not hasattr(ctx, "__exit__"):
+        return "unknown"
+    try:
+        with cast(AbstractContextManager[Any], ctx) as conn:
+            durable = _query_busy(conn, ids)
+    except Exception:
+        return "unknown"
+    return _merge_proof(durable)
+
+
+def resolve_execution_state(
+    db: Any, session_id: str, authority: Any, adapter: Any = None,
+) -> str:
+    """``running``, ``idle``, or ``unknown``.
+
+    A same-store authority keeps ``profile_execution_state``. Without one, the
+    caller must pass the API adapter that owns this store. Idle requires that
+    adapter's turn maps, this profile's lease, admissions, durable workers,
+    in-process executor count, and delegations all to be readable and idle,
+    and multiplex to be off. A present
+    ``gateway_runner`` without a resolved authority is unknown. Unknown is not
+    idle. This does not register HTTP routes or bypass ``commit_deferred_effort``.
+    """
+    if authority is not None and not _same_store(authority, db):
+        return "unknown"
+    authority_state: Optional[str] = None
+    if authority is not None:
+        authority_state = profile_execution_state(db, session_id, authority)
+        if adapter is None or authority_state == "running":
+            return authority_state
+    elif adapter is None or getattr(adapter, "gateway_runner", None) is not None:
+        return "unknown"
+    if not _adapter_same_store(adapter, db):
+        return "unknown"
+    if authority is None and _multiplex_active() is not False:
+        return "unknown"
+    ids = _lineage_ids(db, session_id)
+    if not ids:
+        return "unknown"
+    if authority_state is None:
+        return _unbound_adapter_state(db, session_id, adapter, ids)
+    return _merge_proof(authority_state, _adapter_memory_state(adapter, ids))
+
+
 def _apply_pending_or_commit(
     db: Any, session_id: str, level: str, session_ids: set[str], *, allow_pending_fallback: bool,
+    adapter: Any = None,
 ) -> dict[str, Any]:
     """Merge into the row read inside the write transaction.
 
@@ -457,6 +735,12 @@ def _apply_pending_or_commit(
     def _do(conn: Any) -> dict[str, Any]:
         config, _raw = _load_row(conn, session_id)
         state = _durable_state_on(db, conn, session_id, session_ids)
+        if adapter is not None:
+            state = _merge_proof(
+                state,
+                _adapter_memory_state(adapter, session_ids),
+                _delegation_state(session_ids),
+            )
         if state == "unknown":
             raise EffortServiceError(
                 "effort_run_state_unavailable", "无法确认会话是否仍在运行，档位未写入", 503,
@@ -483,6 +767,7 @@ def _apply_pending_or_commit(
 
 def write_session_effort(
     db: Any, session_id: str, effort: Any, *, running: bool, authority: Any = None,
+    adapter: Any = None,
 ) -> dict[str, Any]:
     """Merge effort without replacing a frozen model or provider.
 
@@ -490,12 +775,39 @@ def write_session_effort(
     decided admission from this profile's authority and lease. A false idle
     decision is rechecked in the write transaction against that authority's
     watch ids; a run that appeared keeps its lock.
+
+    ``adapter`` is optional proof when this process has no authority. It is not
+    an idle default. Unknown writes nothing. A running proof stores only the
+    next-turn pin, including when the caller passed ``running=False``.
     """
     level = _panel_effort(effort)
     _require_session(db, session_id)
     if authority is not None and not _same_store(authority, db):
         raise EffortServiceError(
             "effort_run_state_unavailable", "无法确认会话是否仍在运行，档位未写入", 503,
+        )
+    if adapter is not None:
+        state = resolve_execution_state(db, session_id, authority, adapter)
+        if state == "unknown":
+            raise EffortServiceError(
+                "effort_run_state_unavailable", "无法确认会话是否仍在运行，档位未写入", 503,
+            )
+        if state == "running" or running:
+            return _write_pending(db, session_id, level)
+        ids = _lineage_ids(db, session_id)
+        if authority is not None:
+            watched = _watch_ids(authority, db, session_id)
+            if not watched:
+                raise EffortServiceError(
+                    "effort_run_state_unavailable", "无法确认会话是否仍在运行，档位未写入", 503,
+                )
+            ids = watched
+        if not ids:
+            raise EffortServiceError(
+                "effort_run_state_unavailable", "无法确认会话是否仍在运行，档位未写入", 503,
+            )
+        return _apply_pending_or_commit(
+            db, session_id, level, ids, allow_pending_fallback=True, adapter=adapter,
         )
     if running:
         return _write_pending(db, session_id, level)

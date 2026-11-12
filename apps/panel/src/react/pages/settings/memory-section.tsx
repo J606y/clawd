@@ -165,7 +165,7 @@ export function MemorySection() {
   return (
     <section aria-label="记忆提供方">
       <h2>记忆提供方</h2>
-      <p className="sub">这里只改提供方自己的非秘密配置。不切换 memory.provider，不跑 setup，也不新建项目记忆。配置里没有这一项时显示未设置；字面值若是内置哨兵，也只是记忆选择，不是配置档名。</p>
+      <p className="sub">这里只改提供方自己的非秘密配置。不切换 memory.provider，不跑 setup，也不新建项目记忆。项目指示和项目记忆只在项目页修改，不会写进这里的全局记忆。配置里没有这一项时显示未设置；字面值若是内置哨兵，也只是记忆选择，不是配置档名。</p>
       {notice ? <Notice text={notice} /> : null}
       {error ? <Notice text={error} bad /> : null}
       <p className="sub">当前 memory.provider：{providers.isSuccess ? (providers.data?.activeOmitted ? "已省略不安全的字面值" : active ?? "未设置") : "尚未读取"}。保存配置不会改这个值。</p>

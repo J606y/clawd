@@ -6,10 +6,12 @@ import {
   useMemo,
   useRef,
   useState,
+  useSyncExternalStore,
   type FormEvent,
   type KeyboardEvent,
 } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "react-router";
 import { api, type SessionSummary } from "@/lib/api.js";
 import { queryKeys, useBindSessionProject, useCreateProject, useDeleteSession, useForkSession, useLegacyFolders, usePatchProject, usePatchSession, useProjects } from "@/lib/queries";
 import { LiveRetentionTracker } from "@/lib/session-live-retention.js";
@@ -17,20 +19,17 @@ import { sidecar } from "@/lib/sidecar.js";
 import {
   archiveConfirmText,
   archivePatchBody,
-  createProjectBody,
+  createNamedProjectBody,
   legacyMappingNeeds,
   projectActionError,
-  projectPathError,
-  readCollapsedMap,
   rememberLegacyMappingNeeds,
   restorePatchBody,
-  writeCollapsed,
 } from "@/lib/project-model.js";
-import { getPendingNewChatProjectId, setPendingNewChatProjectId } from "@/lib/project-send.js";
+import { getOpenProjectId, getPendingNewChatProjectId, setOpenProjectId, setPendingNewChatProjectId, subscribeOpenProject } from "@/lib/project-send.js";
 import { relativeTime, subscribeTick } from "@/lib/time.js";
 import { useUiStore } from "@/stores/ui";
 import { consumeSkipRenameBlur, setShellSession } from "./shell-session";
-import { ProjectPathField } from "./project-path-field";
+import { readId } from "./shell-events";
 import { LegacyFolderMigration } from "./legacy-folder-migration";
 import {
   HEAD_PAGE,
@@ -86,6 +85,8 @@ export const SessionList = forwardRef<SessionListHandle, {
   const patchProject = usePatchProject();
   const bindSession = useBindSessionProject();
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  const openProjectId = useSyncExternalStore(subscribeOpenProject, getOpenProjectId, () => null);
   const [tracker] = useState(() => new LiveRetentionTracker());
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [loading, setLoading] = useState(false);
@@ -98,14 +99,9 @@ export const SessionList = forwardRef<SessionListHandle, {
   const [busyId, setBusyId] = useState("");
   const [folderEditor, setFolderEditor] = useState("");
   const [folderName, setFolderName] = useState("");
-  const [projectPath, setProjectPath] = useState("");
-  const [createDirectory, setCreateDirectory] = useState(false);
   const [folderError, setFolderError] = useState("");
   const [folderDelete, setFolderDelete] = useState("");
   const [pendingProject, setPendingProject] = useState<string | null>(() => getPendingNewChatProjectId());
-  const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() => {
-    try { return readCollapsedMap(localStorage); } catch { return {}; }
-  });
   const [archivedOpen, setArchivedOpen] = useState(false);
   const [now, setNow] = useState(() => Date.now());
   const searchRef = useRef<HTMLInputElement>(null);
@@ -219,7 +215,7 @@ export const SessionList = forwardRef<SessionListHandle, {
         });
       });
       const merged = [...(reset ? [] : sessionsRef.current), ...pages.flatMap((page) => page.data)];
-      const next = dedupeSort(merged);
+      const next = dedupeSort(merged.filter((item) => !deleted.current.has(item.id)));
       sessionsRef.current = next;
       setSessions(next);
       const more = [...cursors.current.values()].some((cursor) => cursor.hasMore);
@@ -306,6 +302,25 @@ export const SessionList = forwardRef<SessionListHandle, {
   useEffect(() => subscribeTick(() => setNow(Date.now())), []);
 
   useEffect(() => {
+    const onDeleted = (event: Event) => {
+      const id = readId(event);
+      if (!id) return;
+      tracker.markDeleted(id);
+      deleted.current.add(id);
+      editedAt.current.set(id, ++editSeq.current);
+      confirmedTitles.current.delete(id);
+      const next = sessionsRef.current.filter((item) => item.id !== id);
+      sessionsRef.current = next;
+      setSessions(next);
+      setMenuId((current) => current === id ? "" : current);
+      setConfirmId((current) => current === id ? "" : current);
+      setRenamingId((current) => current === id ? "" : current);
+    };
+    window.addEventListener("hp-session-deleted", onDeleted);
+    return () => window.removeEventListener("hp-session-deleted", onDeleted);
+  }, [tracker]);
+
+  useEffect(() => {
     setSessions([]);
     sessionsRef.current = [];
     setHasMore(false);
@@ -347,7 +362,7 @@ export const SessionList = forwardRef<SessionListHandle, {
   }, [refreshHead]);
 
   useEffect(() => {
-    if (!selectedId) return;
+    if (!selectedId || getOpenProjectId()) return;
     const found = sessions.find((session) => session.id === selectedId);
     if (found) setShellSession(found);
   }, [sessions, selectedId]);
@@ -401,6 +416,21 @@ export const SessionList = forwardRef<SessionListHandle, {
     setPendingProject(id);
   };
 
+  const openProject = (id: string) => {
+    setOpenProjectId(id);
+    choosePending(id);
+    setMenuId("");
+    setFolderDelete("");
+    setFolderEditor("");
+    const selected = useUiStore.getState().selectedSessionId;
+    if (selected && assignmentsRef.current[selected] !== id) {
+      useUiStore.getState().setSelectedSessionId(null);
+      setShellSession(null);
+    }
+    if (window.matchMedia("(max-width: 768px)").matches) useUiStore.getState().setDrawerOpen(false);
+    if (window.location.pathname !== "/") navigate("/");
+  };
+
   const commitFolder = async (event: FormEvent) => {
     event.preventDefault();
     const message = folderNameError(folderName, projects.map((project) => ({ id: project.id, name: project.name, collapsed: false })), folderEditor);
@@ -409,25 +439,20 @@ export const SessionList = forwardRef<SessionListHandle, {
       return;
     }
     if (folderEditor === "new") {
-      const pathMessage = projectPathError(projectPath);
-      if (pathMessage) {
-        setFolderError(pathMessage);
-        return;
-      }
+      let createdId = "";
       const ok = await runProject(
-        () => createProject.mutateAsync(createProjectBody(folderName, projectPath, createDirectory)).then(() => undefined),
-        "项目保存失败",
+        () => createProject.mutateAsync(createNamedProjectBody(folderName)).then((created) => {
+          createdId = created.id;
+        }),
+        "文件夹保存失败",
       );
-      if (ok) {
-        setFolderEditor("");
-        setProjectPath("");
-        setCreateDirectory(false);
-      }
+      if (ok && createdId) openProject(createdId);
+      if (ok) setFolderEditor("");
       return;
     }
     const ok = await runProject(
       () => patchProject.mutateAsync({ id: folderEditor, patch: { name: folderName.trim() } }).then(() => undefined),
-      "项目保存失败",
+      "文件夹保存失败",
     );
     if (ok) setFolderEditor("");
   };
@@ -503,19 +528,15 @@ export const SessionList = forwardRef<SessionListHandle, {
     setConfirmId("");
     setBusyId(session.id);
     try {
-      if (assignmentsRef.current[session.id]) {
-        await bindSession.mutateAsync({ sessionId: session.id, projectId: null });
-      }
-      await deleteSession.mutateAsync(session.id);
-      tracker.markDeleted(session.id);
-      deleted.current.add(session.id);
-      const next = sessionsRef.current.filter((item) => item.id !== session.id);
-      sessionsRef.current = next;
-      setSessions(next);
-      props.onDeleted(session.id);
+      const result = await deleteSession.mutateAsync(session.id);
+      if (!result || typeof result !== "object") throw new Error("服务器未确认删除，对话仍保留");
+      const receipt = result as { deleted?: unknown; id?: unknown };
+      if (receipt.deleted !== true || receipt.id !== session.id) throw new Error("服务器未确认该对话已删除，对话仍保留");
+      window.dispatchEvent(new CustomEvent("hp-session-deleted", { detail: session.id }));
       invalidateSessions();
+      void queryClient.invalidateQueries({ queryKey: queryKeys.projects });
     } catch (caught) {
-      setError(projectActionError(caught, "删除失败"));
+      setError(failMessage(caught, "删除失败"));
     } finally {
       setBusyId("");
     }
@@ -526,7 +547,7 @@ export const SessionList = forwardRef<SessionListHandle, {
     setConfirmId("");
     void runProject(
       () => bindSession.mutateAsync({ sessionId, projectId }).then(() => undefined),
-      "移动项目失败",
+      "移动失败",
     );
   };
 
@@ -580,17 +601,24 @@ export const SessionList = forwardRef<SessionListHandle, {
 
   const searching = query.trim().length > 0;
   const projectBusyNow = createProject.isPending || patchProject.isPending || bindSession.isPending;
-  const shownFolderError = folderError || (projectsQuery.isError ? "项目加载失败，请重试；对话仍可正常访问" : "");
-  const legacyNeeds = legacyQuery.isSuccess ? legacyMappingNeeds(legacyQuery.data.folders) : [];
-
-  const toggleCollapsed = (id: string, next: boolean) => {
-    try {
-      setCollapsed(writeCollapsed(localStorage, id, next));
-    } catch {
-      setCollapsed((prev) => ({ ...prev, [id]: next }));
-    }
-  };
-
+  const shownFolderError = folderError || (projectsQuery.isError ? "文件夹加载失败，请重试；对话仍可正常访问" : "");
+  const legacyGroups = (() => {
+    const data = legacyQuery.data;
+    if (!data) return [] as { id: string; name: string; items: SessionSummary[] }[];
+    const taken = new Set(Object.keys(assignments));
+    return data.folders.flatMap((folder) => {
+      const items = folderSessionItems(
+        sessions,
+        data.sessions ?? [],
+        folder.id,
+        data.assignments ?? {},
+        query,
+        deleted.current,
+      ).filter((session) => !taken.has(session.id));
+      if (!items.length) return [];
+      return [{ id: folder.id, name: folder.name.trim() || "未命名文件夹", items }];
+    });
+  })();
   const archiveProject = async (id: string) => {
     const ok = await runProject(
       () => patchProject.mutateAsync({ id, patch: archivePatchBody() }).then(() => undefined),
@@ -599,6 +627,11 @@ export const SessionList = forwardRef<SessionListHandle, {
     if (!ok) return;
     setFolderDelete("");
     if (pendingProject === id) choosePending(null);
+    if (getOpenProjectId() === id) {
+      setOpenProjectId(null);
+      const selected = useUiStore.getState().selectedSessionId;
+      setShellSession(selected ? sessionsRef.current.find((session) => session.id === selected) ?? null : null);
+    }
   };
 
   const restoreProject = (id: string) => {
@@ -634,7 +667,12 @@ export const SessionList = forwardRef<SessionListHandle, {
           className="item"
           disabled={busyId === session.id}
           aria-current={session.id === selectedId}
-          onClick={() => props.onSelect(session)}
+          onClick={() => {
+            const assigned = assignments[session.id];
+            choosePending(assigned ?? null);
+            setOpenProjectId(null);
+            props.onSelect(session);
+          }}
         >
           <span className="title">
             {session.pinned ? <span className="pin" aria-label="已置顶">●</span> : null}
@@ -669,13 +707,8 @@ export const SessionList = forwardRef<SessionListHandle, {
               <button role="menuitem" onClick={() => void togglePin(session)}>{session.pinned ? "取消置顶" : "置顶"}</button>
               <button role="menuitem" onClick={() => startRename(session)}>重命名</button>
               {assigned ? (
-                <button role="menuitem" disabled={projectBusyNow} onClick={() => moveSession(session.id, null)}>改为普通模式</button>
+                <button role="menuitem" disabled={projectBusyNow} onClick={() => moveSession(session.id, null)}>移出文件夹</button>
               ) : null}
-              {activeProjects.filter((project) => project.id !== assigned && project.primary_path).map((project) => (
-                <button key={project.id} role="menuitem" disabled={projectBusyNow} onClick={() => moveSession(session.id, project.id)}>
-                  移入：{project.name}
-                </button>
-              ))}
               <button role="menuitem" onClick={() => void forkOne(session)}>分叉为新对话</button>
               {confirmId === session.id ? (
                 <button role="menuitem" className="danger" onClick={() => void deleteOne(session)}>确认删除</button>
@@ -692,21 +725,20 @@ export const SessionList = forwardRef<SessionListHandle, {
 
   const renderProject = (project: (typeof projects)[number], archived: boolean) => {
     const items = folderSessionItems(sessions, assignedSessions, project.id, assignments, query, deleted.current);
-    const expanded = searching || !collapsed[project.id];
     const sessionsFailed = Boolean(index?.sessionErrors[project.id]);
     return (
       <div className="folder" data-folder-id={project.id} key={project.id}>
         <button
           className="folder-toggle"
-          aria-expanded={expanded}
-          disabled={projectBusyNow || searching}
-          onClick={() => toggleCollapsed(project.id, !collapsed[project.id])}
+          aria-current={openProjectId === project.id ? "page" : undefined}
+          disabled={projectBusyNow}
+          onClick={() => openProject(project.id)}
         >
-          {expanded ? "▾" : "▸"} {project.name} <span>{sessionsFailed ? "(归属未加载)" : `(${items.length})`}</span>
+          {project.name} <span>{sessionsFailed ? "(归属未加载)" : `(${items.length})`}</span>
         </button>
         <button
           className="folder-edit"
-          aria-label={`重命名项目：${project.name}`}
+          aria-label={`重命名文件夹：${project.name}`}
           disabled={projectBusyNow}
           onClick={() => {
             setFolderEditor(project.id);
@@ -715,28 +747,27 @@ export const SessionList = forwardRef<SessionListHandle, {
           }}
         >改名</button>
         {archived ? (
-          <button className="folder-delete" aria-label={`恢复项目：${project.name}`} disabled={projectBusyNow} onClick={() => restoreProject(project.id)}>恢复</button>
+          <button className="folder-delete" aria-label={`恢复文件夹：${project.name}`} disabled={projectBusyNow} onClick={() => restoreProject(project.id)}>恢复</button>
         ) : (
-          <button className="folder-delete" aria-label={`归档项目：${project.name}`} disabled={projectBusyNow} onClick={() => setFolderDelete(project.id)}>归档</button>
+          <button className="folder-delete" aria-label={`归档文件夹：${project.name}`} disabled={projectBusyNow} onClick={() => setFolderDelete(project.id)}>归档</button>
         )}
         {folderDelete === project.id ? (
-          <div className="folder-confirm" role="alertdialog" aria-label="归档项目确认">
+          <div className="folder-confirm" role="alertdialog" aria-label="归档文件夹确认">
             <p>{archiveConfirmText(project.name)}</p>
             <button disabled={projectBusyNow} onClick={() => void archiveProject(project.id)}>确认归档</button>
             <button disabled={projectBusyNow} onClick={() => setFolderDelete("")}>取消归档</button>
           </div>
         ) : null}
-        {!project.primary_path ? <div className="folder-confirm" role="alert">此项目缺少目录，未猜测补齐，也未删除。</div> : null}
-        {expanded ? (
+        {searching ? (
           sessionsFailed ? (
             <div className="folder-confirm" role="alert">
-              此项目的会话归属加载失败，未当作空列表。{index?.sessionErrors[project.id]}
-              <button disabled={projectBusyNow} onClick={() => void projectsQuery.refetch()}>重试加载项目</button>
+              此文件夹的对话归属加载失败，未当作空列表。
+              <button disabled={projectBusyNow} onClick={() => void projectsQuery.refetch()}>重试加载文件夹</button>
             </div>
           ) : (
             <ul aria-label={project.name}>
               {items.map((session) => renderSession(session))}
-              {items.length ? null : <li className="folder-empty">{searching ? "没有匹配的对话" : "此项目还没有对话"}</li>}
+              {items.length ? null : <li className="folder-empty">没有匹配的对话</li>}
             </ul>
           )
         ) : null}
@@ -764,16 +795,8 @@ export const SessionList = forwardRef<SessionListHandle, {
         <button disabled={projectBusyNow} onClick={() => {
           setFolderEditor("new");
           setFolderName("");
-          setProjectPath("");
-          setCreateDirectory(false);
           setFolderError("");
         }}>新建项目</button>
-        <button type="button" aria-pressed={pendingProject === null} disabled={projectBusyNow} onClick={() => choosePending(null)}>普通模式</button>
-        {activeProjects.filter((project) => project.primary_path).map((project) => (
-          <button key={`new-${project.id}`} type="button" aria-pressed={pendingProject === project.id} disabled={projectBusyNow} onClick={() => choosePending(project.id)}>
-            新对话：{project.name}
-          </button>
-        ))}
         {folderEditor ? (
           <form onSubmit={(event) => void commitFolder(event)}>
             <input
@@ -782,20 +805,17 @@ export const SessionList = forwardRef<SessionListHandle, {
               value={folderName}
               onChange={(event) => setFolderName(event.target.value)}
             />
-            {folderEditor === "new" ? (
-              <ProjectPathField
-                path={projectPath}
-                createDirectory={createDirectory}
-                disabled={projectBusyNow}
-                onPath={setProjectPath}
-                onCreateDirectory={setCreateDirectory}
-              />
-            ) : null}
             <button disabled={projectBusyNow}>保存</button>
             <button type="button" disabled={projectBusyNow} onClick={() => setFolderEditor("")}>取消</button>
           </form>
         ) : null}
-        {index ? activeProjects.map((project) => renderProject(project, false)) : projectsQuery.isPending ? <div role="status">正在加载项目</div> : null}
+        {index ? activeProjects.map((project) => renderProject(project, false)) : projectsQuery.isPending ? <div role="status">正在加载文件夹</div> : null}
+        {legacyGroups.map((group) => (
+          <div className="folder" key={`legacy-${group.id}`}>
+            <div className="folder-toggle">{group.name}</div>
+            <p>尚未成为项目，对话仍在下方列表。</p>
+          </div>
+        ))}
         {archivedProjects.length ? (
           <>
             <button type="button" aria-expanded={archivedOpen || searching} disabled={projectBusyNow} onClick={() => setArchivedOpen((open) => !open)}>
@@ -805,24 +825,19 @@ export const SessionList = forwardRef<SessionListHandle, {
           </>
         ) : null}
         {legacyQuery.isError ? (
-          <div role="alert">无法核对旧文件夹。不能把这次失败当成没有旧数据，也未回退为项目列表。</div>
-        ) : null}
-        {legacyNeeds.length ? (
-          <div role="alert">
-            以下旧文件夹没有目录，未迁移、未删除。需要之后显式提供 folder_id 与绝对目录，不会自动猜测：
-            {legacyNeeds.map((need) => <span key={need.folder_id}> {need.name}（{need.folder_id}）</span>)}
-          </div>
+          <div role="alert">无法核对旧文件夹。不能把这次失败当成没有旧数据，对话仍可在下方列表访问。<button disabled={projectBusyNow} onClick={() => void legacyQuery.refetch()}>重试</button></div>
         ) : null}
         <LegacyFolderMigration
+          active={projectsQuery.isSuccess}
           disabled={projectBusyNow}
           onMigrated={() => {
             void queryClient.invalidateQueries({ queryKey: queryKeys.projects });
             void queryClient.invalidateQueries({ queryKey: queryKeys.legacyFolders });
           }}
         />
-        {index?.conflicts.length ? <div role="alert">{index.conflicts.join("；")}</div> : null}
+        {index?.conflicts.length ? <div role="alert">有对话同时出现在多个文件夹，已保留先出现的归属</div> : null}
         {shownFolderError ? (
-          <div role="alert">{shownFolderError}<button disabled={projectBusyNow} onClick={() => void projectsQuery.refetch()}>重试加载项目</button></div>
+          <div role="alert">{shownFolderError}<button disabled={projectBusyNow} onClick={() => void projectsQuery.refetch()}>重试加载文件夹</button></div>
         ) : null}
       </section>
       <div className="seg" role="group" aria-label="会话筛选">

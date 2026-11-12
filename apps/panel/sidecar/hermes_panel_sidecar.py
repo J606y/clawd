@@ -331,7 +331,7 @@ def _anon_memory(unit: str) -> int | None:
 def _service_states() -> list[dict[str, Any]]:
     names = [n for n, _ in SERVICES]
     proc = subprocess.run(
-        ["systemctl", "show", *[f"{n}.service" for n in names], "-p", "Id,ActiveState,SubState,MemoryMax,ActiveEnterTimestampMonotonic"],
+        ["systemctl", "show", *[f"{n}.service" for n in names], "-p", "Id,LoadState,ActiveState,SubState,MemoryMax,ActiveEnterTimestampMonotonic"],
         capture_output=True, text=True, timeout=10, check=False,
     )
     blocks: dict[str, dict[str, str]] = {}
@@ -343,6 +343,8 @@ def _service_states() -> list[dict[str, Any]]:
     def num(v: str | None) -> int | None:
         return int(v) if v and v.isdigit() else None
 
+    if not blocks:
+        raise ApiError(503, "service_status_unavailable", "无法读取系统服务状态，未当作已停止")
     uptime_s = time.clock_gettime(time.CLOCK_MONOTONIC)
     result = []
     for name, label in SERVICES:
@@ -351,6 +353,7 @@ def _service_states() -> list[dict[str, Any]]:
         result.append({
             "name": name,
             "label": label,
+            "load": kv.get("LoadState", "unknown"),
             "active": kv.get("ActiveState", "unknown"),
             "sub": kv.get("SubState", ""),
             "memory": _anon_memory(name) if kv.get("ActiveState") == "active" else None,

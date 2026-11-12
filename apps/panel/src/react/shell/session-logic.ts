@@ -69,6 +69,25 @@ export function byRecent(a: SessionSummary, b: SessionSummary): number {
   return (b.last_active ?? b.started_at) - (a.last_active ?? a.started_at);
 }
 
+/** 列表已经标明子代理时，刷新恢复不能把它选成主会话。不在列表里的 id 不猜测。 */
+export function resumeSelectsSubagent(source: string | undefined): boolean {
+  return source === "subagent";
+}
+
+/** 刷新时从已恢复运行里选回主会话。已标明的子代理不能占住主视图；列表外的 id 不猜测。 */
+export function resumeMainSession<T extends { id: string; source?: string }>(
+  resumedIds: readonly string[],
+  listed: readonly T[],
+): T | null {
+  const byId = new Map(listed.map((row) => [row.id, row]));
+  for (let index = resumedIds.length - 1; index >= 0; index -= 1) {
+    const found = byId.get(resumedIds[index] ?? "");
+    if (!found || resumeSelectsSubagent(found.source)) continue;
+    return found;
+  }
+  return null;
+}
+
 export function accepts(filter: SessionListFilter, source: string | undefined): boolean {
   const src = source ?? "api_server";
   if (filter === "live") return isLiveSource(src);

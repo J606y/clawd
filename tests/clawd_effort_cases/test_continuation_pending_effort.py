@@ -517,10 +517,12 @@ def test_freeze_alias_does_not_rewrite_and_replace_keeps_receipts(tmp_path):
     journal = ContinuationJournal(tmp_path / "clawd_continuation.db")
     journal.open()
     try:
+        # A receipt consumes the current request. Seed it before the in-flight
+        # freeze whose alias preservation is the behavior under test.
+        journal.add_receipts(["keep-me"], "s", None, 0.5, reason="cancelled")
         journal.freeze("s", "key-1", ["a"], {
             "request_key": "key-1", "model_options": {"reasoning_effort": "low"},
         }, 1.0)
-        journal.add_receipts(["keep-me"], "s", None, 2.0, reason="cancelled")
         again = journal.freeze("s", "key-2", ["a", "b"], {
             "request_key": "key-2", "model_options": {"reasoning_effort": "high"},
         }, 3.0)

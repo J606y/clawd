@@ -59,11 +59,14 @@ function Meter(props: { label: string; value: string; detail: string; percent: n
   );
 }
 
-function serviceState(active: string) {
+function serviceState(active: string, load?: string) {
+  if (load === "not-found") return <span className="pill off">未安装</span>;
+  if (load === "masked") return <span className="pill off">已屏蔽</span>;
   if (active === "active") return <span className="pill on">运行中</span>;
   if (active === "activating" || active === "reloading") return <span className="pill mid">启动中</span>;
   if (active === "failed") return <span className="pill bad">失败</span>;
-  return <span className="pill off">{active === "inactive" ? "未运行" : active}</span>;
+  if (active === "deactivating") return <span className="pill mid">停止中</span>;
+  return <span className="pill off">{active === "inactive" ? "已停止" : "状态未知"}</span>;
 }
 
 export function StatusPage() {
@@ -166,7 +169,7 @@ export function StatusPage() {
                         {service.runningForS != null && service.active === "active" ? ` · 已运行 ${duration(service.runningForS)}` : ""}
                       </small>
                     </div>
-                    {serviceState(service.active)}
+                    {serviceState(service.active, service.load)}
                     <div className="mem">{service.memory != null ? `内存 ${bytes(service.memory)}${limit}` : ""}</div>
                     <div className="acts">
                       {!service.restartable ? null : forceConfirm === service.name ? (

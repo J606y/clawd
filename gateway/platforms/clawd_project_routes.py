@@ -8,12 +8,14 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from typing import Any, Optional
 
 from aiohttp import web
 
 from clawd_projects.migration import (
     MigrationError,
+    auto_migrate_legacy_folders,
     execute_folder_migration,
     get_migration_receipt,
     plan_folder_migration,
@@ -31,9 +33,18 @@ from clawd_projects.memory_authorization import (
 from clawd_projects.service import (
     SessionBusyError,
     SessionStoreCheckError,
+    allocate_project_workspace,
     bind_session_to_project,
     get_project_by_id,
     prepare_project_directory,
+)
+from clawd_projects.resources import (
+    FILE_BYTE_LIMIT,
+    ProjectFileWriter,
+    ResourceError,
+    build_project_resources,
+    open_project_file,
+    save_project_instructions,
 )
 from hermes_cli import projects_db as pdb
 from hermes_constants import get_hermes_home
@@ -46,6 +57,10 @@ def _json_error(message: str, status: int = 400, code: Optional[str] = None) -> 
     return web.json_response(payload, status=status)
 
 
+def _resource_error(exc: ResourceError) -> web.Response:
+    return _json_error(exc.message, exc.status, exc.code)
+
+
 def _migration_http(payload: dict[str, Any]) -> web.Response:
     status = int(payload.get("http_status") or (200 if payload.get("success") is True else 409))
     if payload.get("success") is not True:
@@ -53,6 +68,23 @@ def _migration_http(payload: dict[str, Any]) -> web.Response:
         if status < 400:
             status = 409
     return web.json_response(payload, status=status)
+
+
+def _auto_http(payload: dict[str, Any], status: int = 200) -> web.Response:
+    """Fixed auto-migration contract. success is never true while pending or erred."""
+    errors = payload.get("errors")
+    if not isinstance(errors, list):
+        errors = []
+    pending = payload.get("pending") is True
+    success = payload.get("success") is True and not pending and not errors
+    if success:
+        status = 200
+    elif status < 400:
+        status = 409
+    return web.json_response(
+        {"success": success, "pending": pending, "errors": errors},
+        status=status,
+    )
 
 
 def _migration_error(exc: MigrationError) -> web.Response:
@@ -71,14 +103,22 @@ def _migration_error(exc: MigrationError) -> web.Response:
 
 
 def _check_adapter_auth(adapter: Any, request: web.Request) -> Optional[web.Response]:
-    """Require a real auth check. Missing checker is a refusal, not an open route."""
+    """Allow only an explicit None. Missing, raising, False, or any other result fails closed."""
     checker = getattr(adapter, "_check_auth", None)
     if not callable(checker):
+        logger.error("project route auth checker missing; refusing")
         return _json_error("authentication is not configured", 401, "unauthorized")
-    res = checker(request)
+    try:
+        res = checker(request)
+    except Exception:
+        logger.exception("project route auth checker failed; refusing")
+        return _json_error("authentication failed", 401, "unauthorized")
+    if res is None:
+        return None
     if isinstance(res, web.Response):
         return res
-    return None
+    logger.error("project route auth checker returned %s; refusing", type(res).__name__)
+    return _json_error("authentication failed", 401, "unauthorized")
 
 
 async def _json_object(request: web.Request) -> tuple[Optional[dict[str, Any]], Optional[web.Response]]:
@@ -155,7 +195,7 @@ class ClawdProjectRoutes:
 
     async def handle_list_projects(self, request: web.Request) -> web.Response:
         """GET /api/projects — list projects with session counts."""
-        if auth_err := self._auth(request):
+        if (auth_err := self._auth(request)) is not None:
             return auth_err
 
         include_archived = request.query.get("include_archived", "").lower() in ("true", "1", "yes")
@@ -175,8 +215,8 @@ class ClawdProjectRoutes:
         return web.json_response({"projects": data})
 
     async def handle_create_project(self, request: web.Request) -> web.Response:
-        """POST /api/projects — create a project with required primary_path directory."""
-        if auth_err := self._auth(request):
+        """POST /api/projects — name allocates a workspace; explicit primary_path still works."""
+        if (auth_err := self._auth(request)) is not None:
             return auth_err
 
         body, err = await _json_object(request)
@@ -187,16 +227,27 @@ class ClawdProjectRoutes:
         if not name:
             return _json_error("Project name is required", 400, "missing_name")
 
+        home = get_hermes_home()
         primary_path = str(body.get("primary_path") or "").strip()
-        if not primary_path:
-            return _json_error("primary_path is required for project mode", 400, "missing_primary_path")
-
-        try:
-            resolved_path = prepare_project_directory(
-                primary_path, create_directory=_explicit_true(body.get("create_directory"))
-            )
-        except ValueError as exc:
-            return _json_error(str(exc), 400, "invalid_directory")
+        if primary_path:
+            try:
+                resolved_path = prepare_project_directory(
+                    primary_path, create_directory=_explicit_true(body.get("create_directory"))
+                )
+            except ValueError as exc:
+                return _json_error(str(exc), 400, "invalid_directory")
+        else:
+            try:
+                resolved_path = prepare_project_directory(
+                    allocate_project_workspace(home), create_directory=False
+                )
+            except ValueError as exc:
+                return _json_error(str(exc), 400, "invalid_directory")
+            except (OSError, RuntimeError):
+                logger.exception("project workspace allocation failed")
+                return _json_error(
+                    "无法分配独立工作目录，未创建项目", 500, "workspace_allocation_failed"
+                )
 
         slug = body.get("slug")
         description = body.get("description")
@@ -206,7 +257,7 @@ class ClawdProjectRoutes:
         allow_duplicate = bool(body.get("allow_duplicate_path", False))
 
         def _create() -> dict[str, Any]:
-            with pdb.connect_closing(get_hermes_home() / "projects.db") as conn:
+            with pdb.connect_closing(home / "projects.db") as conn:
                 pid = pdb.create_project(
                     conn,
                     name=name,
@@ -232,7 +283,7 @@ class ClawdProjectRoutes:
 
     async def handle_get_project(self, request: web.Request) -> web.Response:
         """GET /api/projects/{id} — get project details."""
-        if auth_err := self._auth(request):
+        if (auth_err := self._auth(request)) is not None:
             return auth_err
 
         pid = request.match_info["id"]
@@ -253,7 +304,7 @@ class ClawdProjectRoutes:
 
     async def handle_patch_project(self, request: web.Request) -> web.Response:
         """PATCH /api/projects/{id} — update metadata or archive/unarchive."""
-        if auth_err := self._auth(request):
+        if (auth_err := self._auth(request)) is not None:
             return auth_err
 
         pid = request.match_info["id"]
@@ -306,7 +357,7 @@ class ClawdProjectRoutes:
 
     async def handle_project_sessions(self, request: web.Request) -> web.Response:
         """GET /api/projects/{id}/sessions — list sessions bound to project."""
-        if auth_err := self._auth(request):
+        if (auth_err := self._auth(request)) is not None:
             return auth_err
 
         pid = request.match_info["id"]
@@ -348,7 +399,7 @@ class ClawdProjectRoutes:
 
     async def handle_get_session_project(self, request: web.Request) -> web.Response:
         """GET /api/sessions/{session_id}/project — get bound project for a session."""
-        if auth_err := self._auth(request):
+        if (auth_err := self._auth(request)) is not None:
             return auth_err
 
         sid = request.match_info["session_id"]
@@ -370,7 +421,7 @@ class ClawdProjectRoutes:
 
     async def handle_bind_session_project(self, request: web.Request) -> web.Response:
         """POST /api/sessions/{session_id}/project — bind or move session to a project."""
-        if auth_err := self._auth(request):
+        if (auth_err := self._auth(request)) is not None:
             return auth_err
 
         sid = request.match_info["session_id"]
@@ -418,7 +469,7 @@ class ClawdProjectRoutes:
         Bearer auth is not enough. ``session_id`` must belong to the active
         profile and be bound to this project. This does not call evaluate_gate.
         """
-        if auth_err := self._auth(request):
+        if (auth_err := self._auth(request)) is not None:
             return auth_err
 
         pid = request.match_info["id"]
@@ -450,7 +501,7 @@ class ClawdProjectRoutes:
         Agent tool writes stay on memory_tool's existing approval gate.
         ``execution_generation``, when present, must be the running claim.
         """
-        if auth_err := self._auth(request):
+        if (auth_err := self._auth(request)) is not None:
             return auth_err
 
         pid = request.match_info["id"]
@@ -493,7 +544,7 @@ class ClawdProjectRoutes:
 
     async def handle_migration_preview(self, request: web.Request) -> web.Response:
         """GET /api/projects/migrations/preview — read-only folder inventory. Does not migrate."""
-        if auth_err := self._auth(request):
+        if (auth_err := self._auth(request)) is not None:
             return auth_err
         home = get_hermes_home()
         try:
@@ -507,7 +558,7 @@ class ClawdProjectRoutes:
 
     async def handle_migration_plan(self, request: web.Request) -> web.Response:
         """POST /api/projects/migrations/preview — dry-run an explicit mapping. Never writes."""
-        if auth_err := self._auth(request):
+        if (auth_err := self._auth(request)) is not None:
             return auth_err
         body, err = await _json_object(request)
         if err is not None or body is None:
@@ -532,7 +583,7 @@ class ClawdProjectRoutes:
 
     async def handle_migration_execute(self, request: web.Request) -> web.Response:
         """POST /api/projects/migrations — explicit confirmed mapping. Not a preview."""
-        if auth_err := self._auth(request):
+        if (auth_err := self._auth(request)) is not None:
             return auth_err
         body, err = await _json_object(request)
         if err is not None or body is None:
@@ -559,7 +610,7 @@ class ClawdProjectRoutes:
 
     async def handle_migration_get(self, request: web.Request) -> web.Response:
         """GET /api/projects/migrations/{migration_id} — read one receipt."""
-        if auth_err := self._auth(request):
+        if (auth_err := self._auth(request)) is not None:
             return auth_err
         home = get_hermes_home()
         try:
@@ -573,7 +624,7 @@ class ClawdProjectRoutes:
 
     async def handle_migration_rollback(self, request: web.Request) -> web.Response:
         """POST /api/projects/migrations/{migration_id}/rollback — restore this receipt's unchanged bindings."""
-        if auth_err := self._auth(request):
+        if (auth_err := self._auth(request)) is not None:
             return auth_err
         body, err = await _json_object(request)
         if err is not None or body is None:
@@ -595,6 +646,207 @@ class ClawdProjectRoutes:
             return _json_error("回滚失败，未报告成功", 500, "migration_rollback_failed")
         return _migration_http(payload)
 
+    async def handle_migration_auto(self, request: web.Request) -> web.Response:
+        """POST /api/projects/migrations/auto — system dirs; no user path."""
+        if (auth_err := self._auth(request)) is not None:
+            return auth_err
+        if request.content_length:
+            body, err = await _json_object(request)
+            if err is not None or body is None:
+                return err or _json_error("JSON body must be an object", 400, "invalid_json")
+            refused = {"mappings", "primary_path", "folder_id", "folders", "path"}
+            if refused & set(body):
+                return _json_error(
+                    "自动迁移不接受路径或映射；显式路径请用 POST /api/projects/migrations",
+                    400,
+                    "explicit_mapping_not_accepted",
+                )
+        home = get_hermes_home()
+        session_db = await self._session_db()
+        try:
+            payload = await asyncio.to_thread(auto_migrate_legacy_folders, session_db, home)
+        except MigrationError as exc:
+            pending = exc.code in {"session_busy", "session_check_failed"}
+            details = exc.details if isinstance(exc.details, dict) else {}
+            conflicts = details.get("conflicts")
+            if isinstance(conflicts, list):
+                for item in conflicts:
+                    code = item.get("code") if isinstance(item, dict) else None
+                    if code in {"session_busy", "session_check_failed"}:
+                        pending = True
+            if _auto_message_pending(exc.message):
+                pending = True
+            payload = {
+                "success": False,
+                "pending": pending,
+                "errors": [{"folder_id": "", "name": "", "message": exc.message}],
+            }
+            status = exc.status if exc.status >= 400 else 409
+            return _auto_http(payload, status)
+        except Exception:
+            logger.exception("auto folder migration failed")
+            return _auto_http(
+                {
+                    "success": False,
+                    "pending": False,
+                    "errors": [{
+                        "folder_id": "",
+                        "name": "",
+                        "message": "自动迁移失败，未报告成功",
+                    }],
+                },
+                500,
+            )
+        return _auto_http(payload)
+
+    async def handle_get_project_resources(self, request: web.Request) -> web.Response:
+        """GET /api/projects/{id}/resources — instructions, files, and real memory entries.
+
+        Bearer plus the active profile home. No session and no gateway_runner.
+        A read error is an HTTP error, not an empty 200.
+        """
+        if (auth_err := self._auth(request)) is not None:
+            return auth_err
+        pid = request.match_info["id"]
+
+        def _load() -> dict[str, Any]:
+            return build_project_resources(pid, get_hermes_home())
+
+        try:
+            payload = await asyncio.to_thread(_load)
+        except ResourceError as exc:
+            return _resource_error(exc)
+        except Exception:
+            logger.exception("project resources read failed")
+            return _json_error("项目资源读取失败，未当作空项目", 500, "resources_read_failed")
+        return web.json_response(payload)
+
+    async def handle_put_project_instructions(self, request: web.Request) -> web.Response:
+        """PUT /api/projects/{id}/resources/instructions — save this project's instructions.
+
+        Uses the existing length and threat checks. Does not reload a running
+        turn's sealed project-memory snapshot.
+        """
+        if (auth_err := self._auth(request)) is not None:
+            return auth_err
+        pid = request.match_info["id"]
+        body, err = await _json_object(request)
+        if err is not None or body is None:
+            return err or _json_error("JSON body must be an object", 400, "invalid_json")
+        if "content" not in body or not isinstance(body.get("content"), str):
+            return _json_error("content 必须是字符串，未写入", 400, "invalid_instructions")
+        content = body["content"]
+        home = get_hermes_home()
+
+        def _save() -> dict[str, Any]:
+            return save_project_instructions(pid, home, content)
+
+        try:
+            payload = await asyncio.to_thread(_save)
+        except ResourceError as exc:
+            return _resource_error(exc)
+        except Exception:
+            logger.exception("project instructions write failed")
+            return _json_error("指示写入失败", 500, "instructions_write_failed")
+        return web.json_response(payload)
+
+    async def handle_post_project_file(self, request: web.Request) -> web.Response:
+        """POST /api/projects/{id}/resources/files — stream multipart field ``file``.
+
+        Does not replace an existing name. Does not buffer the whole upload
+        before applying the project byte cap. Block, disconnect, and cancel all
+        release the unfinished temp file from finally. CancelledError is not
+        converted into a response.
+        """
+        if (auth_err := self._auth(request)) is not None:
+            return auth_err
+        pid = request.match_info["id"]
+        content_length = request.content_length
+        if content_length is not None and content_length > FILE_BYTE_LIMIT + 16 * 1024:
+            return _json_error("档案超过大小上限，未写入", 413, "file_too_large")
+        ctype = request.headers.get("Content-Type", "")
+        if "multipart/form-data" not in ctype.lower():
+            return _json_error("需要 multipart 字段 file", 400, "invalid_upload")
+        writer: Optional[ProjectFileWriter] = None
+        try:
+            try:
+                reader = await request.multipart()
+                field = await reader.next()
+            except asyncio.CancelledError:
+                raise
+            except Exception:
+                return _json_error("无法读取上传内容", 400, "invalid_upload")
+            if field is None or field.name != "file" or not field.filename:
+                return _json_error("缺少 file 字段", 400, "missing_file")
+            home = get_hermes_home()
+            filename = field.filename
+            writer = ProjectFileWriter(pid, home, filename)
+            while True:
+                chunk = await field.read_chunk(65536)
+                if not chunk:
+                    break
+                await asyncio.to_thread(writer.write, chunk)
+            record = await asyncio.to_thread(writer.finish)
+            return web.json_response(
+                {"success": True, "project_id": writer.project.id, "file": record}
+            )
+        except ResourceError as exc:
+            return _resource_error(exc)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("project file upload failed")
+            return _json_error("档案写入失败", 500, "file_write_failed")
+        finally:
+            # Synchronous abort: a cancelling task must not need another await
+            # before the owned fd and temp name are released. abort waits, via
+            # its lock, for an in-flight write/finish thread and does not remove
+            # a file that finish already published.
+            if writer is not None:
+                try:
+                    writer.abort()
+                except Exception:
+                    logger.exception("project file upload abort failed")
+
+    async def handle_get_project_file(self, request: web.Request) -> web.Response:
+        """GET /api/projects/{id}/resources/files/{name} — stream the real file.
+
+        HTML and SVG are attachment downloads, not inline documents. The body
+        is read from the opened fd in chunks.
+        """
+        if (auth_err := self._auth(request)) is not None:
+            return auth_err
+        pid = request.match_info["id"]
+        name = request.match_info["name"]
+        home = get_hermes_home()
+        fd: Optional[int] = None
+        try:
+            fd, headers = await asyncio.to_thread(open_project_file, pid, home, name)
+            response = web.StreamResponse(status=200, headers=headers)
+            remaining = int(headers["Content-Length"])
+            await response.prepare(request)
+            while remaining:
+                chunk = await asyncio.to_thread(os.read, fd, min(65536, remaining))
+                if not chunk:
+                    break
+                remaining -= len(chunk)
+                await response.write(chunk)
+            await response.write_eof()
+            return response
+        except ResourceError as exc:
+            return _resource_error(exc)
+        except Exception:
+            logger.exception("project file open failed")
+            return _json_error("档案无法读取", 500, "file_unreadable")
+        finally:
+            if fd is not None:
+                os.close(fd)
+
+
+def _auto_message_pending(message: str) -> bool:
+    text = str(message or "")
+    return "正在执行" in text or "无法确认会话" in text or "无法核实会话" in text
+
 
 def register_project_routes(app: web.Application, adapter: Any) -> None:
     """Register clawd project routes onto the given aiohttp web.Application.
@@ -606,6 +858,8 @@ def register_project_routes(app: web.Application, adapter: Any) -> None:
     route_definitions = [
         ("GET", "/api/projects/migrations/preview", handlers.handle_migration_preview),
         ("POST", "/api/projects/migrations/preview", handlers.handle_migration_plan),
+        # Static auto before {migration_id}; a later param route must not capture it.
+        ("POST", "/api/projects/migrations/auto", handlers.handle_migration_auto),
         ("POST", "/api/projects/migrations", handlers.handle_migration_execute),
         ("GET", "/api/projects/migrations/{migration_id}", handlers.handle_migration_get),
         ("POST", "/api/projects/migrations/{migration_id}/rollback", handlers.handle_migration_rollback),
@@ -618,6 +872,10 @@ def register_project_routes(app: web.Application, adapter: Any) -> None:
         ("POST", "/api/sessions/{session_id}/project", handlers.handle_bind_session_project),
         ("GET", "/api/projects/{id}/memory", handlers.handle_get_project_memory),
         ("POST", "/api/projects/{id}/memory", handlers.handle_update_project_memory),
+        ("GET", "/api/projects/{id}/resources", handlers.handle_get_project_resources),
+        ("PUT", "/api/projects/{id}/resources/instructions", handlers.handle_put_project_instructions),
+        ("POST", "/api/projects/{id}/resources/files", handlers.handle_post_project_file),
+        ("GET", "/api/projects/{id}/resources/files/{name}", handlers.handle_get_project_file),
     ]
 
     for method, path, handler in route_definitions:

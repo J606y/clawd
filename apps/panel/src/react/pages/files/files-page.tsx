@@ -113,21 +113,24 @@ export function FilesPage() {
 
   const upload = async (files: File[]) => {
     if (!shown?.writable) return;
+    const startedRoot = rootRef.current;
+    const startedPath = pathRef.current;
+    const stillThere = () => rootRef.current === startedRoot && pathRef.current === startedPath;
     for (const file of files) {
       if (file.size > MAX_UPLOAD_BYTES) {
-        if (mounted.current) setNotice(`${file.name} 超过 50MB，未上传`);
+        if (mounted.current && stillThere()) setNotice(`${file.name} 超过 50MB，未上传`);
         continue;
       }
       const entry: UploadRow = { id: ++uploadSeq.current, name: file.name, progress: 0 };
       publishUploads([...uploadsRef.current, entry]);
       try {
-        const result = await uploadFile(file, rootRef.current, (fraction) => {
+        const result = await uploadFile(file, startedRoot, (fraction) => {
           entry.progress = fraction;
           publishUploads(uploadsRef.current);
-        });
-        if (mounted.current) setNotice(`已上传 ${file.name} → ${result.absPath}`);
+        }, 0, startedPath);
+        if (mounted.current && stillThere()) setNotice(`已上传 ${file.name} → ${result.absPath}`);
       } catch (error) {
-        if (mounted.current) {
+        if (mounted.current && stillThere()) {
           setNotice(error instanceof ApiError ? `${file.name} 上传失败：${error.message}` : `${file.name} 上传失败`);
         }
       } finally {
@@ -135,9 +138,7 @@ export function FilesPage() {
       }
     }
     if (!mounted.current) return;
-    const refreshRoot = rootRef.current;
-    const refreshPath = refreshRoot === "uploads" && !pathRef.current ? "" : pathRef.current;
-    await queryClient.invalidateQueries({ queryKey: queryKeys.dir(refreshRoot, refreshPath) });
+    await queryClient.invalidateQueries({ queryKey: queryKeys.dir(startedRoot, startedPath) });
   };
 
   const remove = async (entry: FileEntry) => {

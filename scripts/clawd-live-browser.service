@@ -1,0 +1,20 @@
+[Unit]
+Description=clawd on-demand shared live browser
+Documentation=file:/root/hermes-workspace/clawd/docs/clawd/live-browser-runtime.md
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/hermes-workspace/clawd
+Environment=HOME=/root
+Environment=CLAWD_HOME=/root/.clawd
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/root/hermes-workspace/clawd/.venv/bin/python -m clawd_server.live_browser_runtime --home /root/.clawd
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=20
+KillMode=control-group
+
+[Install]
+WantedBy=multi-user.target
