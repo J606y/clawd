@@ -1,5 +1,6 @@
 import { useNavigate, useParams } from "react-router";
 import { isSettingsTab, SETTINGS_TABS, type SettingsTab } from "@/routes";
+import { AccountTab } from "./account-tab";
 import { ConfigTab } from "./config-tab";
 import { JobsTab } from "./jobs-tab";
 import { LogsTab } from "./logs-tab";
@@ -34,6 +35,8 @@ function TabBody({ tab }: { tab: SettingsTab }) {
       return <WebhooksTab />;
     case "update":
       return <UpdateTab />;
+    case "account":
+      return <AccountTab />;
   }
 }
 
