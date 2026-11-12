@@ -474,6 +474,7 @@ function ProjectHome(props: {
   return (
     <section className="page hp-chat project-home" aria-label={project.name}>
       <ProjectHomeDeleteStyles />
+      <ChatStyles />
       <div className="project-home-wrap">
         <nav className="project-home-crumbs" aria-label="面包屑">
           <button type="button" onClick={() => setOpenProjectId(null)}>
@@ -558,46 +559,48 @@ function ProjectHome(props: {
         <div className="project-home-grid">
           <div className="project-home-main">
             <div className="project-home-composer">
-              <Composer
-                sessionId=""
-                value={homeDraft}
-                attachments={homeAttachments}
-                disabled={project.archived}
-                running={false}
-                canSteer={false}
-                preparing={homePreparing}
-                stopping={false}
-                flash={homeFlash}
-                onChange={(value, attachments) => {
-                  setHomeDraft(value);
-                  setHomeAttachments(attachments);
-                }}
-                onPreparing={setHomePreparing}
-                onFlash={setHomeFlash}
-                onSend={() => sendHome(homeDraft, homeAttachments)}
-                onSteer={() => undefined}
-                onStop={() => undefined}
-                tools={
-                  <>
-                    <ModelPicker
-                      value={props.displayModel}
-                      provider={props.displayProvider}
-                      options={props.models.data}
-                      failed={props.models.isError}
-                      onOpen={() => {
-                        void props.models.refetch();
-                      }}
-                      onSelect={(model, provider) => void props.onModel(model, provider)}
-                    />
-                    <EffortPicker
-                      model={props.displayModel || props.models.data?.current.model || ""}
-                      stored={effortNext}
-                      sessionId=""
-                      onChange={(level) => setEffortFor(level, "")}
-                    />
-                  </>
-                }
-              />
+              <div className="composer">
+                <Composer
+                  sessionId=""
+                  value={homeDraft}
+                  attachments={homeAttachments}
+                  disabled={project.archived}
+                  running={false}
+                  canSteer={false}
+                  preparing={homePreparing}
+                  stopping={false}
+                  flash={homeFlash}
+                  onChange={(value, attachments) => {
+                    setHomeDraft(value);
+                    setHomeAttachments(attachments);
+                  }}
+                  onPreparing={setHomePreparing}
+                  onFlash={setHomeFlash}
+                  onSend={() => sendHome(homeDraft, homeAttachments)}
+                  onSteer={() => undefined}
+                  onStop={() => undefined}
+                  tools={
+                    <>
+                      <ModelPicker
+                        value={props.displayModel}
+                        provider={props.displayProvider}
+                        options={props.models.data}
+                        failed={props.models.isError}
+                        onOpen={() => {
+                          void props.models.refetch();
+                        }}
+                        onSelect={(model, provider) => void props.onModel(model, provider)}
+                      />
+                      <EffortPicker
+                        model={props.displayModel || props.models.data?.current.model || ""}
+                        stored={effortNext}
+                        sessionId=""
+                        onChange={(level) => setEffortFor(level, "")}
+                      />
+                    </>
+                  }
+                />
+              </div>
             </div>
             <h2>Recents</h2>
             {pageNotice?.projectId === project.id ? (
