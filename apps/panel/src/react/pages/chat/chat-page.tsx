@@ -25,6 +25,7 @@ import { useUiStore } from "@/stores/ui";
 import { ChatStyles, ProjectHomeDeleteStyles } from "./chat-styles";
 import { disclosureLeavesBottom } from "./scroll-intent";
 import { ClarifySheet } from "./clarify-sheet";
+import { VaultPromptCard } from "./vault-prompt-card";
 import { Composer } from "./composer";
 import { LiveTail } from "./live-tail";
 import { MessageList, type Anchor, type ListHandle } from "./message-list";
@@ -1622,7 +1623,7 @@ export function ChatPage() {
   }
 
   return (
-    <section ref={setRoot} className={`page hp-chat${shown?.clarify ? " asking" : ""}`} aria-label="对话" onClick={onContentClick}>
+    <section ref={setRoot} className={`page hp-chat${shown?.clarify || shown?.vault ? " asking" : ""}`} aria-label="对话" onClick={onContentClick}>
       <ChatStyles />
       <MessageList
         keys={keys}
@@ -1800,6 +1801,13 @@ export function ChatPage() {
         <ClarifySheet
           prompt={shown.clarify}
           onSubmit={(answers) => { void liveRef.current.respondClarify(sessionId, answers); }}
+        />
+      ) : null}
+      {shown?.vault ? (
+        <VaultPromptCard
+          prompt={shown.vault}
+          onSubmit={(answer) => { void liveRef.current.respondVault(sessionId, answer); }}
+          onDecline={() => { void liveRef.current.respondVault(sessionId, ""); }}
         />
       ) : null}
     </section>

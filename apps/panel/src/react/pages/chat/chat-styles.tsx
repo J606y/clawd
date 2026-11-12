@@ -1413,6 +1413,118 @@ const CSS = `
 }
 .hp-chat .clarify .next:disabled { opacity: 0.45; cursor: default; }
 .hp-chat .clarify .reopen { margin: 0 auto; }
+.hp-chat .vault {
+  position: absolute;
+  z-index: 40;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  pointer-events: none;
+}
+.hp-chat .vault .scrim, .hp-chat .vault .card { pointer-events: auto; }
+.hp-chat .vault .scrim { position: absolute; inset: 0; background: rgba(0, 0, 0, 0.38); }
+.hp-chat .vault .card {
+  position: relative;
+  width: min(480px, calc(100% - 24px));
+  max-height: min(78%, 640px);
+  margin: 0 0 calc(12px + var(--safe-bottom));
+  overflow: auto;
+  border-radius: var(--radius-l);
+  background: var(--bg-elevated);
+  color: var(--text);
+  box-shadow: var(--shadow);
+  padding: 4px 16px 16px;
+  border-top: 3px solid var(--warning, #e8a13c);
+}
+.hp-chat .vault .head { display: flex; align-items: center; min-height: 44px; gap: 8px; }
+.hp-chat .vault .lock {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--warning, #e8a13c) 16%, transparent);
+  color: var(--warning, #e8a13c);
+}
+.hp-chat .vault .title { flex: 1; margin: 0; font-size: 17px; font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
+.hp-chat .vault .close {
+  width: 44px;
+  height: 44px;
+  flex: none;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-secondary);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  padding: 0;
+}
+.hp-chat .vault .origin { margin: 2px 0 8px; color: var(--text-secondary); font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
+.hp-chat .vault .origin code { font: 13px var(--font-mono); color: var(--text); overflow-wrap: anywhere; }
+.hp-chat .vault .hint { margin: 0 0 8px; color: var(--text-secondary); font-size: 13px; overflow-wrap: anywhere; }
+.hp-chat .vault .countdown { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; color: var(--text-secondary); font-size: 12px; }
+.hp-chat .vault .countdown .bar { flex: 1; height: 4px; border-radius: 2px; background: var(--bg-active); overflow: hidden; }
+.hp-chat .vault .countdown .bar i { display: block; height: 100%; background: var(--warning, #e8a13c); }
+.hp-chat .vault .field { margin: 0 0 8px; }
+.hp-chat .vault .field label { display: block; margin: 0 0 4px; color: var(--text-secondary); font-size: 13px; }
+.hp-chat .vault .field .row { display: flex; gap: 8px; }
+.hp-chat .vault .field .row input { flex: 1; min-width: 0; }
+.hp-chat .vault input {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-l);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 16px;
+  padding: 10px 14px;
+}
+.hp-chat .vault input::placeholder { color: var(--text-secondary); }
+.hp-chat .vault input:focus { outline: none; border-color: color-mix(in srgb, var(--text) 35%, var(--border)); }
+.hp-chat .vault .show {
+  flex: none;
+  min-height: 44px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-l);
+  background: var(--bg);
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 14px;
+  padding: 0 12px;
+  cursor: pointer;
+}
+.hp-chat .vault .note { margin: 4px 0 0; color: var(--text-secondary); font-size: 12px; line-height: 1.5; }
+.hp-chat .vault .foot { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-top: 12px; }
+.hp-chat .vault .error { margin: 0; color: var(--danger); font-size: 13px; overflow-wrap: anywhere; }
+.hp-chat .vault .cancel {
+  min-height: 44px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-l);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  padding: 0 18px;
+  cursor: pointer;
+}
+.hp-chat .vault .next {
+  min-height: 44px;
+  border: 0;
+  border-radius: var(--radius-l);
+  background: var(--text);
+  color: var(--bg-elevated);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  padding: 0 18px;
+  cursor: pointer;
+}
+.hp-chat .vault .next:disabled, .hp-chat .vault .cancel:disabled { opacity: 0.45; cursor: default; }
 .hp-chat .hp-md, .hp-chat .md { overflow-wrap: anywhere; line-height: 1.65; }
 .hp-chat .hp-md > :first-child, .hp-chat .md > :first-child { margin-top: 0; }
 .hp-chat .hp-md > :last-child, .hp-chat .md > :last-child { margin-bottom: 0; }

@@ -4988,6 +4988,7 @@ class APIServerAdapter(OpenAICompatRoutesMixin, BasePlatformAdapter):
     _handle_run_events = _run_route_delegate("_handle_run_events")
     _handle_run_approval = _run_route_delegate("_handle_run_approval")
     _handle_run_clarify = _run_route_delegate("_handle_run_clarify")
+    _handle_run_vault = _run_route_delegate("_handle_run_vault")
     _handle_steer_run = _run_route_delegate("_handle_steer_run")
     _handle_resolve_unknown_run = _run_route_delegate("_handle_resolve_unknown_run")
     _handle_stop_run = _run_route_delegate("_handle_stop_run")

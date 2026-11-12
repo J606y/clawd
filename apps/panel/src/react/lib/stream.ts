@@ -21,6 +21,7 @@ export interface UseLiveRun {
   steer: (sessionId: string, text: string, attachments?: Attachment[]) => Promise<boolean>;
   respondApproval: (sessionId: string, choice: ApprovalChoice) => Promise<void>;
   respondClarify: (sessionId: string, answers: ClarifyAnswer[]) => Promise<void>;
+  respondVault: (sessionId: string, answer: string) => Promise<void>;
   recover: (sessionId: string) => Promise<boolean>;
   observe: (sessionId: string, runId: string, startedAt: number, stopping?: boolean) => boolean;
   reconcile: (sessionId: string, state?: SessionRunState) => Promise<void>;
@@ -75,6 +76,7 @@ export function useLiveRun(sessionId: string): UseLiveRun {
     steer: (id, text, attachments = []) => runs.steer(id, text, attachments),
     respondApproval: (id, choice) => runs.respondApproval(id, choice),
     respondClarify: (id, answers) => runs.respondClarify(id, answers),
+    respondVault: (id, answer) => runs.respondVault(id, answer),
     recover: (id) => runs.recover(id),
     observe: (id, runId, startedAt, stopping = false) => runs.observe(id, runId, startedAt, stopping),
     reconcile: (id, state) => runs.reconcile(id, state),

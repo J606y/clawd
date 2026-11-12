@@ -1050,8 +1050,21 @@ class SessionAuthority:
             self.check_approval_generation(session_id, generation)
             live.controls.register_clarify(session_id, generation, entry, timeout_s=timeout_s)
 
+    def register_vault(self, session_id, generation, method, params, *, timeout_s=None, responder=None):
+        live = self.sessions[session_id]
+        with live.event_stream.lock:
+            self.check_approval_generation(session_id, generation)
+            return live.controls.register_vault(session_id, generation, method, params,
+                                                timeout_s=timeout_s, responder=responder)
+
+    def discard_vault(self, session_id, prompt_id):
+        live = self.sessions[session_id]
+        with live.event_stream.lock:
+            live.controls.discard_vault(session_id, prompt_id)
+
     async def respond(self, actor, ref, generation, prompt_id, response, *, kind="approval"):
-        capability = {"approval": "session:approve", "clarify": "session:respond"}.get(kind)
+        capability = {"approval": "session:approve", "clarify": "session:respond",
+                      "vault": "session:respond"}.get(kind)
         if capability is None:
             raise RuntimeStoreError("invalid_params")
         self.authorize(actor, ref, capability)

@@ -565,11 +565,12 @@ def _settled_api_result(authority, admission_id):
     return saved['result'], saved['usage']
 
 
-_CONTROL_EVENTS = frozenset({'approval.request', 'approval.settled', 'clarify.request', 'clarify.settled'})
+_CONTROL_EVENTS = frozenset({'approval.request', 'approval.settled', 'clarify.request', 'clarify.settled',
+                             'vault.request', 'vault.settled'})
 
 
 @contextmanager
-def observe_api_controls(admitted, sink):
+def observe_api_controls(admitted, sink, *, sink_kind="stream"):
     """Project the same approval/clarify prompts WS viewers receive to ``sink(type, payload)``
     for the admission's lifetime; ``sink`` runs under the stream lock.
 
@@ -594,6 +595,10 @@ def observe_api_controls(admitted, sink):
         params = frame['params']
         if params.get('admission_id') == row['admission_id'] and params.get('type') in _CONTROL_EVENTS:
             sink(params['type'], params.get('payload') or {})
+
+    # Runs bridge passes sink_kind="run"; the chat/stream surface leaves "stream".
+    # ``session_vault_prompt`` reads this to decide whether a panel card can answer.
+    observer.vault_sink_kind = sink_kind
     with events.lock:
         events.observers.add(observer)
         current = get_session_admission(authority.db, admission_id=row['admission_id'])

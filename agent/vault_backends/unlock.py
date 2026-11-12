@@ -248,6 +248,10 @@ def is_unlocked(backend: str) -> bool:
 def can_prompt_here() -> bool:
     """False in contexts where no human can answer (cron, webhook, api_server, -q)."""
     from tools.approval_context import _no_user_can_answer
+    for callback in (get_unlock_prompt_callback(), get_save_login_prompt_callback(),
+                     get_code_prompt_callback()):
+        if callback is not None and getattr(callback, "_vault_surface", None) == "panel-run":
+            return True
     if _no_user_can_answer():
         return False
     return get_unlock_prompt_callback() is not None

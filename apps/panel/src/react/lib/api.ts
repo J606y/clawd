@@ -425,6 +425,11 @@ export const api = {
       method: "POST",
       body: JSON.stringify(body),
     }),
+  vault: (runId: string, body: { request_id: string; execution_generation: number; answer: string }) =>
+    request<unknown>(`v1/runs/${encodeURIComponent(runId)}/vault`, {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
   /** 发起一次运行：立即返回 run_id，运行与浏览器连接脱钩（刷新页面不会中断）。 */
   startRun: (body: unknown, signal?: AbortSignal, idempotencyKey?: string) =>
     request<{ run_id: string; status: string }>("v1/runs", {

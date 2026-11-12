@@ -10,6 +10,7 @@ import { buildTurns, confirmedForeignSession, isTurnStart, type NoteStep, type S
 import { currentEffort } from "./effort.js";
 import { applyTurnUsage, createTurnUsage, formatTurnTokens } from "./turn-usage.js";
 import { clarifyIdentity, parseClarifyEvent, CLARIFY_ANSWER_MAX, type ClarifyAnswer, type ClarifyPrompt } from "./clarify.js";
+import { parseVaultEvent, type VaultPrompt } from "./vault.js";
 
 /** api_server_runs._TOOL_COMPLETED_PREVIEW_MAX_CHARS：达到它说明预览被截断。 */
 const PREVIEW_MAX_CHARS = 500;
@@ -61,6 +62,8 @@ export interface LiveRun {
   text: string;
   approval: ApprovalRequest | null;
   clarify: ClarifyPrompt | null;
+  /** 待回答的保险库提示（保存登录 / 一次性验证码 / 解锁密码管理器）；同一时间最多一张卡。 */
+  vault: VaultPrompt | null;
   error: string;
   stopping: boolean;
   /** 回合开始的时间（毫秒）。刷新页面后从 localStorage 恢复，所以"已运行多久"不会因刷新清零。 */
@@ -438,6 +441,7 @@ class RunStore extends EventTarget {
       text: "",
       approval: null,
       clarify: null,
+      vault: null,
       error: "",
       stopping: false,
       startedAt: Date.now(),
@@ -467,7 +471,7 @@ class RunStore extends EventTarget {
     this.ctrls.get(sessionId)?.abort();
     const run: LiveRun = {
       sessionId, remote: true, model: "", provider: "", runId, userText: "", attachments: [], steers: [],
-      status: "running", thinking: "", steps: [], text: "", approval: null, clarify: null, error: "", stopping,
+      status: "running", thinking: "", steps: [], text: "", approval: null, clarify: null, vault: null, error: "", stopping,
       startedAt, lastEventAt: Date.now(),
     };
     this.runs.set(sessionId, run);
@@ -542,12 +546,16 @@ class RunStore extends EventTarget {
           run.error = e instanceof ApiError ? e.message : (e instanceof Error ? e.message : "连接中断");
         }
         run.clarify = null;
+
+        run.vault = null;
       }
     } finally {
       if (current()) {
         if (!run.unverified && isLive(run.status) && signal.aborted) {
           run.status = "cancelled";
           run.clarify = null;
+
+          run.vault = null;
         }
         this.finish(run, !run.unverified);
       }
@@ -651,6 +659,7 @@ class RunStore extends EventTarget {
           run.status = "failed";
           run.approval = null;
           run.clarify = null;
+          run.vault = null;
           run.error = "无法确认这次运行的结果（运行记录已被清理或服务已重启），请以上方历史为准";
           return;
         }
@@ -664,6 +673,8 @@ class RunStore extends EventTarget {
       if (navigator.onLine && ++failures > MAX_RECONNECT) {
         run.status = "failed";
         run.clarify = null;
+
+        run.vault = null;
         run.error = "与服务器的连接中断，回合可能仍在服务器上继续，稍后刷新查看";
         return;
       }
@@ -712,6 +723,7 @@ class RunStore extends EventTarget {
     run.steps = [];
     run.approval = null;
     run.clarify = null;
+    run.vault = null;
     run.followDropped = true;
     run.locallyReleased = true;
     run.error = `${UNCONFIRMED_TERMINAL}。这次订阅返回了另一会话，已释放本地输入，原运行标识保留供核验。`;
@@ -798,17 +810,20 @@ class RunStore extends EventTarget {
         run.status = "completed";
         run.approval = null;
         run.clarify = null;
+        run.vault = null;
         return true;
       case "cancelled":
         run.status = "cancelled";
         run.approval = null;
         run.clarify = null;
+        run.vault = null;
         return true;
       case "failed":
       case "interrupted":
         run.status = "failed";
         run.approval = null;
         run.clarify = null;
+        run.vault = null;
         run.error = error || (status === "interrupted" ? "回合被中断" : "执行失败");
         return true;
       default:
@@ -867,6 +882,8 @@ class RunStore extends EventTarget {
       case "approval.cancelled":
       case "clarify.request":
       case "clarify.settled":
+      case "vault.request":
+      case "vault.settled":
       case "run.completed":
       case "run.cancelled":
         this.apply(run, String(d.event), d);
@@ -878,6 +895,7 @@ class RunStore extends EventTarget {
         run.status = "failed";
         run.approval = null;
         run.clarify = null;
+        run.vault = null;
         run.error = "回合被中断";
         break;
       case "replay.truncated":
@@ -969,6 +987,7 @@ class RunStore extends EventTarget {
         text: "",
         approval: null,
         clarify: null,
+        vault: null,
         error: "",
         stopping: false,
         // 刷新后接回：开始时间沿用刷新前记下的；最近事件时间从现在算起（接上后服务端会回放漏掉的事件，随即刷新它）。
@@ -1116,32 +1135,51 @@ class RunStore extends EventTarget {
         if (!run.clarify) break;
         if (!id) {
           run.clarify = null;
+
+          run.vault = null;
           break;
         }
         const rest = run.clarify.questions.filter((q) => q.requestId !== id);
         run.clarify = rest.length ? { ...run.clarify, questions: rest, pending: false, error: "" } : null;
         break;
       }
+      case "vault.request": {
+        const next = parseVaultEvent(d);
+        if (!next) break;
+        if (run.vault && run.vault.requestId === next.requestId) break;
+        run.vault = next;
+        break;
+      }
+      case "vault.settled": {
+        const id = typeof d.prompt_id === "string" ? d.prompt_id : typeof d.request_id === "string" ? d.request_id : "";
+        if (!run.vault) break;
+        if (!id || run.vault.requestId === id) run.vault = null;
+        break;
+      }
       case "run.completed":
         run.status = "completed";
         run.approval = null;
         run.clarify = null;
+        run.vault = null;
         break;
       case "run.cancelled":
         run.status = "cancelled";
         run.approval = null;
         run.clarify = null;
+        run.vault = null;
         break;
       case "run.failed":
         run.status = "failed";
         run.approval = null;
         run.clarify = null;
+        run.vault = null;
         run.error = typeof d.error === "string" ? d.error : "执行失败";
         break;
       case "error":
         run.status = "failed";
         run.approval = null;
         run.clarify = null;
+        run.vault = null;
         run.error = typeof d.message === "string" ? d.message : "执行失败";
         break;
     }
@@ -1217,6 +1255,7 @@ class RunStore extends EventTarget {
             run.status = "failed";
             run.approval = null;
             run.clarify = null;
+            run.vault = null;
             run.error = "运行记录已不存在（可能被中断或服务已重启）";
             this.finish(run);
           }
@@ -1265,12 +1304,101 @@ class RunStore extends EventTarget {
             run.status = "failed";
             run.approval = null;
             run.clarify = null;
+            run.vault = null;
             run.error = "运行记录已不存在（可能被中断或服务已重启）";
             this.finish(run);
           }
         }
       } else if (run.clarify === snapshot) {
         run.clarify = {
+          ...snapshot,
+          pending: false,
+          error: e instanceof ApiError ? `回答提交失败：${e.message}` : "回答提交失败",
+        };
+      }
+    }
+    this.changed(run);
+  }
+
+  /** 回答保险库提示：空串表示拒绝。只发一次；身份缺失时先从服务端 pending_controls 找回。 */
+  async respondVault(sessionId: string, answer: string): Promise<void> {
+    const run = this.runs.get(sessionId);
+    const prompt = run?.vault;
+    if (!run || !prompt || !run.runId || prompt.pending) return;
+    const snapshot: VaultPrompt = { ...prompt, pending: true, error: "" };
+    run.vault = snapshot;
+    this.changed(run);
+    let requestId = prompt.requestId;
+    let generation = prompt.generation;
+    const usableId = (id: unknown): id is string => typeof id === "string" && id.length > 0 && id.length <= 256;
+    const usableGeneration = (value: unknown): value is number => typeof value === "number" && Number.isInteger(value);
+    if (!usableId(requestId) || !usableGeneration(generation)) {
+      try {
+        const status = await api.runStatus(run.runId) as {
+          run_id?: unknown;
+          session_id?: unknown;
+          execution_generation?: unknown;
+          pending_controls?: unknown;
+        };
+        if (this.runs.get(sessionId) !== run || run.vault !== snapshot || this.finished.has(run)) return;
+        if (foreignIdentity(run, status)) return;
+        const controls = Array.isArray(status.pending_controls) ? status.pending_controls : [];
+        const prompts = controls.filter((item): item is { prompt_id: string; execution_generation?: unknown } =>
+          Boolean(item) && typeof item === "object" && (item as { kind?: unknown }).kind === "vault"
+          && usableId((item as { prompt_id?: unknown }).prompt_id));
+        if (prompts.length === 1) {
+          if (!usableId(requestId)) requestId = prompts[0].prompt_id;
+          if (!usableGeneration(generation)) {
+            generation = usableGeneration(prompts[0].execution_generation)
+              ? prompts[0].execution_generation
+              : usableGeneration(status.execution_generation)
+                ? status.execution_generation
+                : generation;
+          }
+        }
+      } catch {
+        // 查不到身份不能当成已经回答。
+      }
+    }
+    if (!usableId(requestId) || !usableGeneration(generation)) {
+      if (this.runs.get(sessionId) !== run || run.vault !== snapshot || this.finished.has(run)) return;
+      run.vault = { ...snapshot, pending: false };
+      run.error = "回答提交失败：缺少可核验的提示身份，未提交";
+      this.changed(run);
+      return;
+    }
+    try {
+      await api.vault(run.runId, {
+        request_id: requestId,
+        execution_generation: generation,
+        answer,
+      });
+      if (run.vault === snapshot) run.vault = null;
+      if (this.runs.get(sessionId) === run && run.error.startsWith("回答提交失败")) run.error = "";
+    } catch (e) {
+      if (this.runs.get(sessionId) !== run || this.finished.has(run)) return;
+      if (e instanceof ApiError && e.status === 409) {
+        // 409：提示已过期、已被处理或流已清扫。撤销卡片并重查服务端真实状态。
+        if (run.vault === snapshot) run.vault = null;
+        run.error = "";
+        try {
+          const st = await api.runStatus(run.runId);
+          if (this.runs.get(sessionId) !== run || this.finished.has(run)) return;
+          if (this.finishFromStatus(run, st)) this.finish(run);
+          else if (terminalClaim(st) && !trustedTerminalIdentity(run, st)) this.noteUnconfirmedTerminal(run);
+        } catch (err) {
+          if (this.runs.get(sessionId) !== run || this.finished.has(run)) return;
+          if (err instanceof ApiError && err.status === 404) {
+            run.status = "failed";
+            run.approval = null;
+            run.clarify = null;
+            run.vault = null;
+            run.error = "运行记录已不存在（可能被中断或服务已重启）";
+            this.finish(run);
+          }
+        }
+      } else if (run.vault === snapshot) {
+        run.vault = {
           ...snapshot,
           pending: false,
           error: e instanceof ApiError ? `回答提交失败：${e.message}` : "回答提交失败",

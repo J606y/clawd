@@ -292,6 +292,7 @@ def _http_routes(self) -> list[tuple[str, str, Any]]:
         ("GET", "/v1/runs/{run_id}/events", self._handle_run_events),
         ("POST", "/v1/runs/{run_id}/approval", self._handle_run_approval),
         ("POST", "/v1/runs/{run_id}/clarify", self._handle_run_clarify),
+        ("POST", "/v1/runs/{run_id}/vault", self._handle_run_vault),
         ("POST", "/v1/runs/{run_id}/steer", self._handle_steer_run),
         ("POST", "/v1/runs/{run_id}/resolve-unknown", self._handle_resolve_unknown_run),
         ("POST", "/v1/runs/{run_id}/stop", self._handle_stop_run),
@@ -1218,7 +1219,7 @@ async def _execute_run(self, run: _RunLaunch, *, _api_server) -> None:
                 is_error, _ = _detect_tool_failure(name, result)
                 tool_cb("tool.completed", name, None, args, tool_call_id=call_id, is_error=bool(is_error))
 
-            with observe_api_controls(run.admission, _control_cb):
+            with observe_api_controls(run.admission, _control_cb, sink_kind="run"):
                 result, usage = await observe_api_turn(
                     run.admission, stream_delta_callback=_text_cb,
                     tool_start_callback=_tool_start, tool_complete_callback=_tool_complete,
@@ -1524,6 +1525,20 @@ async def _handle_run_clarify(self, request, *, _api_server):
     if err is not None:
         return err
     return await _respond_authority_run(self, run_id, body, kind='clarify', _api_server=_api_server)
+
+
+async def _handle_run_vault(self, request, *, _api_server):
+    """POST /v1/runs/{run_id}/vault — answer a pending vault prompt (save_login / code /
+    unlock_prompt) from the panel card. Body is ``{request_id, execution_generation, answer}``;
+    an empty answer means the user declined. Mirrors ``_handle_run_clarify``."""
+    run_id, _, _, _, err = _load_owned_run(
+        self, request, _api_server=_api_server, permission="approve", active_fallback=False)
+    if err is not None:
+        return err
+    body, err = await self._read_json_body(request)
+    if err is not None:
+        return err
+    return await _respond_authority_run(self, run_id, body, kind='vault', _api_server=_api_server)
 
 
 def _steer_refused(_openai_error, run_id):
