@@ -461,6 +461,9 @@ otlp = [
   "opentelemetry-exporter-otlp-proto-http==1.45.1",
 ]
 bedrock = ["boto3==1.43.115"]
+# S3 object-storage uploads (gateway _handle_upload_s3). Same pin as bedrock;
+# lazy-imported, so a missing boto3 only breaks S3-on uploads, never local ones.
+s3 = ["boto3==1.43.115"]
 vertex = ["google-auth==2.62.0"]
 azure-identity = ["azure-identity==1.26.0"]
 termux = [

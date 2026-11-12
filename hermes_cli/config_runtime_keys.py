@@ -33,6 +33,7 @@ logger = logging.getLogger(__name__)
 CORE_RUNTIME_KEYS: dict[str, str] = {
     "computer_use.backend": "plugins/computer_use/__init__.py configured_backend_name() (unset = cua)",
     "dashboard.kanban": "plugins/kanban/dashboard/plugin_api.py (bundled dashboard tab preferences)",
+    "uploads.s3": "gateway/platforms/api_server.py _upload_s3_config() (read per upload; unset = local disk)",
 }
 
 # Whole values. Do not put these in CORE_RUNTIME_KEYS: ``_covered`` would accept children, and a

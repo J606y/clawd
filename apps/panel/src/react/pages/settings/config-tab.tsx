@@ -10,6 +10,7 @@ import { Empty, errText, Head, LoadError, Loading } from "./bits";
 import { ConnectionsSection } from "./connections-section";
 import { MemorySection } from "./memory-section";
 import { ToolsSection } from "./tools-section";
+import { StorageSection } from "./storage-section";
 
 const ZH = zhText;
 const ZH_SUPPLEMENT = zhSupplement;
@@ -74,6 +75,7 @@ const ADVANCED_KEYS: { key: string; label: string; masked: boolean }[] = [
   { key: "hooks", label: "钩子", masked: false },
   { key: "personalities", label: "个性", masked: false },
   { key: "lsp.servers", label: "LSP 服务器", masked: false },
+  { key: "uploads.s3", label: "对象存储 (S3)", masked: false },
 ];
 
 function advancedNotice(result: AdvancedRead): string {
@@ -336,6 +338,7 @@ function ConfigGroups({ onNotice, notice }: { onNotice: (text: string) => void; 
       <ToolsSection />
       <MemorySection />
       <ConnectionsSection />
+      <StorageSection />
       <AdvancedObjects onNotice={onNotice} />
     </>
   );

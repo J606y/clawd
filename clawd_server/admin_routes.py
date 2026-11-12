@@ -73,6 +73,7 @@ ADVANCED_KEYS = frozenset({
     "hooks",
     "personalities",
     "lsp.servers",
+    "uploads.s3",
 })
 
 _PREVIEW = "/profiles/delete-preview"

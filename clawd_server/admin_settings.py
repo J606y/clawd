@@ -299,6 +299,7 @@ ADVANCED_ALLOWLIST = (
     "hooks",
     "personalities",
     "lsp.servers",
+    "uploads.s3",
 )
 MASKED_ADVANCED_KEYS = frozenset({"credential_pool_strategies", "terminal.docker_env"})
 _ADVANCED_INDEX = {key: index for index, key in enumerate(ADVANCED_ALLOWLIST)}

@@ -1282,6 +1282,124 @@ class _UploadWriter:
                 pass
 
 
+_S3_PART_SIZE = 8 * 1024 * 1024
+
+
+class _S3MultipartWriter:
+    # Streaming S3 multipart upload with the same 500MB cap as local uploads.
+    # Buffers up to one 8MB part; small files (< 8MB) go out as a single
+    # PutObject so no multipart round-trips are needed. Blocking boto3 calls
+    # run via asyncio.to_thread from the handler.
+
+    def __init__(self, client, bucket: str, key: str) -> None:
+        self.client = client
+        self.bucket = bucket
+        self.key = key
+        self.buf = bytearray()
+        self.size = 0
+        self.upload_id: str | None = None
+        self.parts: list[dict] = []
+        self._finished = False
+        self._aborted = False
+
+    def _ensure_multipart(self) -> None:
+        if self.upload_id is None:
+            resp = self.client.create_multipart_upload(
+                Bucket=self.bucket, Key=self.key
+            )
+            self.upload_id = str(resp["UploadId"])
+
+    def _upload_part(self, data: bytes) -> None:
+        self._ensure_multipart()
+        part_no = len(self.parts) + 1
+        resp = self.client.upload_part(
+            Bucket=self.bucket,
+            Key=self.key,
+            PartNumber=part_no,
+            UploadId=self.upload_id,
+            Body=data,
+        )
+        self.parts.append({"PartNumber": part_no, "ETag": resp["ETag"]})
+
+    def write(self, chunk: bytes) -> None:
+        if self._finished or self._aborted:
+            raise ValueError("upload writer closed")
+        self.buf += chunk
+        self.size += len(chunk)
+        if self.size > UPLOAD_BYTE_LIMIT:
+            raise ValueError("file_too_large")
+        while len(self.buf) >= _S3_PART_SIZE:
+            part = bytes(self.buf[:_S3_PART_SIZE])
+            del self.buf[:_S3_PART_SIZE]
+            self._upload_part(part)
+
+    def finish(self) -> None:
+        if self._finished:
+            raise ValueError("upload writer already finished")
+        if self._aborted:
+            raise ValueError("upload writer aborted")
+        self._finished = True
+        if self.upload_id is None:
+            self.client.put_object(
+                Bucket=self.bucket, Key=self.key, Body=bytes(self.buf)
+            )
+        else:
+            if self.buf:
+                self._upload_part(bytes(self.buf))
+            self.client.complete_multipart_upload(
+                Bucket=self.bucket,
+                Key=self.key,
+                UploadId=self.upload_id,
+                MultipartUpload={"Parts": self.parts},
+            )
+        self.buf = bytearray()
+
+    def abort(self) -> None:
+        if self._aborted or self._finished:
+            return
+        self._aborted = True
+        if self.upload_id is not None:
+            try:
+                self.client.abort_multipart_upload(
+                    Bucket=self.bucket, Key=self.key, UploadId=self.upload_id
+                )
+            except Exception:
+                pass
+
+
+def _s3_error_code(exc: BaseException) -> str:
+    response = getattr(exc, "response", None)
+    if isinstance(response, dict):
+        error = response.get("Error")
+        if isinstance(error, dict):
+            return str(error.get("Code") or "")
+    return ""
+
+
+def _s3_error_message(exc: BaseException) -> str:
+    code = _s3_error_code(exc)
+    if code in ("InvalidAccessKeyId", "SignatureDoesNotMatch", "AccessDenied", "403", "401"):
+        return "对象存储认证失败，请检查 Access Key / Secret Key"
+    if code == "NoSuchBucket":
+        return "对象存储桶不存在，请检查桶名"
+    if exc.__class__.__name__ in ("EndpointConnectionError", "ConnectTimeoutError"):
+        return "无法连接对象存储，请检查 Endpoint"
+    return "对象存储上传失败"
+
+
+def _upload_s3_config() -> dict:
+    # Read uploads.s3 from config.yaml fresh on every upload, so settings
+    # saved in the panel take effect at once without a restart.
+    try:
+        from hermes_cli.config import cfg_get, load_config
+
+        cfg = cfg_get(load_config(), "uploads", "s3", default={})
+        return cfg if isinstance(cfg, dict) else {}
+    except Exception:
+        logger.exception("upload s3 config read failed")
+        return {}
+
+
 class APIServerAdapter(OpenAICompatRoutesMixin, BasePlatformAdapter):
     """aiohttp server routing OpenAI-format requests through hermes-agent's AIAgent."""
 
@@ -4249,6 +4367,11 @@ class APIServerAdapter(OpenAICompatRoutesMixin, BasePlatformAdapter):
         sub_parts = _clean_upload_subdir(sub_raw)
         if sub_parts is None:
             return _error_response("路径不合法", 400, code="invalid_path")
+        s3cfg = _upload_s3_config()
+        if isinstance(s3cfg, dict) and s3cfg.get("enabled") is True:
+            return await self._handle_upload_s3(
+                request, root_id, name, sub_parts, content_length, s3cfg
+            )
         from hermes_constants import get_hermes_home
 
         home = get_hermes_home()
@@ -4299,6 +4422,118 @@ class APIServerAdapter(OpenAICompatRoutesMixin, BasePlatformAdapter):
         logger.info("uploaded %s (%d bytes) via panel api", dest, writer.size)
         return web.json_response(
             {"ok": True, "root": root_id, "path": rel, "absPath": str(dest), "size": writer.size}
+        )
+
+    async def _handle_upload_s3(
+        self,
+        request: web.Request,
+        root_id: str,
+        name: str,
+        sub_parts: list[str],
+        content_length: int | None,
+        s3cfg: dict,
+    ) -> web.Response:
+        # POST /api/uploads with S3 storage enabled (uploads.s3.enabled).
+        # Same protocol as the local path; the object key is
+        # <root>/<subdir>/<name> and the response carries s3://... as absPath.
+        # The agent cannot read s3:// paths yet, so this stays off by default.
+        endpoint = str(s3cfg.get("endpoint") or "").strip()
+        bucket = str(s3cfg.get("bucket") or "").strip()
+        region = str(s3cfg.get("region") or "").strip() or "us-chicago-1"
+        access_key = str(s3cfg.get("access_key") or "").strip()
+        secret_key = str(s3cfg.get("secret_key") or "")
+        if not endpoint or not bucket or not access_key or not secret_key:
+            return _error_response(
+                "对象存储未配置完整，请在设置中填写", 400, code="s3_not_configured"
+            )
+        try:
+            import boto3
+            from botocore.config import Config as _BotoConfig
+        except ImportError:
+            return _error_response("boto3 未安装", 500, code="s3_unavailable")
+        key = "/".join([root_id, *sub_parts, name])
+        try:
+            client = boto3.client(
+                "s3",
+                endpoint_url=endpoint,
+                aws_access_key_id=access_key,
+                aws_secret_access_key=secret_key,
+                region_name=region,
+                config=_BotoConfig(
+                    signature_version="s3v4", s3={"addressing_style": "path"}
+                ),
+            )
+        except Exception:
+            logger.exception("s3 client init failed")
+            return _error_response("对象存储初始化失败", 500, code="s3_failed")
+        # Unique key: same " (i)" suffix rule as the local writer.
+        stem = Path(name).stem
+        suffix = Path(name).suffix
+        try:
+            for i in range(1000):
+                cand = (
+                    key
+                    if i == 0
+                    else "/".join([root_id, *sub_parts, f"{stem} ({i}){suffix}"])
+                )
+                try:
+                    await asyncio.to_thread(
+                        client.head_object, Bucket=bucket, Key=cand
+                    )
+                except Exception as exc:
+                    if _s3_error_code(exc) in ("404", "NoSuchKey"):
+                        key = cand
+                        break
+                    raise
+            else:
+                return _error_response("同名文件过多", 409, code="name_exhausted")
+        except Exception as exc:
+            logger.exception("s3 key check failed")
+            return _error_response(_s3_error_message(exc), 502, code="s3_failed")
+        writer: _S3MultipartWriter | None = None
+        try:
+            writer = _S3MultipartWriter(client, bucket, key)
+            async for chunk in request.content.iter_chunked(65536):
+                if not chunk:
+                    continue
+                try:
+                    await asyncio.to_thread(writer.write, chunk)
+                except ValueError as exc:
+                    if str(exc) == "file_too_large":
+                        return _error_response(
+                            "单个文件不能超过 500MB", 413, code="too_large"
+                        )
+                    raise
+            if content_length is not None and writer.size != content_length:
+                writer.abort()
+                return _error_response("上传中断", 400, code="incomplete")
+            await asyncio.to_thread(writer.finish)
+        except asyncio.CancelledError:
+            raise
+        except ValueError as exc:
+            if str(exc) == "name_exhausted":
+                return _error_response("同名文件过多", 409, code="name_exhausted")
+            return _error_response("文件名不合法", 400, code="invalid_name")
+        except Exception as exc:
+            logger.exception("panel s3 upload failed")
+            return _error_response(_s3_error_message(exc), 502, code="s3_failed")
+        finally:
+            if writer is not None:
+                try:
+                    writer.abort()
+                except Exception:
+                    logger.exception("panel s3 upload abort failed")
+        logger.info(
+            "uploaded s3://%s/%s (%d bytes) via panel api", bucket, key, writer.size
+        )
+        return web.json_response(
+            {
+                "ok": True,
+                "root": root_id,
+                "path": key,
+                "absPath": f"s3://{bucket}/{key}",
+                "size": writer.size,
+            }
         )
 
     async def _handle_cron_fire(self, request: web.Request) -> web.Response:
