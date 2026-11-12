@@ -599,6 +599,11 @@
   padding: 4px 2px;
 }
 
+.session-list .folders-toggle {
+  width: 100%;
+  text-align: left;
+}
+
 .session-list .folder-toggle {
   text-align: left;
   white-space: nowrap;

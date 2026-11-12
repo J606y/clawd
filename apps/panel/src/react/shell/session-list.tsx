@@ -110,6 +110,13 @@ export const SessionList = forwardRef<SessionListHandle, {
   const [folderError, setFolderError] = useState("");
   const [folderDelete, setFolderDelete] = useState("");
   const [pendingProject, setPendingProject] = useState<string | null>(() => getPendingNewChatProjectId());
+  const [projectsOpen, setProjectsOpen] = useState<boolean>(() => {
+    try {
+      return typeof localStorage === "undefined" ? true : localStorage.getItem("hp_projects_section_open") !== "false";
+    } catch {
+      return true;
+    }
+  });
   const [archivedOpen, setArchivedOpen] = useState(false);
   const [collapsedMap, setCollapsedMap] = useState<Record<string, boolean>>(() => {
     try {
@@ -118,6 +125,16 @@ export const SessionList = forwardRef<SessionListHandle, {
       return {};
     }
   });
+
+  const toggleProjectsOpen = () => {
+    const next = !projectsOpen;
+    setProjectsOpen(next);
+    try {
+      if (typeof localStorage !== "undefined") localStorage.setItem("hp_projects_section_open", next ? "true" : "false");
+    } catch {
+      // 折叠状态只存本地，写不进去也不影响使用。
+    }
+  };
 
   const toggleProjectCollapsed = (projectId: string) => {
     const next = !collapsedMap[projectId];
@@ -625,6 +642,7 @@ export const SessionList = forwardRef<SessionListHandle, {
   }, [menuId]);
 
   const searching = query.trim().length > 0;
+  const foldersVisible = projectsOpen || searching;
   const projectBusyNow = createProject.isPending || patchProject.isPending || bindSession.isPending;
   const shownFolderError = folderError || (projectsQuery.isError ? "文件夹加载失败，请重试；对话仍可正常访问" : "");
   const legacyGroups = (() => {
@@ -828,6 +846,17 @@ export const SessionList = forwardRef<SessionListHandle, {
         />
       </div>
       <section className="folders" aria-label="会话项目">
+        <button
+          type="button"
+          className="folders-toggle"
+          aria-expanded={foldersVisible}
+          disabled={projectBusyNow}
+          onClick={toggleProjectsOpen}
+        >
+          {foldersVisible ? "\u25be" : "\u25b8"} 项目（{activeProjects.length}）
+        </button>
+        {foldersVisible ? (
+          <>
         <button disabled={projectBusyNow} onClick={() => {
           setFolderEditor("new");
           setFolderName("");
@@ -872,6 +901,8 @@ export const SessionList = forwardRef<SessionListHandle, {
           }}
         />
         {index?.conflicts.length ? <div role="alert">有对话同时出现在多个文件夹，已保留先出现的归属</div> : null}
+          </>
+        ) : null}
         {shownFolderError ? (
           <div role="alert">{shownFolderError}<button disabled={projectBusyNow} onClick={() => void projectsQuery.refetch()}>重试加载文件夹</button></div>
         ) : null}
