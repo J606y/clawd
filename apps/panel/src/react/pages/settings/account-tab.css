@@ -1,0 +1,52 @@
+/* 只补本页缺口。密码框数值与 settings.css 的 text input 相同；卡片间距与定时任务表单相同。不改公共样式。 */
+.account-settings .card {
+  padding: 16px;
+  margin-bottom: 16px;
+}
+.account-settings input[type="password"] {
+  width: 100%;
+  font: inherit;
+  font-size: 16px;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-m);
+  padding: 8px 12px;
+  outline: none;
+  box-sizing: border-box;
+}
+.account-settings input:disabled {
+  opacity: 0.5;
+}
+.account-settings .current {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.account-settings .hint,
+.account-settings .field-error {
+  margin: 6px 0 0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.account-settings .hint {
+  color: var(--text-secondary);
+}
+.account-settings .acts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin-top: 16px;
+}
+.account-settings .error .detail,
+.account-settings .error .code {
+  display: block;
+  margin-top: 4px;
+}
+.account-settings .error .code {
+  color: var(--text-tertiary);
+  font-size: 12px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}

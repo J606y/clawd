@@ -125,7 +125,10 @@ let
 
   # Python source: everything except JS/TS/docs/infra directories.
   # apps/ is excluded because apps/shared is an npm workspace. Do not re-add
-  # apps/panel here: that would pull host node_modules into the wheel source.
+  # apps/panel here: that would pull host node_modules into the wheel source
+  # and make stage_distribution prefer an incomplete checkout panel over
+  # CLAWD_PANEL_RESOURCE_ROOT. Pinned noVNC is added by panelResources below,
+  # not by this filter. plugins/web stays in the Python source.
   # Built panel files come from panelResources, consumed at wheel-build time
   # via CLAWD_PANEL_RESOURCE_ROOT (see docs/clawd/distribution-implementation.md).
   # A pre-staged clawd_server/bundled is gitignored and is not a Nix input.
@@ -242,11 +245,88 @@ let
   # inside uv2nix.loadWorkspace. hermes-agent.nix passes it to python.nix as
   # panelResourceRoot. python.nix sets CLAWD_PANEL_RESOURCE_ROOT only on the
   # wheel-build derivation. The runtime wrapper must not receive that path.
-  panelResources = callPackage ./panel-resources.nix {
+  # nix/panel-resources.nix remains the frozen dist/sidecar/plugin producer.
+  # Its installPhase does not copy vendor/novnc. This attribute is what
+  # hermes-agent.nix passes as panelResourceRoot; it copies that output and
+  # the pinned tree. Do not splice the result into pythonSrc.
+  panelResourceBase = callPackage ./panel-resources.nix {
     inherit importNpmLock;
     nodejs = nodejs;
     npmConfigHook = patchedNpmConfigHook;
   };
+  novncVendor = repoRoot + "/apps/panel/vendor/novnc";
+  novncFileCount =
+    let
+      walk = dir:
+        lib.concatLists (
+          lib.mapAttrsToList (
+            name: type:
+            if type == "symlink" then
+              throw "refusing symlink in pinned noVNC tree: ${dir}/${name}"
+            else if type == "directory" then
+              walk (dir + "/${name}")
+            else if type == "regular" then
+              [ name ]
+            else
+              throw "refusing non-regular noVNC entry: ${dir}/${name}"
+          ) (builtins.readDir dir)
+        );
+    in
+    builtins.length (walk novncVendor);
+  panelResources =
+    if novncFileCount != 215 then
+      throw "pinned noVNC tree file count ${toString novncFileCount} != 215"
+    else
+      runCommand "clawd-panel-resources-novnc" {
+        panel = panelResourceBase;
+        novnc = builtins.path {
+          name = "clawd-novnc-1.6.0";
+          path = novncVendor;
+          filter = path: type: type == "directory" || type == "regular";
+        };
+      } ''
+        set -eu
+        if [ -n "$(find "$novnc" -type l -print -quit)" ]; then
+          echo "clawd panel resources: refusing noVNC symlink" >&2
+          exit 1
+        fi
+        if [ -n "$(find "$panel" -type l -print -quit)" ]; then
+          echo "clawd panel resources: refusing symlink from frozen producer" >&2
+          exit 1
+        fi
+        mkdir -p "$out"
+        cp -a -- "$panel/." "$out/"
+        if [ -e "$out/vendor" ] || [ -L "$out/vendor" ]; then
+          echo "clawd panel resources: frozen producer unexpectedly has vendor" >&2
+          exit 1
+        fi
+        mkdir -p "$out/vendor"
+        cp -a -- "$novnc" "$out/vendor/novnc"
+        test -d "$out/vendor/novnc"
+        test ! -L "$out/vendor/novnc"
+        test -f "$out/dist/index.html"
+        test -f "$out/sidecar/hermes_panel_sidecar.py"
+        test -f "$out/plugins/browser-window-guard/plugin.yaml"
+        test -f "$out/vendor/novnc/core/rfb.js"
+        test -f "$out/vendor/novnc/LICENSE.txt"
+        test -f "$out/vendor/novnc/vendor/pako/LICENSE"
+        count=$(find "$out/vendor/novnc" -type f | wc -l | tr -d " ")
+        if [ "$count" != "215" ]; then
+          echo "clawd panel resources: noVNC file count $count != 215" >&2
+          exit 1
+        fi
+        sha_ok() {
+          got=$(sha256sum "$1" | awk '{print $1}')
+          if [ "$got" != "$2" ]; then
+            echo "clawd panel resources: pinned hash mismatch" >&2
+            exit 1
+          fi
+        }
+        sha_ok "$out/vendor/novnc/core/rfb.js" "563a8c8469dfb55d1deee05262a311637d0e6fe8f65ae34c8222ee22e34e8a93"
+        sha_ok "$out/vendor/novnc/LICENSE.txt" "3ccd2242d7f5b6c5ae831a486f63cce1f18d8cd11c511f6a7a7251673763b2d1"
+        sha_ok "$out/vendor/novnc/vendor/pako/LICENSE" "3bc404ffa7888053253eedcc5a667619aa08dc1be0bea400e5ff28c51602180f"
+        sha_ok "$out/vendor/novnc/package.json" "cd979f4c1dc4d7c0dd2794b93ca1c89b3c20c01fd4dee5d489330b291e441897"
+      '';
 
   # Common npm workspace resolution files needed by all npm builds.
   # npm ci requires all workspace package.json files to resolve

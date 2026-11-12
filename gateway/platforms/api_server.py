@@ -663,11 +663,22 @@ if AIOHTTP_AVAILABLE:
     @web.middleware
     async def body_limit_middleware(request, handler):
         """Reject overly large request bodies early based on Content-Length."""
+        limit = MAX_REQUEST_BYTES
+        route = request.match_info.route
+        resource = getattr(route, "resource", None)
+        canonical = getattr(resource, "canonical", "")
+        if request.method == "POST" and canonical in {
+            "/api/projects/{id}/resources/files",
+            "/p/{profile}/api/projects/{id}/resources/files",
+        } and request.content_type == "multipart/form-data":
+            from clawd_projects.resources import FILE_BYTE_LIMIT
+            limit = FILE_BYTE_LIMIT + 16 * 1024
+            request = request.clone(client_max_size=limit)
         if request.method in {"POST", "PUT", "PATCH"}:
             cl = request.headers.get("Content-Length")
             if cl is not None:
                 try:
-                    if int(cl) > MAX_REQUEST_BYTES:
+                    if int(cl) > limit:
                         return _error_response("Request body too large.", 413, code="body_too_large")
                 except ValueError:
                     return _error_response("Invalid Content-Length header.", 400, code="invalid_content_length")
@@ -754,6 +765,98 @@ def _error_response(
 def _invalid_request(message: str) -> web.Response:
     """400 with the bare ``{message, type}`` envelope the OpenAI-compatible validators use."""
     return web.json_response({"error": {"message": message, "type": "invalid_request_error"}}, status=400)
+
+
+class _SessionHistoryUnreadable(RuntimeError):
+    """Session history could not be read. This is not an empty transcript.
+
+    ``reason`` is ``unavailable`` when the session store cannot be opened and
+    ``read_failed`` when a read raised. A successful empty list is neither.
+    Callers must refuse to start the turn.
+    """
+
+    def __init__(self, session_id: str, reason: str):
+        self.session_id = str(session_id or "")
+        self.reason = reason
+        super().__init__(f"session history unreadable: {reason}")
+
+
+def _history_unreadable_response() -> web.Response:
+    """Stable refusal. Does not include the storage exception or transcript."""
+    return _error_response(
+        "Session history could not be read; turn not started",
+        503,
+        code="session_history_unreadable",
+    )
+
+
+def _provider_auth_failure_result(exc: "_ProviderAuthResolutionError", *, muted: bool = False) -> dict[str, Any]:
+    """Result dict for a typed provider-auth failure inside ``_run_agent``.
+
+    ``failed`` and ``error`` are set so the existing chat ``_response_status``
+    mapper cannot report ``completed``. The HTTP envelope stays the caller's.
+    ``/v1/runs`` ``_execute_run`` catches this exception itself and already
+    finishes ``failed``; this dict is not that branch. ``error`` is the stable
+    English label, not the raw exception, so a 429 buried in the cause is not
+    reclassified as an automatic retry.
+    """
+    rate_limited = bool(exc.is_rate_limited())
+    result = {
+        "final_response": exc.user_text(),
+        "messages": [],
+        "api_calls": 0,
+        "tools": [],
+        "failed": True,
+        "error": PROVIDER_RATE_LIMITED_LABEL if rate_limited else PROVIDER_AUTH_FAILED_LABEL,
+        "completed": False,
+    }
+    if muted:
+        result["_notification_presentation_suppressed"] = True
+    return result
+
+
+def _rollback_failed_fork_sync(db: Any, fork_id: str, snapshot: Any) -> str | None:
+    """Unpublish a child whose fork did not finish. Does not end the source.
+
+    ``projects.db`` and ``state.db`` are not one transaction. Returns None only
+    when the child row is gone and a binding this attempt wrote is released or
+    was not written. A leftover is an error string, never a success.
+    """
+    errors: list[str] = []
+    try:
+        db.discard_unadmitted_session(fork_id)
+    except Exception as exc:
+        logger.warning("fork child discard failed for %s", fork_id, exc_info=True)
+        errors.append(f"child discard failed: {type(exc).__name__}")
+    try:
+        if db.get_session(fork_id):
+            errors.append("child session row remained")
+    except Exception as exc:
+        logger.warning("fork child existence check failed for %s", fork_id, exc_info=True)
+        errors.append(f"child existence check failed: {type(exc).__name__}")
+    wrote = bool(getattr(snapshot, "wrote", False))
+    token = getattr(snapshot, "write_token", None)
+    project_id = getattr(snapshot, "project_id", None)
+    if wrote and token and project_id:
+        try:
+            from clawd_projects.inheritance import release_owned_child_binding
+
+            released = release_owned_child_binding(
+                fork_id,
+                state_db_path=Path(db.db_path),
+                project_id=str(project_id),
+                write_token=str(token),
+            )
+            if not released:
+                errors.append("child project binding was not released")
+        except Exception as exc:
+            logger.warning("fork child binding release failed for %s", fork_id, exc_info=True)
+            errors.append(f"child project binding release failed: {type(exc).__name__}")
+    if errors:
+        return "; ".join(errors)
+    return None
+
+
 
 
 _api_agent_request_reservation: ContextVar[Optional[dict[str, bool]]] = ContextVar(
@@ -2531,14 +2634,25 @@ class APIServerAdapter(OpenAICompatRoutesMixin, BasePlatformAdapter):
         return session, None
 
     async def _conversation_history_for_session(self, session_id: str) -> list[dict[str, Any]]:
+        """Load persisted history. A successful ``[]`` is an empty transcript.
+
+        A missing store or a read exception raises ``_SessionHistoryUnreadable``.
+        Callers must catch it and must not start the turn. Do not treat that
+        exception as an empty history.
+        """
         db = await self._ensure_session_db_async()
         if db is None:
-            return []
+            raise _SessionHistoryUnreadable(session_id, "unavailable")
         try:
-            return await asyncio.to_thread(db.get_messages_as_conversation, session_id)
+            history = await asyncio.to_thread(db.get_messages_as_conversation, session_id)
+        except _SessionHistoryUnreadable:
+            raise
         except Exception as exc:
-            logger.warning("Failed to load session history for %s: %s", session_id, exc)
-            return []
+            logger.warning("Failed to load session history for %s", session_id, exc_info=True)
+            raise _SessionHistoryUnreadable(session_id, "read_failed") from exc
+        if not isinstance(history, list):
+            raise _SessionHistoryUnreadable(session_id, "read_failed")
+        return history
 
     async def run_internal_session_turn(self, *, session_id: str, text: str, profile: str,
                                         notification_category: str = "result") -> None:
@@ -2721,42 +2835,218 @@ class APIServerAdapter(OpenAICompatRoutesMixin, BasePlatformAdapter):
         session = await asyncio.to_thread(db.get_session, session_id) or session
         return web.json_response({"object": "hermes.session", "session": self._session_response(session)})
 
+    async def _cleanup_deleted_session_routes(self, request: web.Request, session_ids: list[str]) -> bool:
+        """Drop gateway routes for ids already removed. True if any call failed.
+
+        A missing store is not a failure. One id's failure does not skip the rest.
+        Ids that were not passed in are not touched.
+        """
+        runner = self.gateway_runner or request.app.get("gateway_runner")
+        store = getattr(runner, "session_store", None)
+        if store is None:
+            return False
+        failed = False
+        for sid in dict.fromkeys(sid for sid in session_ids if sid):
+            try:
+                await asyncio.to_thread(store.remove_by_session_id, sid)
+            except Exception:
+                failed = True
+                logger.warning("gateway session route cleanup failed for %s", sid, exc_info=True)
+        return failed
+
+    def _deleted_session_cleanup_response(
+        self, session_id: str, *, release_error: Optional[BaseException] = None,
+        still_present: bool = False, route_failed: bool = False,
+        media_failed: bool = False, other_error: Optional[BaseException] = None,
+    ) -> web.Response:
+        parts = [
+            f"Session {session_id} cleanup did not finish.",
+            "state.db and projects.db are not one transaction.",
+        ]
+        if release_error is not None:
+            parts.append(f"Project binding release failed ({type(release_error).__name__}).")
+        if still_present:
+            parts.append("Refused to release bindings while session rows still exist.")
+        if route_failed:
+            parts.append("Gateway route cleanup failed.")
+        if media_failed:
+            parts.append("Media cleanup failed.")
+        if other_error is not None:
+            parts.append(f"Additional cleanup error: {type(other_error).__name__}.")
+        code = (
+            "project_binding_release_failed"
+            if release_error is not None or still_present
+            else "session_delete_cleanup_failed"
+        )
+        return _error_response(" ".join(parts), 500, code=code)
+
     @_require_auth
     async def _handle_delete_session(self, request: web.Request) -> web.Response:
-        """DELETE /api/sessions/{session_id}."""
+        """DELETE /api/sessions/{session_id}.
+
+        A missing row is 404 unless this profile's state.db has a pending-unbind
+        record from the delete transaction. Cleanup uses that record's removed_ids,
+        including a compression chain, not the URL id alone. A row that still
+        exists is not unbound. Failures stay 500 and never report deleted:true.
+        """
         session_id = request.match_info["session_id"]
-        _session, err = await self._get_existing_session_or_404(session_id)
-        if err:
-            return err
         db = await self._ensure_session_db_async()
         if db is None:
             return self._session_db_unavailable()
-        # Same profile home the DB was resolved from (the profile middleware scopes
-        # get_hermes_home() for this request) — without it the transcript/dump scrub is skipped.
         sessions_dir = None
         try:
             from hermes_constants import get_hermes_home
             sessions_dir = Path(get_hermes_home()) / "sessions"
         except Exception:
             logger.debug("sessions dir unavailable for delete of %s", session_id, exc_info=True)
+        from clawd_projects.service import (
+            ProjectBindingReleaseError,
+            release_project_bindings_after_delete,
+            split_absent_session_ids,
+        )
+
+        session = await asyncio.to_thread(db.get_session, session_id)
+        removed: list[str] = []
+        release_error: Optional[BaseException] = None
+        other_error: Optional[BaseException] = None
+        deleted_count = 0
+        resume = False
+        if session is not None:
+            try:
+                deleted_count = await asyncio.to_thread(
+                    db.delete_session,
+                    session_id,
+                    sessions_dir=sessions_dir,
+                    exclude_active_write_guards=True,
+                    removed_ids_out=removed,
+                    retain_cleanup_record=True,
+                )
+            except SessionActiveWriteGuardError as exc:
+                return _error_response(str(exc), 409, code="session_active_turn")
+            except ProjectBindingReleaseError as exc:
+                release_error = exc
+            except Exception as exc:
+                other_error = exc
+            if not deleted_count and release_error is None and other_error is None:
+                pending = await asyncio.to_thread(db.read_pending_project_unbind, session_id)
+                if pending is None:
+                    return web.json_response({
+                        "object": "hermes.session.deleted", "id": session_id, "deleted": False,
+                    })
+                removed = list(pending["removed_ids"])
+                resume = True
+        else:
+            pending = await asyncio.to_thread(db.read_pending_project_unbind, session_id)
+            if pending is None:
+                return _error_response(
+                    f"Session not found: {session_id}", 404, code="session_not_found")
+            removed = list(pending["removed_ids"])
+            resume = True
+        if other_error is not None and not removed and release_error is None and not resume:
+            raise other_error
+        if deleted_count and not removed and not resume:
+            return _error_response(
+                f"Session {session_id} row was deleted but removed ids were not recorded. "
+                "Cleanup was not run. state.db and projects.db are not one transaction.",
+                500,
+                code="session_delete_cleanup_failed",
+            )
+
+        cleanup_ids = list(dict.fromkeys(
+            [*removed, *(getattr(release_error, "session_ids", None) or [])]
+        ))
+        still_present: list[str] = []
+        if resume or release_error is not None:
+            try:
+                gone, still_present = await asyncio.to_thread(
+                    split_absent_session_ids, cleanup_ids, session_db=db,
+                )
+            except ProjectBindingReleaseError as exc:
+                release_error = exc
+                gone = []
+            except Exception as exc:
+                if other_error is None:
+                    other_error = exc
+                else:
+                    note = getattr(other_error, "add_note", None)
+                    if note is not None:
+                        note(f"additional cleanup failure: {type(exc).__name__}: {exc}")
+                gone = []
+            else:
+                try:
+                    if gone:
+                        await asyncio.to_thread(
+                            release_project_bindings_after_delete,
+                            gone,
+                            state_db_path=Path(db.db_path),
+                            session_db=db,
+                        )
+                except ProjectBindingReleaseError as exc:
+                    release_error = exc
+                    if getattr(exc, "live_rows", False):
+                        refused = set(exc.session_ids)
+                        gone = [sid for sid in gone if sid not in refused]
+                except Exception as exc:
+                    if other_error is None:
+                        other_error = exc
+                    else:
+                        note = getattr(other_error, "add_note", None)
+                        if note is not None:
+                            note(f"additional cleanup failure: {type(exc).__name__}: {exc}")
+                    gone = []
+                else:
+                    release_error = None
+            cleanup_ids = [sid for sid in gone if sid not in set(still_present)]
+        route_failed = await self._cleanup_deleted_session_routes(request, cleanup_ids)
+        media_failed = False
         try:
-            deleted = await asyncio.to_thread(
-                db.delete_session, session_id, sessions_dir=sessions_dir, exclude_active_write_guards=True)
-        except SessionActiveWriteGuardError as exc:
-            return _error_response(str(exc), 409, code="session_active_turn")
-        if deleted:
-            # A hard delete must also drop the gateway's durable channel→session routing entries
-            # for the id, or the next inbound message resolves the SAME id and run_agent's
-            # INSERT OR IGNORE resurrects the deleted row (#42422).
-            runner = self.gateway_runner or request.app.get("gateway_runner")
-            store = getattr(runner, "session_store", None)
-            if store is not None:
-                await asyncio.to_thread(store.remove_by_session_id, session_id)
-            # Retirement erased the chat's image references; bytes nothing else holds go too. Off the
-            # loop like every other media release: its holder check and unlink are one write txn.
             from gateway.session_ingress_media import collect_unheld_api_images
             await asyncio.to_thread(collect_unheld_api_images, db)
-        return web.json_response({"object": "hermes.session.deleted", "id": session_id, "deleted": bool(deleted)})
+        except Exception:
+            media_failed = True
+            logger.warning("media cleanup failed during session delete of %s", session_id, exc_info=True)
+        try:
+            from hermes_state_media import collect_retired_media
+            await asyncio.to_thread(collect_retired_media, db)
+        except Exception:
+            media_failed = True
+            logger.warning("retired media cleanup failed during session delete of %s", session_id, exc_info=True)
+        for sid in cleanup_ids:
+            try:
+                await asyncio.to_thread(db._remove_session_files, sessions_dir, sid)
+            except Exception as exc:
+                if other_error is None:
+                    other_error = exc
+                else:
+                    note = getattr(other_error, "add_note", None)
+                    if note is not None:
+                        note(f"additional cleanup failure: {type(exc).__name__}: {exc}")
+                logger.warning("session file cleanup failed for %s", sid, exc_info=True)
+        if (
+            release_error is not None or still_present or route_failed
+            or media_failed or other_error is not None
+        ):
+            return self._deleted_session_cleanup_response(
+                session_id,
+                release_error=release_error,
+                still_present=bool(still_present),
+                route_failed=route_failed,
+                media_failed=media_failed,
+                other_error=other_error,
+            )
+        try:
+            kept = await asyncio.to_thread(db.clear_pending_project_unbind, removed or cleanup_ids)
+        except Exception:
+            logger.warning("pending unbind record clear failed for %s", session_id, exc_info=True)
+            return _error_response(
+                f"Session {session_id} bindings were released but the cleanup record could not be cleared. "
+                "Retry can finish it. state.db and projects.db are not one transaction.",
+                500,
+                code="session_delete_cleanup_failed",
+            )
+        if kept:
+            return self._deleted_session_cleanup_response(session_id, still_present=True)
+        return web.json_response({"object": "hermes.session.deleted", "id": session_id, "deleted": True})
 
     @_require_auth
     async def _handle_session_messages(self, request: web.Request) -> web.Response:
@@ -2811,7 +3101,13 @@ class APIServerAdapter(OpenAICompatRoutesMixin, BasePlatformAdapter):
 
     @_require_auth
     async def _handle_fork_session(self, request: web.Request) -> web.Response:
-        """POST /api/sessions/{session_id}/fork — branch via current SessionDB primitives."""
+        """POST /api/sessions/{session_id}/fork — branch via current SessionDB primitives.
+
+        The source is ended only after the child row, message copy, title, and
+        project snapshot have succeeded. A failure does not end the source and
+        does not leave that child published. ``projects.db`` and ``state.db``
+        are compensated explicitly; they are not one transaction.
+        """
         source_id = request.match_info["session_id"]
         source, err = await self._get_existing_session_or_404(source_id)
         if err:
@@ -2820,34 +3116,80 @@ class APIServerAdapter(OpenAICompatRoutesMixin, BasePlatformAdapter):
         if err:
             return err
         db = await self._ensure_session_db_async()
+        if db is None:
+            return self._session_db_unavailable()
         fork_id = str(body.get("id") or body.get("session_id") or f"api_{int(time.time())}_{uuid.uuid4().hex[:8]}").strip()
         if not fork_id or re.search(r'[\r\n\x00]', fork_id):
             return _error_response("Invalid session ID", 400, code="invalid_session_id")
         if await asyncio.to_thread(db.get_session, fork_id):
             return _error_response(f"Session already exists: {fork_id}", 409, code="session_exists")
 
-        # CLI /branch semantics: create the child, then end the original as branched (child first, so
-        # a failed create never leaves the source ended with no fork, #11030).
-        # ``_branched_from`` is the durable branch marker (same as CLI /branch): with the child created
-        # first, the timestamp fallback in _BRANCH_CHILD_SQL (child.started_at >= parent.ended_at) no
-        # longer holds, and an unmarked child would vanish from default session listings.
-        await asyncio.to_thread(
-            db.create_session, fork_id, "api_server", model=source.get("model"),
-            system_prompt=source.get("system_prompt"), parent_session_id=source_id,
-            model_config={"_branched_from": source_id})
-        await asyncio.to_thread(db.end_session, source_id, "branched")
-        messages = await asyncio.to_thread(db.get_messages, source_id)
-        await asyncio.to_thread(db.replace_messages, fork_id, messages)
-        title = body.get("title")
-        if title is None:
-            base = source.get("title") or "fork"
-            title = f"{base} fork"
-            with suppress(Exception):
-                title = await asyncio.to_thread(db.get_next_title_in_lineage, base)
+        # Snapshot the parent's current project before the child row is published.
+        # create_session still copies parent metadata and keeps a row this call
+        # already wrote; it does not rebind an explicit unbind or walk ancestors.
+        # The projects.db write is its own commit.
+        from clawd_projects.inheritance import (
+            ProjectInheritanceError,
+            copy_parent_project_before_release,
+        )
         try:
-            await asyncio.to_thread(db.set_session_title, fork_id, str(title))
-        except ValueError as exc:
-            return _error_response(str(exc), 400, code="invalid_title")
+            snapshot = await asyncio.to_thread(
+                copy_parent_project_before_release,
+                source_id,
+                fork_id,
+                state_db_path=Path(db.db_path),
+            )
+        except ProjectInheritanceError:
+            logger.warning("Fork refused; project inheritance failed for %s", source_id, exc_info=True)
+            return _error_response(
+                "Fork did not start; project inheritance could not be snapshotted",
+                503,
+                code="project_inheritance_failed",
+            )
+
+        # ``_branched_from`` stays the durable branch marker (CLI /branch). End the
+        # source only after title and message copy succeed, so a failed title cannot
+        # leave the source branched (#11030 extended to the title/copy steps).
+        title_error: Optional[BaseException] = None
+        try:
+            await asyncio.to_thread(
+                db.create_session, fork_id, "api_server", model=source.get("model"),
+                system_prompt=source.get("system_prompt"), parent_session_id=source_id,
+                model_config={"_branched_from": source_id})
+            messages = await asyncio.to_thread(db.get_messages, source_id)
+            await asyncio.to_thread(db.replace_messages, fork_id, messages)
+            title = body.get("title")
+            if title is None:
+                base = source.get("title") or "fork"
+                title = f"{base} fork"
+                with suppress(Exception):
+                    title = await asyncio.to_thread(db.get_next_title_in_lineage, base)
+            try:
+                await asyncio.to_thread(db.set_session_title, fork_id, str(title))
+            except ValueError as exc:
+                title_error = exc
+                raise
+            await asyncio.to_thread(db.end_session, source_id, "branched")
+        except Exception as exc:
+            cleanup_error = await asyncio.to_thread(
+                _rollback_failed_fork_sync, db, fork_id, snapshot)
+            origin = str(title_error) if title_error is not None else type(exc).__name__
+            if cleanup_error:
+                logger.warning(
+                    "Fork failed and child cleanup failed for %s -> %s: %s",
+                    source_id, fork_id, cleanup_error, exc_info=True)
+                return _error_response(
+                    f"Fork did not finish ({origin}) and child {fork_id} could not be fully removed. "
+                    "state.db and projects.db are not one transaction. "
+                    f"cleanup: {cleanup_error}",
+                    500,
+                    code="fork_cleanup_failed",
+                )
+            if title_error is not None:
+                return _error_response(str(title_error), 400, code="invalid_title")
+            logger.warning("Fork did not finish for %s", source_id, exc_info=True)
+            return _error_response(
+                f"Fork did not finish ({origin})", 500, code="fork_failed")
         fork = await asyncio.to_thread(db.get_session, fork_id) or {"id": fork_id, "parent_session_id": source_id}
         return web.json_response({"object": "hermes.session", "session": self._session_response(fork)}, status=201)
 
@@ -3113,7 +3455,10 @@ class APIServerAdapter(OpenAICompatRoutesMixin, BasePlatformAdapter):
             return handed_off
         gateway_session_key = ctx["gateway_session_key"]
         session_id = ctx["session_id"]
-        history = await self._conversation_history_for_session(session_id)
+        try:
+            history = await self._conversation_history_for_session(session_id)
+        except _SessionHistoryUnreadable:
+            return _history_unreadable_response()
         result, usage = await self._run_agent(conversation_history=history, **ctx["run_kwargs"])
         # One policy-gated re-run of a transiently failed turn — the peer-DM transport's half of the
         # retry the local (``tools.bot_mode_dm``) and relayed (``tui_gateway.methods_bot_relay``)
@@ -3124,7 +3469,10 @@ class APIServerAdapter(OpenAICompatRoutesMixin, BasePlatformAdapter):
         # transcript's unanswered tail row, and the re-run resumes that row instead of appending a
         # second copy of it. A turn that fails again reaches the peer client exactly as before.
         if result_retry_action(result) != RETRY_NONE:
-            history = await self._conversation_history_for_session(session_id)
+            try:
+                history = await self._conversation_history_for_session(session_id)
+            except _SessionHistoryUnreadable:
+                return _history_unreadable_response()
             result, usage = await self._run_agent(
                 conversation_history=history, resume_unanswered_turn=True, **ctx["run_kwargs"])
         is_dict = isinstance(result, dict)
@@ -3164,9 +3512,18 @@ class APIServerAdapter(OpenAICompatRoutesMixin, BasePlatformAdapter):
         # Claim ownership inside the request's profile scope before any run-keyed state
         # exists, so /v1/runs/{id}* control is confined to the starting profile.
         # See #93689.
-        self._run_owners[run_id] = self._run_idempotency_scope(request)
+        _stream_owner = self._run_idempotency_scope(request)
+        self._run_owners[run_id] = _stream_owner
         self._set_run_status(
             run_id, "queued", session_id=session_id, model=ctx["body"].get("model", self._model_name))
+        # Before run.started and before admit: same-profile cancel identity. Not a work counter.
+        self._pending_run_cancels[run_id] = {
+            "session_id": session_id,
+            "owner": _stream_owner,
+            "token": uuid.uuid4().hex,
+            "stop_requested": False,
+            "phase": "before_admit",
+        }
 
         def _delta(delta: str) -> None:
             if delta:
@@ -3194,17 +3551,34 @@ class APIServerAdapter(OpenAICompatRoutesMixin, BasePlatformAdapter):
 
         async def _run_and_signal() -> None:
             try:
+                try:
+                    history = await self._conversation_history_for_session(session_id)
+                except _SessionHistoryUnreadable:
+                    if not self._pending_run_stop_latched(run_id):
+                        logger.warning("Refusing session stream; history unreadable for %s", session_id)
+                        self._set_run_status(
+                            run_id, "failed", error="session_history_unreadable", last_event="run.failed")
+                        await queue.put(_event_payload("error", {
+                            "message": "Session history could not be read; turn not started",
+                            "code": "session_history_unreadable"}))
+                        return
+                    history = []
                 await queue.put(_event_payload("run.started", {
                     "user_message": {"role": "user", "content": user_message},
                     "runtime": runtime_meta}))
-                self._set_run_status(run_id, "running", last_event="run.started")
+                if not self._pending_run_stop_latched(run_id):
+                    self._set_run_status(run_id, "running", last_event="run.started")
                 await queue.put(_event_payload("message.started", {"message": {"id": message_id, "role": "assistant"}}))
-                history = await self._conversation_history_for_session(session_id)
-                result, usage = await self._run_agent(
-                    conversation_history=history, stream_delta_callback=_delta,
-                    tool_progress_callback=_tool_progress, interim_assistant_callback=_commentary,
-                    active_run_id=run_id, approval_notify_callback=approval_notify,
-                    approval_session_key=run_id, **ctx["run_kwargs"])
+                if self._pending_run_stop_latched(run_id):
+                    # Stop won before admit. Do not start this generation.
+                    result, usage = (
+                        {"final_response": "", "interrupted": True, "completed": False}, {})
+                else:
+                    result, usage = await self._run_agent(
+                        conversation_history=history, stream_delta_callback=_delta,
+                        tool_progress_callback=_tool_progress, interim_assistant_callback=_commentary,
+                        active_run_id=run_id, approval_notify_callback=approval_notify,
+                        approval_session_key=run_id, **ctx["run_kwargs"])
                 await events.flush()
                 is_dict = isinstance(result, dict)
                 final_response = _resolve_media_to_data_urls(result.get("final_response", "") if is_dict else "")
@@ -3227,9 +3601,56 @@ class APIServerAdapter(OpenAICompatRoutesMixin, BasePlatformAdapter):
                     output=final_response, usage=usage,
                     last_event=f"run.{status}", **fields)
             except asyncio.CancelledError:
-                self._set_run_status(run_id, "cancelled", last_event="run.cancelled")
+                current = str((self._run_statuses.get(run_id) or {}).get("status") or "")
+                if current not in {"completed", "failed", "cancelled", "interrupted", "unknown"}:
+                    decision = self._session_stream_observer_cancel(run_id)
+                    if decision == "cancelled":
+                        # Proved not started. This is a real end, not an authority guess.
+                        self._set_run_status(run_id, "cancelled", last_event="run.cancelled")
+                    elif isinstance(decision, tuple):
+                        status, fields, usage, output = decision
+                        self._set_run_status(
+                            run_id, status, output=output, usage=usage,
+                            last_event=f"run.{status}", **fields)
+                    else:
+                        # Still admitting, stopping, or the receipt is not in hand.
+                        # Cancelling this observer is not the owner end.
+                        logger.warning(
+                            "session stream observer cancelled before a proved end for %s",
+                            run_id)
+                        self._set_run_status(
+                            run_id, "unknown", error="observer_cancelled",
+                            last_event="run.unknown")
                 raise
             except Exception as exc:
+                reason = getattr(exc, "reason", None)
+                if reason == "unknown_execution":
+                    # Unknown is not a terminal run and must not wake continuation.
+                    self._set_run_status(
+                        run_id, "unknown", error="unknown_execution", last_event="run.unknown")
+                    await queue.put(_event_payload("error", {
+                        "message": "unknown_execution", "code": "unknown_execution"}))
+                    return
+                if reason == "stale_generation" and self._pending_run_stop_latched(run_id):
+                    # This generation could not be proved stopped. Do not forge cancelled/failed.
+                    await queue.put(_event_payload("error", {
+                        "message": "stop could not be applied to this generation",
+                        "code": "stale_generation"}))
+                    return
+                gate = getattr(self, "_pending_run_cancels", {}).get(run_id)
+                phase = gate.get("phase") if isinstance(gate, dict) else None
+                if reason in {
+                    "admission_conflict", "profile_mismatch", "not_found", "stale_epoch",
+                } and (self._pending_run_stop_latched(run_id) or phase == "admitted"):
+                    # Identity/epoch failure is not a successful stop and not a proved end.
+                    logger.warning(
+                        "session stream stop was not applied for %s: %s", run_id, reason)
+                    self._set_run_status(
+                        run_id, "unknown", error=reason, last_event="run.unknown")
+                    await queue.put(_event_payload("error", {
+                        "message": "stop could not be applied to this generation",
+                        "code": reason}))
+                    return
                 logger.exception("[api_server] session chat stream failed")
                 self._set_run_status(
                     run_id, "failed", error=_redact_api_error_text(exc), last_event="run.failed")
@@ -3237,12 +3658,20 @@ class APIServerAdapter(OpenAICompatRoutesMixin, BasePlatformAdapter):
             finally:
                 self._active_run_agents.pop(run_id, None)
                 self._run_approval_sessions.pop(run_id, None)
+                pending = getattr(self, "_pending_run_cancels", None)
+                if pending is not None:
+                    # The orphan cancel closes over this gate object, so the pop
+                    # does not drop a latch that callback already captured.
+                    pending.pop(run_id, None)
+                self._stopping_run_ids.discard(run_id)
                 self._release_run_owner_if_forgotten(run_id)
                 await events.flush()
                 await queue.put(_event_payload("done", {}))
                 await queue.put(None)
 
-        # NOT in _active_run_tasks: _run_agent already counts this turn for the shutdown drain.
+        # NOT in _active_run_tasks: the handler reservation, and _inflight_agent_runs once
+        # the no-authority worker starts, already count this turn. A task entry would
+        # double-count shutdown. Stop before admission uses _pending_run_cancels.
         task = asyncio.create_task(_run_and_signal())
         self._track_background_task(task)
         response = await self._prepare_sse_response(request, session_id, gateway_session_key)
@@ -3260,11 +3689,11 @@ class APIServerAdapter(OpenAICompatRoutesMixin, BasePlatformAdapter):
         except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError, OSError):
             await self._drain_session_stream_task_on_disconnect(
                 run_id, task, interrupt_message="SSE client disconnected", shield_wait=False)
-            logger.info("Session SSE client disconnected; interrupted live run %s", run_id)
+            logger.info("Session SSE client disconnected; stop requested for live run %s", run_id)
         except asyncio.CancelledError:
             await self._drain_session_stream_task_on_disconnect(
                 run_id, task, interrupt_message="SSE task cancelled", shield_wait=True)
-            logger.info("Session SSE task cancelled; drained live run %s", run_id)
+            logger.info("Session SSE task cancelled; draining live run %s", run_id)
             raise
         except Exception as exc:
             logger.debug("[api_server] session SSE stream error: %s", exc)
@@ -3282,12 +3711,143 @@ class APIServerAdapter(OpenAICompatRoutesMixin, BasePlatformAdapter):
             events.enqueue("approval.request", event)  # executor thread -> loop hop inside
         return _approval_notify
 
+    def _pending_run_stop_latched(self, run_id: Optional[str]) -> bool:
+        """True when this run's own pre-admission identity, or its stop set, was latched."""
+        if not run_id:
+            return False
+        gate = getattr(self, "_pending_run_cancels", {}).get(run_id)
+        return bool(gate and gate.get("stop_requested")) or run_id in self._stopping_run_ids
+
+    def _session_stream_observer_cancel(self, run_id: str):
+        """What cancelling the observation task itself is allowed to publish.
+
+        ``cancelled`` only when this run provably never started. A tuple is a
+        stored authority receipt. ``unknown`` is not an owner end and does not
+        wake continuation.
+        """
+        gate = getattr(self, "_pending_run_cancels", {}).get(run_id)
+        phase = gate.get("phase") if isinstance(gate, dict) else None
+        authority = getattr(getattr(self, "gateway_runner", None), "session_authority", None)
+        if authority is None:
+            if run_id not in getattr(self, "_active_run_agents", {}):
+                return "cancelled"
+            return "unknown"
+        if phase in (None, "before_admit"):
+            return "cancelled"
+        receipt = self._stored_authority_receipt(run_id, gate)
+        if receipt is not None:
+            return receipt
+        return "unknown"
+
+    def _stored_authority_receipt(self, run_id: str, gate):
+        admitted = gate.get("admitted") if isinstance(gate, dict) else None
+        if not admitted:
+            return None
+        try:
+            from gateway.session_api_turn import _settled_api_result
+            from hermes_state_runtime import RuntimeStoreError
+            authority, _ref, row = admitted
+            result, usage = _settled_api_result(authority, row.get("admission_id"))
+        except RuntimeStoreError as exc:
+            if exc.reason != "unknown_execution":
+                logger.warning(
+                    "session stream could not read authority receipt for %s: %s",
+                    run_id, exc.reason)
+            return None
+        except Exception:
+            logger.warning(
+                "session stream could not read authority receipt for %s",
+                run_id, exc_info=True)
+            return None
+        if not isinstance(result, dict):
+            return None
+        status, fields = _api_runs.terminal_run_status(result)
+        return status, fields, usage, result.get("final_response", "")
+
+    def _mark_run_unknown_if_open(self, run_id: str, error: str) -> None:
+        current = str((self._run_statuses.get(run_id) or {}).get("status") or "")
+        if current in {"completed", "failed", "cancelled", "interrupted", "unknown"}:
+            return
+        self._set_run_status(run_id, "unknown", error=error, last_event="run.unknown")
+
+    def _mark_run_stopping_if_open(self, run_id: str) -> None:
+        current = str((self._run_statuses.get(run_id) or {}).get("status") or "")
+        if current in {"completed", "failed", "cancelled", "interrupted", "unknown", "stopping"}:
+            return
+        self._set_run_status(run_id, "stopping", last_event="run.stopping")
+
+    async def _request_exact_disconnect_stop(self, run_id: str, gate: dict) -> None:
+        """Stop this admission by identity. Does not publish a terminal run."""
+        from hermes_state_runtime import RuntimeStoreError
+        admitted = gate.get("admitted")
+        if admitted is not None:
+            from gateway.platforms.api_server_authority_runs import cancel_exact_admission
+            try:
+                outcome = await cancel_exact_admission(self, run_id, admitted)
+            except RuntimeStoreError as exc:
+                if exc.reason == "unknown_execution":
+                    self._mark_run_unknown_if_open(run_id, "unknown_execution")
+                    return
+                logger.warning(
+                    "session stream disconnect did not cancel admission for %s: %s",
+                    run_id, exc.reason)
+                return
+            if outcome not in ("cancelled", "stopping", "settled"):
+                logger.error(
+                    "session stream disconnect cancel for %s returned %s", run_id, outcome)
+            return
+        if getattr(self.gateway_runner, "session_authority", None) is None:
+            return
+        from gateway.platforms.api_server_authority_runs import stop_run
+        try:
+            await stop_run(self, run_id)
+        except RuntimeStoreError as exc:
+            if exc.reason == "unknown_execution":
+                self._mark_run_unknown_if_open(run_id, "unknown_execution")
+                return
+            logger.warning(
+                "session stream disconnect stop_run for %s was not applied: %s",
+                run_id, exc.reason)
+        except Exception:
+            logger.warning(
+                "session stream disconnect stop failed for %s", run_id, exc_info=True)
+
+    async def _await_session_stream_observer(self, run_id: str, task, *, shield_wait: bool) -> None:
+        if task.done():
+            return
+        try:
+            await (asyncio.shield(task) if shield_wait else task)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.warning(
+                "session stream observer ended with an error for %s", run_id, exc_info=True)
+
     async def _drain_session_stream_task_on_disconnect(
         self, run_id: str, task: asyncio.Task, *, interrupt_message: str, shield_wait: bool
     ) -> None:
-        """Preserve live run control refs until the executor-backed turn actually exits."""
+        """Keep control refs until this turn's own receipt is recorded.
+
+        Closing the connection is not an owner end. An admitting or admitted
+        authority observation is latched and stopped by admission identity; that
+        task is not cancelled, because its cancellation is not the receipt.
+        """
         agent = self._active_run_agents.get(run_id)
+        gate = getattr(self, "_pending_run_cancels", {}).get(run_id)
+        phase = gate.get("phase") if isinstance(gate, dict) else None
+        if agent is None and isinstance(gate, dict) and phase in ("admitting", "admitted"):
+            gate["stop_requested"] = True
+            self._stopping_run_ids.add(run_id)
+            self._mark_run_stopping_if_open(run_id)
+            if phase == "admitted":
+                await self._request_exact_disconnect_stop(run_id, gate)
+            # Do not task.cancel. The observer stays until settled or unknown.
+            await self._await_session_stream_observer(run_id, task, shield_wait=shield_wait)
+            return
         if agent is None:
+            if gate is not None:
+                gate["stop_requested"] = True
+                self._stopping_run_ids.add(run_id)
             if not task.done():
                 task.cancel()
                 with suppress(Exception):
@@ -3774,6 +4334,11 @@ class APIServerAdapter(OpenAICompatRoutesMixin, BasePlatformAdapter):
                 from gateway.warning_notifications import diagnostic_turn_muted
                 muted = diagnostic_turn_muted({"notification_category": notification_category}, "api_server")
                 try:
+                    if active_run_id and self._pending_run_stop_latched(active_run_id):
+                        return (
+                            {"final_response": "", "interrupted": True, "completed": False},
+                            {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0},
+                        )
                     agent = self._create_agent(
                         ephemeral_system_prompt=ephemeral_system_prompt, session_id=session_id,
                         stream_delta_callback=stream_delta_callback, tool_progress_callback=tool_progress_callback,
@@ -3832,7 +4397,11 @@ class APIServerAdapter(OpenAICompatRoutesMixin, BasePlatformAdapter):
                         register_gateway_notify(approval_session_key, approval_notify_callback)
                     try:
                         with notification_turn(agent, muted=muted, session_id=session_id or ""):
-                            result = agent.run_conversation(**conversation_kwargs)
+                            if active_run_id and self._pending_run_stop_latched(active_run_id):
+                                result = {
+                                    "final_response": "", "interrupted": True, "completed": False}
+                            else:
+                                result = agent.run_conversation(**conversation_kwargs)
                     finally:
                         if approval_token is not None:
                             from tools.approval_context import reset_current_session_key
@@ -3848,14 +4417,14 @@ class APIServerAdapter(OpenAICompatRoutesMixin, BasePlatformAdapter):
                         result = {**result, "_notification_presentation_suppressed": True}
                     return result, usage
                 except _ProviderAuthResolutionError as exc:
-                    # Typed provider-auth failure only, handled once for every caller in
-                    # run.py's response shape (text, no HTTP error).
+                    # Typed provider-auth failure for _run_agent callers (session chat
+                    # and its stream). Text stays in final_response; failed/error stop
+                    # _response_status from reporting completed. /v1/runs _execute_run
+                    # catches this exception on its own failed branch and is not this return.
                     logger.warning("Provider resolution failed for session=%s: %s",
                                    session_id or "", exc)
                     return (
-                        {"final_response": exc.user_text(), "messages": [],
-                         "api_calls": 0, "tools": [],
-                         **({"_notification_presentation_suppressed": True} if muted else {})},
+                        _provider_auth_failure_result(exc, muted=muted),
                         {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0})
                 except Exception as exc:
                     if muted:

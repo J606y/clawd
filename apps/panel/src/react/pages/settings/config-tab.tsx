@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import { getAdvanced, resetSetting, savedNotice, setAdvanced, setConfig, setSetting, type AdvancedRead, type ConfigWriteResult } from "@/lib/admin-api";
 import { highlightSafe } from "@/lib/markdown";
 import { queryKeys, useConfigYaml, useSettings } from "@/lib/queries";
-import type { SettingsField, SettingsView } from "@/lib/sidecar";
+import type { SettingsField } from "@/lib/sidecar";
 import zhText from "@/lib/settings-zh.json";
 import zhSupplement from "@/lib/settings-zh-supplement.json";
 import { Empty, errText, Head, LoadError, Loading } from "./bits";
@@ -94,6 +94,14 @@ function advancedNotice(result: AdvancedRead): string {
   return `${savedNotice(result)} ${profile}`;
 }
 
+async function syncConfigCaches(client: QueryClient): Promise<boolean> {
+  await Promise.allSettled([
+    client.invalidateQueries({ queryKey: queryKeys.settings }),
+    client.invalidateQueries({ queryKey: queryKeys.config }),
+  ]);
+  return client.getQueryState(queryKeys.settings)?.status === "error";
+}
+
 function profileLine(meta: AdvancedRead | null): string {
   if (!meta?.profileHome) return "尚未从服务端确认 profile 目录。保存不会猜测 default。";
   const sticky = meta.stickyKnown ? meta.stickyProfile ?? "空" : "文件不存在或未确认，不当成 default";
@@ -146,30 +154,20 @@ export function ConfigTab() {
     setRows((current) => ({ ...current, [rowKey]: { ...current[rowKey], ...patch } }));
   }
 
-  function patchField(rowKey: string, valueNext: unknown) {
-    client.setQueryData<SettingsView>(queryKeys.settings, (prev) => {
-      if (!prev) return prev;
-      return {
-        ...prev,
-        fields: prev.fields.map((field) => (field.key === rowKey ? { ...field, value: valueNext, userSet: true } : field)),
-      };
-    });
-  }
-
   async function commit(field: SettingsField, next: unknown) {
     if (rows[field.key]?.busy) return;
     patchRow(field.key, { busy: true, error: "", ok: false });
     try {
       const written = await setSetting(field.key, next);
-      patchField(field.key, next);
       patchRow(field.key, { busy: false, ok: true, draft: undefined });
       setNotice(savedNotice(written));
-      void client.invalidateQueries({ queryKey: queryKeys.settings });
       window.clearTimeout(timers.current[field.key]);
       timers.current[field.key] = window.setTimeout(() => patchRow(field.key, { ok: false }), 2500);
     } catch (error) {
       patchRow(field.key, { busy: false, error: errText(error, "保存失败") });
+      return;
     }
+    await syncConfigCaches(client);
   }
 
   async function reset(field: SettingsField) {
@@ -184,11 +182,11 @@ export function ConfigTab() {
       const written = await resetSetting(field.key);
       patchRow(field.key, { busy: false, draft: undefined });
       setNotice(savedNotice(written));
-      const refreshed = await settings.refetch();
-      if (refreshed.isError) setSub("yaml");
     } catch (error) {
       patchRow(field.key, { busy: false, error: errText(error, "恢复失败") });
+      return;
     }
+    if (await syncConfigCaches(client)) setSub("yaml");
   }
 
   async function saveYaml(event: FormEvent) {
@@ -199,14 +197,16 @@ export function ConfigTab() {
     setResult(null);
     setResultError("");
     try {
+      // 点号路径单项写入。YAML 原文仍是只读 pre，不整份覆盖。
       const written = await setConfig(trimmed, yamlValue);
       setResult(written);
-      void client.invalidateQueries({ queryKey: queryKeys.config });
     } catch (error) {
       setResultError(errText(error, "保存失败"));
+      return;
     } finally {
       setYamlSaving(false);
     }
+    await syncConfigCaches(client);
   }
 
   const view = settings.data;
@@ -342,6 +342,7 @@ function ConfigGroups({ onNotice, notice }: { onNotice: (text: string) => void; 
 }
 
 function AdvancedObjects({ onNotice }: { onNotice: (text: string) => void }) {
+  const client = useQueryClient();
   const [key, setKey] = useState(ADVANCED_KEYS[0].key);
   const [draft, setDraft] = useState("");
   const [meta, setMeta] = useState<AdvancedRead | null>(null);
@@ -391,6 +392,7 @@ function AdvancedObjects({ onNotice }: { onNotice: (text: string) => void }) {
     try {
       const written = await setAdvanced(key, parsed);
       onNotice(advancedNotice(written));
+      await syncConfigCaches(client);
       try {
         const fresh = await getAdvanced(key);
         setMeta(fresh);

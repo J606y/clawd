@@ -140,31 +140,187 @@ async def stop_run(adapter, run_id):
     if owned is None:
         raise RuntimeStoreError('not_found')
     authority, row = owned
+    admission_id = row['admission_id']
     ref = SessionRef(authority.profile_id, row['target_session_id'])
     actor = Principal('api', authority.profile_id,
                       frozenset({'session:submit', 'session:control'}), 'api-run:' + run_id)
     if row['status'] == 'queued':
         try:
-            await authority.cancel_queued(actor, ref, row['admission_id'])
+            await authority.cancel_queued(actor, ref, admission_id)
         except RuntimeStoreError as exc:
             # The drain claimed the head between the read above and the cancel commit: the run is
             # executing now, so Stop that exact claim below instead of refusing a live run.
             if exc.reason != 'stale_generation':
                 raise
-            authority, row = run_admission(adapter, run_id)
+            refreshed = run_admission(adapter, run_id)
+            # Gone. The row read above is not a receipt and is not a generation to interrupt.
+            if refreshed is None:
+                raise RuntimeStoreError('not_found')
+            authority, row = refreshed
+            if (row.get('admission_id') != admission_id
+                    or row.get('target_session_id') != ref.session_id
+                    or getattr(authority, 'profile_id', None) != ref.profile_id):
+                raise RuntimeStoreError('admission_conflict')
+            if row.get('status') == 'queued':
+                raise RuntimeStoreError('stale_generation')
+            if row.get('status') == 'unknown':
+                raise RuntimeStoreError('unknown_execution')
         else:
             adapter._stopping_run_ids.add(run_id)
-            waiter = authority.waiters.pop(row['admission_id'], None)
+            waiter = authority.waiters.pop(admission_id, None)
             if waiter is not None and not waiter.done():
                 waiter.set_result(None)
             return run_projection(adapter, run_id)
     if row['status'] == 'started':
-        await authority.interrupt(actor, ref, row['generation'])
+        generation = row.get('generation')
+        owner_epoch = row.get('owner_epoch')
+        # A restarted authority can reuse a generation number. Do not interrupt that epoch.
+        if (type(generation) is not int or type(owner_epoch) is not int
+                or owner_epoch != getattr(authority, 'epoch', None)):
+            raise RuntimeStoreError('stale_generation')
+        await authority.interrupt(actor, ref, generation)
+        refreshed = run_admission(adapter, run_id)
+        if refreshed is None:
+            raise RuntimeStoreError('not_found')
+        _authority, row = refreshed
+        if (row.get('admission_id') != admission_id
+                or row.get('target_session_id') != ref.session_id
+                or getattr(_authority, 'profile_id', None) != ref.profile_id
+                or row.get('generation') != generation
+                or row.get('owner_epoch') != owner_epoch):
+            raise RuntimeStoreError('stale_generation')
+        if row.get('status') == 'unknown':
+            raise RuntimeStoreError('unknown_execution')
+        if row.get('status') == 'terminal':
+            return run_projection(adapter, run_id)
         adapter._stopping_run_ids.add(run_id)
-        return {'run_id': run_id, 'status': 'stopping', 'admission_id': row['admission_id']}
+        return {'run_id': run_id, 'status': 'stopping', 'admission_id': admission_id}
     elif row['status'] == 'unknown':
         raise RuntimeStoreError('unknown_execution')
     return run_projection(adapter, run_id)
+
+
+def read_exact_admission(admitted):
+    """Store row for this admission.
+
+    A missing row is ``not_found``. The caller's snapshot is never returned, so a
+    deleted admission cannot be reported as terminal from memory.
+    """
+    authority, ref, row = admitted
+    admission_id = row.get('admission_id') if isinstance(row, dict) else None
+    if not isinstance(row, dict) or not admission_id:
+        raise RuntimeStoreError('admission_conflict')
+    if getattr(ref, 'profile_id', None) != getattr(authority, 'profile_id', None):
+        raise RuntimeStoreError('profile_mismatch')
+    if getattr(ref, 'session_id', None) != row.get('target_session_id'):
+        raise RuntimeStoreError('admission_conflict')
+    from hermes_state_runtime import get_session_admission
+    current = get_session_admission(authority.db, admission_id=admission_id)
+    if not isinstance(current, dict):
+        raise RuntimeStoreError('not_found')
+    if (current.get('admission_id') != admission_id
+            or current.get('request_id') != row.get('request_id')
+            or current.get('target_session_id') != row.get('target_session_id')
+            or current.get('principal_id') != 'api'
+            or row.get('principal_id') not in (None, 'api')):
+        raise RuntimeStoreError('admission_conflict')
+    return current
+
+
+def _same_started_claim(current, *, admission_id, session_id, generation, owner_epoch):
+    return (current.get('admission_id') == admission_id
+            and current.get('target_session_id') == session_id
+            and current.get('generation') == generation
+            and current.get('owner_epoch') == owner_epoch)
+
+
+async def _interrupt_exact_generation(adapter, run_id, admitted, actor):
+    """Interrupt this admission's generation. A newer epoch is ``stale_generation``."""
+    authority, ref, _row = admitted
+    current = read_exact_admission(admitted)
+    if current.get('status') == 'unknown':
+        raise RuntimeStoreError('unknown_execution')
+    if current.get('status') == 'terminal':
+        return 'cancelled' if current.get('outcome') == 'cancelled' else 'settled'
+    if current.get('status') != 'started':
+        raise RuntimeStoreError('admission_conflict')
+    generation = current.get('generation')
+    owner_epoch = current.get('owner_epoch')
+    if (type(generation) is not int or type(owner_epoch) is not int
+            or owner_epoch != getattr(authority, 'epoch', None)):
+        raise RuntimeStoreError('stale_generation')
+    await authority.interrupt(actor, ref, generation)
+    after = read_exact_admission(admitted)
+    if after.get('status') == 'unknown':
+        raise RuntimeStoreError('unknown_execution')
+    if after.get('status') == 'terminal':
+        return 'cancelled' if after.get('outcome') == 'cancelled' else 'settled'
+    if not _same_started_claim(
+            after, admission_id=current['admission_id'], session_id=ref.session_id,
+            generation=generation, owner_epoch=owner_epoch):
+        raise RuntimeStoreError('stale_generation')
+    stopping = getattr(adapter, '_stopping_run_ids', None)
+    if stopping is not None:
+        stopping.add(run_id)
+    return 'stopping'
+
+
+async def _classify_exact_row(adapter, run_id, admitted, actor, *, retry_queued=False):
+    authority, ref, _row = admitted
+    current = read_exact_admission(admitted)
+    if current.get('status') == 'unknown':
+        raise RuntimeStoreError('unknown_execution')
+    if current.get('status') == 'terminal':
+        return 'cancelled' if current.get('outcome') == 'cancelled' else 'settled'
+    if current.get('status') == 'started':
+        return await _interrupt_exact_generation(adapter, run_id, admitted, actor)
+    if current.get('status') == 'queued' and retry_queued:
+        await authority.cancel_queued(actor, ref, current['admission_id'])
+        return await _classify_exact_row(adapter, run_id, admitted, actor, retry_queued=False)
+    raise RuntimeStoreError('stale_generation')
+
+
+async def cancel_exact_admission(adapter, run_id, admitted):
+    """Cancel or interrupt only the admission this call just committed.
+
+    Confirms the same profile, request, session and admission. A started row is
+    interrupted only at its own generation and owner epoch; a newer epoch raises
+    ``stale_generation`` and is not interrupted. A missing row is ``not_found``.
+    The caller's snapshot is never a receipt. Identity failures raise; they are
+    not a ``mismatch`` success. Only ``cancelled``, ``stopping`` and ``settled``
+    mean the stop was applied or the row had already ended.
+    """
+    authority, ref, row = admitted
+    if not run_id or not isinstance(row, dict) or row.get('request_id') != run_id:
+        raise RuntimeStoreError('admission_conflict')
+    if getattr(ref, 'profile_id', None) != getattr(authority, 'profile_id', None):
+        raise RuntimeStoreError('profile_mismatch')
+    current = read_exact_admission(admitted)
+    if current.get('request_id') != run_id:
+        raise RuntimeStoreError('admission_conflict')
+    if current.get('status') == 'unknown':
+        raise RuntimeStoreError('unknown_execution')
+    if current.get('status') == 'terminal':
+        return 'cancelled' if current.get('outcome') == 'cancelled' else 'settled'
+    actor = Principal(
+        'api', authority.profile_id,
+        frozenset({'session:submit', 'session:control'}), 'api-run:' + run_id)
+    if current.get('status') == 'queued':
+        try:
+            await authority.cancel_queued(actor, ref, current['admission_id'])
+        except RuntimeStoreError as exc:
+            if exc.reason == 'unknown_execution':
+                raise
+            if exc.reason != 'stale_generation':
+                raise
+            # Claimed between the read and the commit. Stop that claim only when
+            # it is still this admission; do not interrupt a newer epoch.
+            return await _classify_exact_row(
+                adapter, run_id, admitted, actor, retry_queued=True)
+        return await _classify_exact_row(adapter, run_id, admitted, actor)
+    if current.get('status') != 'started':
+        raise RuntimeStoreError('admission_conflict')
+    return await _interrupt_exact_generation(adapter, run_id, admitted, actor)
 
 
 async def resolve_unknown_run(adapter, run_id, body):

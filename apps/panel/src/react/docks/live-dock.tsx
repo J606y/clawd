@@ -819,18 +819,14 @@ class LiveController {
       const result = await bounded(() => sidecar.liveType(boundedText, scope.owner), 6000);
       if (!this.current(scope) || !this.inputAllowed || this.rfb !== rfb) return;
       if (!result.ok) throw new Error("服务器未确认文本插入");
-      if (result.inserted === false) this.typeKeys(boundedText, scope, rfb);
-      else if (result.inserted !== true) throw new Error("服务器返回的文本结果不明确");
+      // inserted=false：服务端未确认网页编辑焦点，未插入。只提示重新聚焦，禁止回退 typeKeys/sendKey。
+      if (result.inserted === false) {
+        this.notice = "请先点击网页中的编辑区，再输入。未确认焦点，不会改用按键发送。";
+        this.emit();
+        return;
+      }
+      if (result.inserted !== true) throw new Error("服务器返回的文本结果不明确");
     });
-  }
-
-  private typeKeys(text: string, scope: LiveScope, rfb: Rfb): void {
-    if (!this.current(scope) || !this.inputAllowed || this.rfb !== rfb) return;
-    for (const ch of text) {
-      const cp = ch.codePointAt(0) ?? 0;
-      if (ch === "\n") rfb.sendKey(XK_RETURN, "Enter");
-      else rfb.sendKey(cp < 0x100 ? cp : 0x1000000 + cp, null);
-    }
   }
 
   sendKey(keysym: number, code: string): void {

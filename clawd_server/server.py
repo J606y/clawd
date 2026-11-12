@@ -15,6 +15,7 @@ from aiohttp import ClientSession, ClientTimeout, web
 
 from clawd_server import auth as panel_auth
 from clawd_server.bind import bind, clawd_command, continuation_status, load_sidecar, prepare_env
+from clawd_server.live_browser_routes import register_live_routes
 from clawd_server.home import REPO_ROOT, assert_core_home, resolve_home
 
 log = logging.getLogger("clawd.panel")
@@ -155,8 +156,13 @@ class PanelServer:
         app = web.Application(client_max_size=52 * 1024 * 1024)
         app.router.add_get("/clawd/ready", self._ready)
         app.router.add_post("/panel-auth/renew", self._renew)
+        app.router.add_route("*", "/panel-auth/logout", self._logout)
+        from clawd_server.account_routes import register_account_routes
+
+        register_account_routes(app, self)
         app.router.add_route("*", "/panel-api/{tail:.*}", self._proxy_api)
         app.router.add_route("*", "/panel-sidecar/{tail:.*}", self._proxy_sidecar)
+        register_live_routes(app, self)
         app.router.add_get("/", self._index)
         app.router.add_get("/{name:.*}", self._static)
         self.runner = web.AppRunner(app)
@@ -174,11 +180,15 @@ class PanelServer:
     async def _start_api(self) -> None:
         from gateway.config import PlatformConfig
         from gateway.platforms.api_server import APIServerAdapter
+        from tools.process_registry import process_registry
 
         last = "API server did not start"
         for _ in range(3):
             cfg = PlatformConfig(enabled=True, extra={"key": self.api_key, "host": "127.0.0.1", "port": 0})
             adapter = APIServerAdapter(cfg)
+            # This adapter executes agent tools in this process. Bind the actual
+            # registry, not a synthetic gateway_runner or a guessed empty view.
+            adapter._background_process_registry = process_registry
             if not await adapter.connect():
                 last = "APIServerAdapter.connect returned False"
                 await adapter.disconnect()
@@ -261,6 +271,18 @@ class PanelServer:
             "bind": "loopback",
         })
 
+    async def _logout(self, request: web.Request) -> web.Response:
+        if request.method != "POST":
+            return web.Response(status=405, headers={"Allow": "POST"})
+        if not panel_auth.origin_allowed(request.method, request.headers, _peer(request)):
+            return _json_error(403, "origin_rejected", "来源不被允许")
+        response = web.Response(status=204, headers={"Cache-Control": "no-store"})
+        response.del_cookie(
+            panel_auth.COOKIE, path="/", httponly=True, samesite="Strict",
+            secure=panel_auth.request_is_https(request),
+        )
+        return response
+
     async def _renew(self, request: web.Request) -> web.Response:
         if not panel_auth.origin_allowed(request.method, request.headers, _peer(request)):
             return _json_error(403, "origin_rejected", "来源不被允许")
@@ -270,7 +292,7 @@ class PanelServer:
         response = web.Response(status=204)
         response.set_cookie(
             panel_auth.COOKIE, presented, max_age=panel_auth.RENEW_MAX_AGE, httponly=True,
-            samesite="Strict", secure=request.scheme == "https", path="/",
+            samesite="Strict", secure=panel_auth.request_is_https(request), path="/",
         )
         return response
 
@@ -294,7 +316,13 @@ class PanelServer:
         headers = {
             key: value for key, value in request.headers.items()
             if key.lower() not in _HOP
+            and key.lower() not in {
+                "host", "origin", "referer", "referrer", "cookie", "authorization",
+                "x-panel-key", "sec-fetch-site", "sec-fetch-mode", "sec-fetch-dest",
+            }
         }
+        # The outer panel has authenticated the browser and checked its origin.
+        # Internal loopback services receive only their own injected credentials.
         headers.update(inject)
         body = await request.read()
         assert self.client is not None

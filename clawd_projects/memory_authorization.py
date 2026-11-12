@@ -24,7 +24,15 @@ from pathlib import Path
 from typing import Any, Optional
 
 from clawd_projects.inheritance import state_db_profile_home
-from clawd_projects.service import get_project_by_id, get_project_memory_store, resolve_session_project
+from clawd_projects.service import (
+    get_project_by_id,
+    get_project_memory_store,
+    list_project_archives,
+    read_project_instructions,
+    resolve_session_project,
+    write_project_archive,
+    write_project_instructions,
+)
 
 USER_EDIT_APPROVAL = "not_required"
 USER_EDIT_KIND = "user_project_memory_edit"
@@ -222,6 +230,37 @@ def authorize_user_project_memory_read(
     )
 
 
+_SIDE_ACTIONS = frozenset({"set_instructions", "add_archive"})
+
+
+def _apply_project_side(edit: UserMemoryEdit, operation: dict[str, Any]) -> dict[str, Any]:
+    """Instructions and archives stay in this project. Never the global memory store."""
+    home = Path(edit.hermes_home)
+    action = operation.get("action")
+    try:
+        if action == "set_instructions":
+            content = operation.get("content")
+            if not isinstance(content, str):
+                return {"success": False, "error": "指示必须是文本，未写入"}
+            write_project_instructions(edit.project_id, home, content)
+            return {"success": True, "message": "已写入这个项目的指示，没有改全局记忆"}
+        if action == "add_archive":
+            project = get_project_by_id(edit.project_id, hermes_home=home)
+            if project is None:
+                return {"success": False, "error": "项目不存在，未写入档案"}
+            name = operation.get("name")
+            content = operation.get("content")
+            if not isinstance(name, str) or not isinstance(content, str):
+                return {"success": False, "error": "档案需要文件名和文本，未写入"}
+            write_project_archive(project, name, content, home, replace=operation.get("replace") is True)
+            return {"success": True, "message": "已写入这个项目的工作目录，没有改全局记忆"}
+    except ValueError as exc:
+        return {"success": False, "error": str(exc)}
+    except OSError:
+        return {"success": False, "error": "写入失败，未改全局记忆"}
+    return {"success": False, "error": "未知的项目写入，未执行"}
+
+
 def apply_authorized_project_memory(
     edit: UserMemoryEdit,
     operations: list[dict[str, Any]],
@@ -249,8 +288,16 @@ def apply_authorized_project_memory(
         _refuse("project_mismatch", "project scope changed before the write", 403)
     if not isinstance(operations, list):
         return {"success": False, "error": "operations array is required"}
+    side_ops = [op for op in operations if isinstance(op, dict) and op.get("action") in _SIDE_ACTIONS]
+    memory_ops = [op for op in operations if not (isinstance(op, dict) and op.get("action") in _SIDE_ACTIONS)]
+    for op in side_ops:
+        side_result = _apply_project_side(fresh, op)
+        if side_result.get("success") is not True:
+            return side_result
+    if not memory_ops:
+        return {"success": True, "entry_count": 0, "message": "已写入这个项目，没有改全局记忆"}
     store = _project_store(fresh)
-    return store.apply_batch("memory", operations)
+    return store.apply_batch("memory", memory_ops)
 
 
 def load_authorized_project_memory(
@@ -276,11 +323,34 @@ def load_authorized_project_memory(
     store = _project_store(fresh)
     entries = store._entries_for("memory")
     content = "\n§\n".join(entries)
+    instructions = ""
+    instructions_error = ""
+    try:
+        instructions = read_project_instructions(fresh.project_id, Path(fresh.hermes_home))
+    except ValueError as exc:
+        instructions_error = str(exc)
+    archives: list[dict[str, str]] | None = None
+    archives_error = ""
+    try:
+        archives = list_project_archives(
+            get_project_by_id(fresh.project_id, hermes_home=Path(fresh.hermes_home)),
+            Path(fresh.hermes_home),
+        )
+    except ValueError as exc:
+        archives = None
+        archives_error = str(exc) or "项目档案无法读取，未当作空列表"
+    except OSError:
+        archives = None
+        archives_error = "项目档案无法读取，未当作空列表"
     return {
         "entries": entries,
         "usage": store._usage("memory"),
         "char_count": len(content),
         "char_limit": store._char_limit("memory"),
+        "instructions": instructions,
+        "instructions_error": instructions_error,
+        "archives": archives,
+        "archives_error": archives_error,
     }
 
 

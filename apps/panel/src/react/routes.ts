@@ -9,6 +9,7 @@ export const SETTINGS_TABS = [
   { id: "plugins", label: "插件与配置档" },
   { id: "webhooks", label: "Webhooks" },
   { id: "update", label: "更新" },
+  { id: "account", label: "账户与安全" },
 ] as const;
 
 export type SettingsTab = (typeof SETTINGS_TABS)[number]["id"];

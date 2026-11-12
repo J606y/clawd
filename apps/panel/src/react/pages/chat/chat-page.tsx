@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { ApiError, api, type ApprovalChoice, type Message, type SessionSummary } from "@/lib/api";
 import { buildContent, type Attachment } from "@/lib/attachments";
@@ -8,17 +8,21 @@ import { cachedSessionEffort, currentEffort, hydrateSessionEffort } from "@/lib/
 import { ensureSessionEffort, fetchSessionEffort, invalidateSessionEffort, saveSessionEffort } from "@/lib/effort-service";
 import { canonicalModel } from "@/lib/model-effort";
 import { editBoundary, resendEdited, type EditAttempt } from "@/lib/message-edit";
-import { queryKeys, useContextUsage, useCreateSession, useEditBranch, useLockModel, useModelOptions, useSessionBackground, useSessionList, useSessionMessages, useStopExecution, useSubagents } from "@/lib/queries";
+import { queryKeys, useContextUsage, useCreateSession, useEditBranch, useLockModel, useModelOptions, useProjects, useSessionBackground, useSessionList, useSessionMessages, useStopExecution, useSubagents } from "@/lib/queries";
 import { RUN_CHANGED, RUN_FINISHED, runs, type LiveRun } from "@/lib/runs";
-import { prepareCreatedSession, getPendingNewChatProjectId } from "@/lib/project-send";
+import { prepareCreatedSession, getOpenProjectId, getPendingNewChatProjectId, setOpenProjectId, setPendingNewChatProjectId, subscribeOpenProject } from "@/lib/project-send";
 import { projectsApi } from "@/lib/projects";
+import { ProjectResources } from "../projects/project-resources";
+import { folderSessionItems } from "@/shell/session-logic";
+import { getShellSession, setShellSession } from "@/shell/shell-session";
+import { relativeTime, subscribeTick } from "@/lib/time";
 import { sidecar, type SessionExecution, type Subagent, type SubagentsView } from "@/lib/sidecar";
 import { HISTORY_SYNC_MS, historyReloadMs } from "@/lib/sync-poll";
 import { tasksForSession, type TaskExecution } from "@/lib/task-list";
-import { liveTextBesideHistory, shouldStripInFlightHistory, turnSourceKey, visibleTurnsBesideLive, type Turn, type UserTurn } from "@/lib/transcript";
+import { canAnchorHistory, liveTextBesideHistory, projectSessionHistory, shouldStripInFlightHistory, subagentTranscriptTakeover, turnSourceKey, visibleTurnsBesideLive, withoutKnownChildRows, type Turn, type UserTurn } from "@/lib/transcript";
 import { useLiveRun } from "@/lib/stream";
 import { useUiStore } from "@/stores/ui";
-import { ChatStyles } from "./chat-styles";
+import { ChatStyles, ProjectHomeDeleteStyles } from "./chat-styles";
 import { disclosureLeavesBottom } from "./scroll-intent";
 import { ClarifySheet } from "./clarify-sheet";
 import { Composer } from "./composer";
@@ -31,6 +35,20 @@ import { BrowserTask, HistoryTurn } from "./turns";
 const PAGE = 200;
 const MAX_PAGE = 500;
 const NEXT_TURN_EFFORT = "本回合仍按原来的档，下一回合起生效";
+const FOREIGN_SESSION_NOTICE = "服务器返回的是子代理记录，没有替换当前主会话。";
+
+type ParkedComposer = {
+  token: number;
+  text: string;
+  attachments: Attachment[];
+  notice: string;
+};
+
+function isAbandonedQuery(error: unknown): boolean {
+  if (!error || typeof error !== "object" || !("name" in error)) return false;
+  const name = (error as { name?: string }).name;
+  return name === "AbortError" || name === "CancelledError";
+}
 
 function mergeExpandedWindow(previous: Message[], incoming: Message[], requested: number): Message[] {
   if (previous.length <= requested) return incoming;
@@ -209,8 +227,239 @@ async function providerFor(model: string, provider: string): Promise<string> {
   return found;
 }
 
+function projectDeleteError(error: unknown): string {
+  if (error instanceof ApiError) {
+    const message = error.message.trim();
+    if (message) return `删除失败：${message}`;
+    if (error.code) return `删除失败：${error.code}`;
+  }
+  if (error instanceof Error && error.message.trim()) return `删除失败：${error.message.trim()}`;
+  return "删除失败";
+}
+
+function deletionRefusal(result: unknown, sessionId: string): string {
+  if (!result || typeof result !== "object") return "删除失败：服务器没有返回删除结果，对话仍保留";
+  const row = result as { deleted?: unknown; id?: unknown };
+  if (row.deleted === true && row.id === sessionId) return "";
+  if (typeof row.id === "string" && row.id !== sessionId) return "删除失败：服务器返回了另一个对话的结果，未改动当前行";
+  return "删除失败：服务器没有确认已删除，对话仍保留";
+}
+
+const projectHomeDeletes = new Set<string>();
+
+function ProjectHome(props: { projectId: string; heldSessionId: string }) {
+  const index = useProjects();
+  const client = useQueryClient();
+  const setSelectedSessionId = useUiStore((state) => state.setSelectedSessionId);
+  const [now, setNow] = useState(() => Date.now());
+  const [confirm, setConfirm] = useState<{ sessionId: string; projectId: string; title: string } | null>(null);
+  const [pendingId, setPendingId] = useState("");
+  const [rowError, setRowError] = useState<{ sessionId: string; projectId: string; message: string } | null>(null);
+  const [pageNotice, setPageNotice] = useState<{ projectId: string; message: string } | null>(null);
+  const alive = useRef(true);
+
+  useEffect(() => subscribeTick(() => setNow(Date.now())), []);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
+
+  const project = index.data?.projects.find((item) => item.id === props.projectId) ?? null;
+  const assignments = index.data?.assignments ?? {};
+  const items = project
+    ? [...folderSessionItems([], index.data?.sessions ?? [], project.id, assignments, "")].sort(
+        (left, right) => (right.last_active ?? right.started_at) - (left.last_active ?? left.started_at),
+      )
+    : [];
+  const sessionsFailed = Boolean(project && index.data?.sessionErrors[project.id]);
+
+  useEffect(() => {
+    if (!project) return;
+    const previous = getShellSession();
+    setShellSession({
+      id: props.heldSessionId || "",
+      source: previous?.source || "api_server",
+      title: project.name,
+      model: null,
+      started_at: previous?.started_at ?? 0,
+      last_active: previous?.last_active ?? null,
+      message_count: previous?.message_count ?? 0,
+      preview: null,
+      pinned: false,
+      archived: false,
+    });
+  }, [project, props.heldSessionId]);
+
+  const openSession = (session: SessionSummary) => {
+    setPendingNewChatProjectId(props.projectId);
+    setOpenProjectId(null);
+    window.dispatchEvent(new CustomEvent("hp-select-session", { detail: session }));
+  };
+
+  const startChat = () => {
+    if (!project || project.archived) return;
+    setPendingNewChatProjectId(project.id);
+    setSelectedSessionId(null);
+    setShellSession(null);
+    setOpenProjectId(null);
+  };
+
+  const askDelete = (session: SessionSummary) => {
+    if (!project || pendingId || projectHomeDeletes.size > 0) return;
+    setConfirm({
+      sessionId: session.id,
+      projectId: project.id,
+      title: session.title?.trim() || "未命名对话",
+    });
+    setRowError((current) => (
+      current && current.sessionId === session.id && current.projectId === project.id ? null : current
+    ));
+  };
+
+  const confirmDelete = () => {
+    const target = confirm;
+    if (!target || pendingId || projectHomeDeletes.has(target.sessionId)) return;
+    const sessionId = target.sessionId;
+    const projectId = target.projectId;
+    projectHomeDeletes.add(sessionId);
+    setPendingId(sessionId);
+    void (async () => {
+      try {
+        const result = await api.deleteSession(sessionId);
+        const refusal = deletionRefusal(result, sessionId);
+        if (refusal) {
+          if (alive.current && getOpenProjectId() === projectId) {
+            setRowError({ sessionId, projectId, message: refusal });
+          }
+          return;
+        }
+        // Only a confirmed, matching deletion may retire shared UI state.
+        // The shell checks the current selected ID; navigation is not changed.
+        window.dispatchEvent(new CustomEvent("hp-session-deleted", { detail: sessionId }));
+        let refreshError: unknown = null;
+        try {
+          await Promise.all([
+            client.invalidateQueries({ queryKey: queryKeys.projects }, { throwOnError: true }),
+            client.invalidateQueries({ queryKey: queryKeys.sessions }, { throwOnError: true }),
+          ]);
+        } catch (error) {
+          refreshError = error;
+        }
+        if (!alive.current) return;
+        setConfirm((current) => (
+          current && current.sessionId === sessionId && current.projectId === projectId ? null : current
+        ));
+        if (getOpenProjectId() !== projectId) return;
+        if (refreshError) {
+          const detail = refreshError instanceof Error && refreshError.message.trim() ? refreshError.message.trim() : "未知错误";
+          const message = `对话已删除，但列表刷新失败：${detail}`;
+          setPageNotice({ projectId, message });
+          setRowError({ sessionId, projectId, message });
+          return;
+        }
+        setPageNotice((current) => (current && current.projectId === projectId ? null : current));
+        setRowError((current) => (
+          current && current.sessionId === sessionId && current.projectId === projectId ? null : current
+        ));
+      } catch (error) {
+        if (alive.current && getOpenProjectId() === projectId) {
+          setRowError({ sessionId, projectId, message: projectDeleteError(error) });
+        }
+      } finally {
+        projectHomeDeletes.delete(sessionId);
+        if (alive.current) setPendingId((current) => (current === sessionId ? "" : current));
+      }
+    })();
+  };
+
+  if (!project && index.isPending) {
+    return <section className="page hp-chat" aria-label="项目"><p>正在加载项目</p></section>;
+  }
+  if (!project && index.isError) {
+    return (
+      <section className="page hp-chat" aria-label="项目">
+        <p role="alert">项目列表加载失败，没有当成项目不存在。</p>
+        <button type="button" onClick={() => void index.refetch()}>重试</button>
+        <button type="button" onClick={() => setOpenProjectId(null)}>返回</button>
+      </section>
+    );
+  }
+  if (!project) {
+    return (
+      <section className="page hp-chat" aria-label="项目">
+        <p>项目不存在，或列表还没加载到它。</p>
+        <button type="button" onClick={() => setOpenProjectId(null)}>返回</button>
+      </section>
+    );
+  }
+
+  return (
+    <section className="page hp-chat project-home" aria-label={project.name}>
+      <ProjectHomeDeleteStyles />
+      <div className="project-body">
+        <ProjectResources key={project.id} projectId={project.id} projectName={project.name} archived={project.archived} />
+        {index.isError ? <div role="alert">项目列表加载失败，对话归属未当作空列表。<button type="button" onClick={() => void index.refetch()}>重试</button></div> : null}
+        <h2>对话</h2>
+        {pageNotice?.projectId === project.id ? <div className="session-delete-error" role="alert">{pageNotice.message}</div> : null}
+        <button type="button" className="new-chat" disabled={project.archived} onClick={startChat}>+ 新增对话</button>
+        {sessionsFailed ? (
+          <div role="alert">这个项目的对话归属加载失败，未当作空列表。<button type="button" onClick={() => void index.refetch()}>重试</button></div>
+        ) : items.length ? (
+          <ul aria-label="这个项目的对话">
+            {items.map((session) => {
+              const title = session.title?.trim() || "未命名对话";
+              const openConfirm = confirm?.projectId === project.id && confirm.sessionId === session.id ? confirm : null;
+              const error = rowError?.projectId === project.id && rowError.sessionId === session.id ? rowError.message : "";
+              const pending = pendingId === session.id;
+              return (
+                <li key={session.id}>
+                  <div className="session-line">
+                    <button type="button" className="row" onClick={() => openSession(session)}>
+                      <span className="icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 20 20"><path d="M4 5.2h12a1.4 1.4 0 0 1 1.4 1.4v5.6a1.4 1.4 0 0 1-1.4 1.4H8.2L5.2 16v-2.4H4a1.4 1.4 0 0 1-1.4-1.4V6.6A1.4 1.4 0 0 1 4 5.2z" fill="none" stroke="currentColor" strokeWidth="1.4" /></svg></span>
+                      <span className="title">{session.title || "未命名对话"}</span>
+                      <span className="time">{relativeTime(session.last_active ?? session.started_at, now)}</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="session-delete"
+                      aria-label={`删除对话：${title}`}
+                      aria-expanded={openConfirm ? true : false}
+                      disabled={pending || pendingId !== ""}
+                      onClick={() => askDelete(session)}
+                    >
+                      删除
+                    </button>
+                  </div>
+                  {openConfirm ? (
+                    <div className="session-delete-confirm" role="alertdialog" aria-label="删除对话确认">
+                      <p>删除「{openConfirm.title}」？会删除这个对话和其中的消息。不会删除项目、档案、指示、项目记忆或工作目录。正在运行或仍有回合锁时，服务器会拒绝，这一行会保留。</p>
+                      {pending ? <p role="status">正在删除，请稍候</p> : null}
+                      {error ? <p className="session-delete-error" role="alert">{error}</p> : null}
+                      <div className="session-delete-actions">
+                        <button type="button" disabled={pending} onClick={() => confirmDelete()}>确认删除</button>
+                        <button type="button" disabled={pending} onClick={() => setConfirm(null)}>取消</button>
+                      </div>
+                    </div>
+                  ) : error ? (
+                    <p className="session-delete-error" role="alert">{error}</p>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <p>这个项目还没有对话</p>
+        )}
+      </div>
+    </section>
+  );
+}
+
 export function ChatPage() {
   const sessionId = useUiStore((state) => state.selectedSessionId) ?? "";
+  const openProjectId = useSyncExternalStore(subscribeOpenProject, getOpenProjectId, () => null);
   const setSelectedSessionId = useUiStore((state) => state.setSelectedSessionId);
   const draft = useUiStore((state) => state.composerDraft);
   const setDraft = useUiStore((state) => state.setComposerDraft);
@@ -265,9 +514,20 @@ export function ChatPage() {
   const messagesRef = useRef(messages);
   messagesRef.current = messages;
   const messagesSession = useRef(sessionId);
+  const childIdsRef = useRef<ReadonlySet<string>>(new Set());
+  const ownedHistory = useRef<Message[]>([]);
+  const keepSessionNotice = useRef(false);
   const reloadGen = useRef(0);
   const committedReload = useRef(0);
   const supersededPages = useRef(new WeakSet<Message[]>());
+  const earlierOwner = useRef(0);
+  const earlierFlight = useRef<{ owner: number; queryKey: readonly unknown[] } | null>(null);
+  const sendToken = useRef(0);
+  const composerOwner = useRef<number | null>(null);
+  const creatingFor = useRef<{ token: number; sessionId: string } | null>(null);
+  const parkedDrafts = useRef(new Map<string, ParkedComposer>());
+  const noticeRef = useRef(notice);
+  noticeRef.current = notice;
   const createSession = useCreateSession();
   const lockModel = useLockModel();
   const editBranch = useEditBranch();
@@ -385,11 +645,83 @@ export function ChatPage() {
     }).catch(() => undefined);
   }, [sessionId]);
 
+  const releaseEarlierFlight = useCallback(() => {
+    earlierOwner.current += 1;
+    const flight = earlierFlight.current;
+    earlierFlight.current = null;
+    if (!flight) return;
+    const query = client.getQueryCache().find({ queryKey: flight.queryKey, exact: true });
+    // 有别的观察者时只丢弃本次结果，不取消共享 query。
+    if ((query?.getObserversCount() ?? 0) > 0) return;
+    void client.cancelQueries({ queryKey: flight.queryKey, exact: true });
+  }, [client]);
+
+  const revealParked = useCallback((origin: string) => {
+    const parked = parkedDrafts.current.get(origin);
+    if (!parked) return;
+    const current = useUiStore.getState().composerDraft;
+    const empty = !current.value && current.attachments.length === 0;
+    const blocked = composerOwner.current != null && composerOwner.current !== parked.token;
+    if (empty && !blocked) {
+      parkedDrafts.current.delete(origin);
+      setDraft({ value: parked.text, attachments: parked.attachments });
+      composerOwner.current = parked.token;
+      if (parked.notice) setNotice(parked.notice);
+      return;
+    }
+    if (parked.notice) setNotice(parked.notice);
+  }, [setDraft, setNotice]);
+
+  const settleFailure = useCallback((origin: string, token: number, text: string, attachments: Attachment[], message: string) => {
+    const selected = useUiStore.getState().selectedSessionId ?? "";
+    const current = useUiStore.getState().composerDraft;
+    const empty = !current.value && current.attachments.length === 0;
+    const blocked = composerOwner.current != null && composerOwner.current !== token;
+    const parked: ParkedComposer = { token, text, attachments, notice: message };
+    if (selected !== origin || blocked || !empty) {
+      parkedDrafts.current.set(origin, parked);
+      if (selected === origin && message) setNotice(message);
+      return;
+    }
+    parkedDrafts.current.delete(origin);
+    setDraft({ value: text, attachments });
+    composerOwner.current = token;
+    if (message) setNotice(message);
+  }, [setDraft, setNotice]);
+
+  const stashOwnedComposer = useCallback((leaving: string) => {
+    const token = composerOwner.current;
+    if (token == null) return;
+    const current = useUiStore.getState().composerDraft;
+    if (!current.value && current.attachments.length === 0) return;
+    const previous = parkedDrafts.current.get(leaving);
+    parkedDrafts.current.set(leaving, {
+      token,
+      text: current.value,
+      attachments: current.attachments,
+      notice: previous?.notice || noticeRef.current,
+    });
+    setDraft({ value: "", attachments: [] });
+  }, [setDraft]);
+
+  const releaseComposer = useCallback((token: number, origin: string, recover: boolean) => {
+    if (composerOwner.current === token) composerOwner.current = null;
+    if (!recover) return;
+    if ((useUiStore.getState().selectedSessionId ?? "") !== origin) return;
+    revealParked(origin);
+  }, [revealParked]);
+
   useLayoutEffect(() => {
     const switched = messagesSession.current !== sessionId;
     if (switched) {
+      const leaving = messagesSession.current;
+      stashOwnedComposer(leaving);
+      releaseEarlierFlight();
+      if (creatingFor.current) setCreating(sessionId === creatingFor.current.sessionId);
       messagesSession.current = sessionId;
       committedReload.current = 0;
+      ownedHistory.current = [];
+      keepSessionNotice.current = false;
       setMessages([]);
       setListedSession(sessionId);
       setPendingSend("");
@@ -406,6 +738,7 @@ export function ChatPage() {
       setSyncError("");
       setStick(true);
       setAtBottom(true);
+      revealParked(sessionId);
     }
     if (!sessionId || !history.data) {
       if (switched) setMessages([]);
@@ -415,17 +748,26 @@ export function ChatPage() {
     // 被更新的 reload 作废的查询页不再盖回；同长内容更新仍要进入。
     if (!switched && supersededPages.current.has(history.data.messages)) return;
     if (!switched && (history.data.messages === messagesRef.current || messagesRef.current.length > history.data.messages.length)) return;
-    setMessages(history.data.messages);
+    const projected = projectSessionHistory(sessionId, history.data.messages, childIdsRef.current);
+    if (projected.blocked) {
+      supersededPages.current.add(history.data.messages);
+      keepSessionNotice.current = true;
+      setNotice(FOREIGN_SESSION_NOTICE);
+      if (ownedHistory.current.length) setMessages(ownedHistory.current);
+      return;
+    }
+    if (canAnchorHistory(sessionId, projected.messages, childIdsRef.current)) ownedHistory.current = projected.messages;
+    setMessages(projected.messages);
     setListedSession(sessionId);
     setHasEarlier(history.data.hasMore);
     const requested = sessionId;
-    const page = history.data.messages;
+    const page = projected.messages;
     void loadCommentary(page).then((loaded) => {
       if (messagesSession.current !== requested) return;
       setNotes(new Map(loaded));
       liveRef.current.restoreSteers(requested, page);
     });
-  }, [history.data, sessionId]);
+  }, [history.data, sessionId, releaseEarlierFlight, stashOwnedComposer, revealParked]);
 
   const reloadHistory = useCallback(async (id: string): Promise<true | "superseded"> => {
     const gen = ++reloadGen.current;
@@ -446,17 +788,27 @@ export function ChatPage() {
         return "superseded";
       }
       committedReload.current = gen;
+      const projected = projectSessionHistory(id, page.messages, childIdsRef.current);
+      if (projected.blocked) {
+        markSuperseded(page.messages);
+        keepSessionNotice.current = true;
+        if (messagesSession.current === id) setNotice(FOREIGN_SESSION_NOTICE);
+        if (ownedHistory.current.length && messagesSession.current === id) setMessages(ownedHistory.current);
+        return true;
+      }
       if (!stickRef.current) setHold(listRef.current?.capture() ?? null);
-      setMessages(mergeExpandedWindow(messagesRef.current, page.messages, limit));
+      const safe = projected.messages;
+      if (canAnchorHistory(id, safe, childIdsRef.current)) ownedHistory.current = safe;
+      setMessages(mergeExpandedWindow(messagesRef.current, safe, limit));
       setHasEarlier(page.hasMore);
-      const loaded = await loadCommentary(page.messages);
+      const loaded = await loadCommentary(safe);
       if (gen < committedReload.current) {
         markSuperseded(page.messages);
         return "superseded";
       }
       if (messagesSession.current !== id) return true;
       setNotes(new Map(loaded));
-      liveRef.current.restoreSteers(id, page.messages);
+      liveRef.current.restoreSteers(id, safe);
       return true;
     } catch (error) {
       if (reloadGen.current !== gen) return "superseded";
@@ -489,6 +841,12 @@ export function ChatPage() {
         }
         if (!loaded) {
           setNotice("回合已结束，但历史重新加载失败；当前显示的是本次回合的临时内容，刷新页面可重试");
+          return;
+        }
+        if (keepSessionNotice.current) {
+          keepSessionNotice.current = false;
+          liveRef.current.clear(id);
+          window.dispatchEvent(new CustomEvent("hp-session-updated", { detail: id }));
           return;
         }
         if (run?.status === "cancelled") setNotice("已停止");
@@ -670,6 +1028,26 @@ export function ChatPage() {
       { sessionId, profileKey },
     );
   }, [listedSession, sessionId, messages, subagentQuery.status, subagentQuery.data]);
+  childIdsRef.current = new Set(
+    (subagentQuery.data?.data ?? [])
+      .filter((row) => row.parentId === sessionId && row.id && row.id !== sessionId)
+      .map((row) => row.id),
+  );
+  useLayoutEffect(() => {
+    if (!sessionId || childIdsRef.current.size === 0) return;
+    const current = messagesRef.current;
+    if (subagentTranscriptTakeover(sessionId, current, childIdsRef.current)) {
+      keepSessionNotice.current = true;
+      setNotice(FOREIGN_SESSION_NOTICE);
+      setMessages(ownedHistory.current);
+      return;
+    }
+    const kept = withoutKnownChildRows(sessionId, current, childIdsRef.current);
+    if (kept.length !== current.length) {
+      if (canAnchorHistory(sessionId, kept, childIdsRef.current)) ownedHistory.current = kept;
+      setMessages(kept);
+    }
+  }, [sessionId, subagentQuery.data]);
   useLayoutEffect(() => {
     const height = taskDockRef.current?.offsetHeight ?? 0;
     root?.style.setProperty("--task-dock", `${height}px`);
@@ -714,33 +1092,32 @@ export function ChatPage() {
   }, [turns, shown, notice, showLive, displayRun]);
   const keys = useMemo(() => rows.map((row) => row.key), [rows]);
 
-  const restore = useCallback((text: string, attachments: Attachment[]) => {
-    const current = useUiStore.getState().composerDraft;
-    if (current.value || current.attachments.length) return;
-    setDraft({ value: text, attachments });
-  }, [setDraft]);
-
   const onSend = useCallback(async () => {
     const held = runs.get(sessionId);
     const abandonedUnconfirmed = Boolean(held?.unverified && !held.runId && !liveRef.current.isActive);
     if (editingKey || preparing) return;
     if (serverBusy && !liveRef.current.isActive && !abandonedUnconfirmed) return;
     const text = draft.value.trim();
-    const attachments = draft.attachments;
+    const attachments = draft.attachments.slice();
     if (!text && attachments.length === 0) return;
     const content = buildContent(text, attachments);
+    const origin = sessionId;
+    const token = ++sendToken.current;
     setNotice("");
     setStick(true);
     setAtBottom(true);
     setDraft({ value: "", attachments: [] });
-    if (!sessionId) setPendingSend(text);
+    composerOwner.current = token;
+    if (!origin) setPendingSend(text);
     try {
-      if (sessionId) {
-        await ensureSessionEffort(sessionId);
+      if (origin) {
+        await ensureSessionEffort(origin);
         const provider = await providerFor(displayModel, override ? displayProvider : "");
-        liveRef.current.start(sessionId, text, attachments, content, displayModel, provider);
+        liveRef.current.start(origin, text, attachments, content, displayModel, provider);
+        releaseComposer(token, origin, true);
         return;
       }
+      creatingFor.current = { token, sessionId: origin };
       setCreating(true);
       const projectId = getPendingNewChatProjectId();
       const picked = override ?? nextChatModel() ?? await api.modelOptions().then((options) => {
@@ -762,7 +1139,9 @@ export function ChatPage() {
       setEffortFor(currentEffort(""), created.id);
       // 先绑再锁再发。档位行尚未落下时不得挡住发送，也不得改走普通模式。
       liveRef.current.start(created.id, text, attachments, content, picked.model, provider);
+      releaseComposer(token, origin, false);
       setSelectedSessionId(created.id);
+      if (projectId) void client.invalidateQueries({ queryKey: queryKeys.projects });
       const createdId = created.id;
       void saveSessionEffort(createdId, currentEffort(createdId)).then((saved) => {
         if (useUiStore.getState().selectedSessionId !== createdId || !saved.effort) return;
@@ -774,26 +1153,41 @@ export function ChatPage() {
       });
       window.dispatchEvent(new CustomEvent("hp-session-created", { detail: created }));
     } catch (error) {
-      setPendingSend("");
-      setNotice(sessionId ? (error instanceof Error ? error.message : "发送失败") : error instanceof ApiError ? `创建对话失败：${error.message}` : "创建对话失败");
-      restore(text, attachments);
+      if ((useUiStore.getState().selectedSessionId ?? "") === origin) setPendingSend("");
+      settleFailure(
+        origin,
+        token,
+        text,
+        attachments,
+        origin ? (error instanceof Error ? error.message : "发送失败") : error instanceof ApiError ? `创建对话失败：${error.message}` : "创建对话失败",
+      );
     } finally {
-      setCreating(false);
+      if (creatingFor.current?.token === token) {
+        creatingFor.current = null;
+        setCreating(false);
+      }
     }
-  }, [editingKey, serverBusy, preparing, draft, sessionId, displayModel, displayProvider, override, createSession, lockModel, setEffortFor, setSelectedSessionId, setDraft, restore]);
+  }, [editingKey, serverBusy, preparing, draft, sessionId, displayModel, displayProvider, override, createSession, lockModel, setEffortFor, setSelectedSessionId, setDraft, settleFailure, releaseComposer, client]);
 
   const onSteer = useCallback(async () => {
     const text = draft.value.trim();
-    const attachments = draft.attachments;
+    const attachments = draft.attachments.slice();
     if ((!text && attachments.length === 0) || !shown?.runId || shown.status !== "running") return;
     if (attachments.some((item) => item.kind === "image")) {
       setFlash("回合进行中图片需要重新添加（会改为上传发送），请先移除已有的图片");
       return;
     }
+    const origin = sessionId;
+    const token = ++sendToken.current;
     setDraft({ value: "", attachments: [] });
-    const ok = await liveRef.current.steer(sessionId, text, attachments);
-    if (!ok) restore(text, attachments);
-  }, [draft, shown, sessionId, setDraft, restore]);
+    composerOwner.current = token;
+    const ok = await liveRef.current.steer(origin, text, attachments);
+    if (ok) {
+      releaseComposer(token, origin, false);
+      return;
+    }
+    settleFailure(origin, token, text, attachments, "");
+  }, [draft, shown, sessionId, setDraft, settleFailure, releaseComposer]);
 
   const onStop = useCallback(async () => {
     const target = runs.get(sessionId);
@@ -913,31 +1307,43 @@ export function ChatPage() {
 
   const loadEarlier = useCallback(async () => {
     if (!sessionId || loadingEarlier || !hasEarlier || history.isLoading) return;
-    setLoadingEarlier(true);
-    setEarlierError("");
+    const requested = sessionId;
     const epoch = reloadGen.current;
     const anchored = messagesRef.current;
+    const owner = ++earlierOwner.current;
+    const offset = anchored.length;
+    const queryKey = queryKeys.messages(requested, offset, PAGE);
+    earlierFlight.current = { owner, queryKey };
+    setLoadingEarlier(true);
+    setEarlierError("");
+    const sameWindow = () => earlierOwner.current === owner
+      && messagesSession.current === requested
+      && reloadGen.current === epoch
+      && messagesRef.current === anchored;
     try {
-      const offset = anchored.length;
       const page = await client.fetchQuery({
-        queryKey: queryKeys.messages(sessionId, offset, PAGE),
-        queryFn: ({ signal }) => api.messages(sessionId, { limit: PAGE, offset }, signal),
+        queryKey,
+        queryFn: ({ signal }) => api.messages(requested, { limit: PAGE, offset }, signal),
       });
       // 手动或自动换了最新页之后，旧 offset 页不能再接到新窗口前面。
-      if (messagesSession.current !== sessionId || reloadGen.current !== epoch || messagesRef.current !== anchored || messagesRef.current.length < offset) return;
+      if (!sameWindow() || messagesRef.current.length < offset) return;
       const anchor = listRef.current?.capture() ?? null;
       const loaded = await loadCommentary(page.messages);
-      if (messagesSession.current !== sessionId || reloadGen.current !== epoch || messagesRef.current !== anchored) return;
+      if (!sameWindow()) return;
       setStick(false);
       setHold(anchor);
       setNotes((prev) => new Map([...prev, ...loaded]));
-      setMessages((prev) => (prev !== anchored || reloadGen.current !== epoch ? prev : [...page.messages, ...prev]));
+      setMessages((prev) => (prev !== anchored || reloadGen.current !== epoch || earlierOwner.current !== owner ? prev : [...page.messages, ...prev]));
       setHasEarlier(page.hasMore);
-      liveRef.current.restoreSteers(sessionId, [...page.messages, ...messagesRef.current]);
+      liveRef.current.restoreSteers(requested, [...page.messages, ...messagesRef.current]);
     } catch (error) {
+      if (!sameWindow() || isAbandonedQuery(error)) return;
       setEarlierError(error instanceof ApiError ? error.message : "加载失败");
       setHold(null);
     } finally {
+      if (earlierFlight.current?.owner === owner) earlierFlight.current = null;
+      // 错误已按 session/epoch/anchor/owner 丢弃。转圈只由仍拥有它的请求结束，避免清掉新会话的 loading。
+      if (earlierOwner.current !== owner || messagesSession.current !== requested) return;
       setLoadingEarlier(false);
     }
   }, [sessionId, loadingEarlier, hasEarlier, history.isLoading, client]);
@@ -980,6 +1386,10 @@ export function ChatPage() {
   const blank = turns.length === 0 && !showLive && !pendingVisible;
   const starts = (background.data ?? []).flatMap((item) => item.startedAt ? [item.startedAt] : []);
   const since = starts.length ? ` · 已运行 ${duration(Date.now() / 1000 - Math.min(...starts))}` : "";
+
+  if (openProjectId) {
+    return <ProjectHome projectId={openProjectId} heldSessionId={sessionId} />;
+  }
 
   return (
     <section ref={setRoot} className={`page hp-chat${shown?.clarify ? " asking" : ""}`} aria-label="对话" onClick={onContentClick}>
@@ -1078,7 +1488,7 @@ export function ChatPage() {
                 <ul>{background.data.map((item) => <li key={item.id}><code>{item.command || item.id}</code></li>)}</ul>
               </details>
             ) : null}
-            {historyError && showLive ? <div className="notice err">{historyError} <button type="button" onClick={() => void history.refetch()}>重试</button></div> : null}
+            {historyError ? <div className="notice err">{historyError} <button type="button" onClick={() => void history.refetch()}>重试</button></div> : null}
             {syncError ? <div className="notice err" role="status">{syncError}</div> : null}
             {effortNote ? <div className="notice" role="status">{effortNote}</div> : null}
             {notice ? <div className={`notice${notice === "已停止" ? "" : " err"}`}>{notice}</div> : null}
@@ -1108,7 +1518,10 @@ export function ChatPage() {
           stopping={Boolean(shown?.stopping)}
           unconfirmed={unconfirmed && localActive}
           flash={flash}
-          onChange={(value, attachments) => setDraft({ value, attachments })}
+          onChange={(value, attachments) => {
+            composerOwner.current = null;
+            setDraft({ value, attachments });
+          }}
           onPreparing={guardPreparing}
           onFlash={setFlash}
           onSend={() => void onSend()}
@@ -1136,7 +1549,7 @@ export function ChatPage() {
                   }
                   const requested = sessionId;
                   const gen = ++effortGen.current;
-                  void saveSessionEffort(requested, level).then((view) => {
+                  return saveSessionEffort(requested, level).then((view) => {
                     if (effortGen.current !== gen || useUiStore.getState().selectedSessionId !== requested || !view.effort) return;
                     hydrateSessionEffort(requested, view.effort);
                     setRemoteEffort({ sessionId: requested, level: view.effort });

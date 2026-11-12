@@ -3,6 +3,7 @@
 Checkout (and editable installs, whose ``__file__`` still lives in the tree)
 read ``apps/panel`` next to ``pyproject.toml``. A wheel install reads the copy
 staged under ``clawd_server/bundled/`` by ``scripts/build_clawd_resources.py``.
+The staged panel includes the pinned noVNC tree at ``vendor/novnc``.
 
 ``code_root()`` is the directory that contains importable ``hermes_cli`` /
 ``clawd_server``. The sidecar settings helper runs ``python -I`` and inserts
@@ -20,6 +21,7 @@ import fcntl
 import hashlib
 import json
 import os
+import re
 import sys
 import stat
 import uuid
@@ -72,6 +74,82 @@ OMITTED_SIDECAR = (
     "requirements.txt",
 )
 _OWNED_MARKERS = (".stage-", ".rejected-")
+
+NOVNC_VERSION = "1.6.0"
+NOVNC_SOURCE = "https://codeload.github.com/novnc/noVNC/tar.gz/refs/tags/v1.6.0"
+NOVNC_ARCHIVE_SHA256 = "5066103959ef4e9b10f37e5a148627360dd8414e4cf8a7db92bdbd022e728aaa"
+NOVNC_FILE_COUNT = 215
+NOVNC_PATH_LIST_SHA256 = "67fe35a4779f05a6d3bfc9267f9255b2969563a717fd5011d28484d7424eb4d3"
+NOVNC_TREE_SHA256 = "fe93dab647b4e133e15ea8488d404ec66538843f01f71ed1499c68a17ffd4166"
+NOVNC_BUNDLE_PREFIX = "apps/panel/vendor/novnc"
+# Content pins for the entry module, version metadata, and upstream/third-party licenses.
+# The path-list and tree digests pin the other 1.6.0 files; do not shrink this to rfb.js.
+NOVNC_PINNED_SHA256 = {
+    "core/rfb.js": "563a8c8469dfb55d1deee05262a311637d0e6fe8f65ae34c8222ee22e34e8a93",
+    "package.json": "cd979f4c1dc4d7c0dd2794b93ca1c89b3c20c01fd4dee5d489330b291e441897",
+    "CLAWD_SOURCE.json": "3a817f69bcd13bb827fa6aa67c29e56c70fa7b798f8ff5d70e229ad52a8cdd40",
+    "LICENSE.txt": "3ccd2242d7f5b6c5ae831a486f63cce1f18d8cd11c511f6a7a7251673763b2d1",
+    "vendor/pako/LICENSE": "3bc404ffa7888053253eedcc5a667619aa08dc1be0bea400e5ff28c51602180f",
+    "docs/LICENSE.MPL-2.0": "fab3dd6bdab226f1c08630b1dd917e11fcb4ec5e1e020e2c16f83a0a13863e85",
+    "docs/LICENSE.BSD-2-Clause": "f4371b28457e3e9f2db1fc972eb5ba16353dc5f8d7f42b2d5c3c2e576e40dd05",
+    "docs/LICENSE.BSD-3-Clause": "c08e5ef2e6d004c97f92d45eee4f3a0257b6c957a6c68c7b2053d013ec3725c2",
+    "docs/LICENSE.OFL-1.1": "e564f06d018e7b95bc3594c96a17f1d41865af4038c375e7aa974dd69df38602",
+}
+# Static import closure of core/rfb.js in the pinned tree, including vendor/pako.
+NOVNC_CLOSURE = (
+    "core/base64.js",
+    "core/crypto/aes.js",
+    "core/crypto/bigint.js",
+    "core/crypto/crypto.js",
+    "core/crypto/des.js",
+    "core/crypto/dh.js",
+    "core/crypto/md5.js",
+    "core/crypto/rsa.js",
+    "core/decoders/copyrect.js",
+    "core/decoders/h264.js",
+    "core/decoders/hextile.js",
+    "core/decoders/jpeg.js",
+    "core/decoders/raw.js",
+    "core/decoders/rre.js",
+    "core/decoders/tight.js",
+    "core/decoders/tightpng.js",
+    "core/decoders/zlib.js",
+    "core/decoders/zrle.js",
+    "core/deflator.js",
+    "core/display.js",
+    "core/encodings.js",
+    "core/inflator.js",
+    "core/input/domkeytable.js",
+    "core/input/fixedkeys.js",
+    "core/input/gesturehandler.js",
+    "core/input/keyboard.js",
+    "core/input/keysym.js",
+    "core/input/keysymdef.js",
+    "core/input/util.js",
+    "core/input/vkeys.js",
+    "core/input/xtscancodes.js",
+    "core/ra2.js",
+    "core/rfb.js",
+    "core/util/browser.js",
+    "core/util/cursor.js",
+    "core/util/element.js",
+    "core/util/events.js",
+    "core/util/eventtarget.js",
+    "core/util/int.js",
+    "core/util/logging.js",
+    "core/util/strings.js",
+    "core/websock.js",
+    "vendor/pako/lib/utils/common.js",
+    "vendor/pako/lib/zlib/adler32.js",
+    "vendor/pako/lib/zlib/crc32.js",
+    "vendor/pako/lib/zlib/deflate.js",
+    "vendor/pako/lib/zlib/inffast.js",
+    "vendor/pako/lib/zlib/inflate.js",
+    "vendor/pako/lib/zlib/inftrees.js",
+    "vendor/pako/lib/zlib/messages.js",
+    "vendor/pako/lib/zlib/trees.js",
+    "vendor/pako/lib/zlib/zstream.js",
+)
 
 
 class ResourceError(RuntimeError):
@@ -172,7 +250,7 @@ def bundled_root(package_dir: Path | None = None) -> Path:
 
 
 def panel_root(package_dir: Path | None = None) -> Path:
-    """Directory that contains ``dist/``, ``sidecar/``, and ``plugins/``."""
+    """Directory that contains ``dist/``, ``sidecar/``, ``plugins/``, and ``vendor/novnc``."""
     package_dir = _pkg(package_dir)
     if detect_layout(package_dir) == LAYOUT_CHECKOUT:
         path = package_dir.parent / "apps" / "panel"
@@ -321,6 +399,7 @@ def _panel_tree_problems(panel: Path) -> list[str]:
         path = plugin / name
         if not path.is_file() or path.is_symlink():
             problems.append(f"插件资源缺失: apps/panel/plugins/{PLUGIN_NAME}/{name}")
+    problems.extend(_novnc_problems(panel))
     return problems
 
 
@@ -466,7 +545,9 @@ def _required_bundle_paths() -> tuple[str, ...]:
     names = ["LICENSES/LICENSE", "apps/panel/dist/index.html"]
     names.extend(f"apps/panel/sidecar/{name}" for name in SIDECAR_FILES)
     names.extend(f"apps/panel/plugins/{PLUGIN_NAME}/{name}" for name in PLUGIN_FILES)
-    return tuple(names)
+    names.extend(f"{NOVNC_BUNDLE_PREFIX}/{name}" for name in NOVNC_PINNED_SHA256)
+    names.extend(f"{NOVNC_BUNDLE_PREFIX}/{name}" for name in NOVNC_CLOSURE)
+    return tuple(dict.fromkeys(names))
 
 
 def _asset_js(relative: str) -> bool:
@@ -552,6 +633,11 @@ def bundled_is_complete(dest: Path) -> bool:
                 continue
             if relative not in listed:
                 return False
+    try:
+        if _novnc_installed_problems(dest, contract, listed):
+            return False
+    except (OSError, ResourceError, UnicodeError, json.JSONDecodeError, ValueError):
+        return False
     return True
 
 
@@ -654,6 +740,228 @@ def _remove_tree_we_created(path: Path) -> None:
     path.rmdir()
 
 
+
+def _novnc_path_list_sha256(relatives: list[str]) -> str:
+    blob = ("\n".join(relatives) + "\n").encode("utf-8")
+    return _sha256(blob)
+
+
+def _novnc_tree_sha256(pairs: list[tuple[str, bytes]]) -> str:
+    lines = [f"{rel} {_sha256(data)} {len(data)}" for rel, data in pairs]
+    return _sha256(("\n".join(lines) + "\n").encode("utf-8"))
+
+
+def _strip_js_comments(text: str) -> str:
+    text = re.sub(r"/\*.*?\*/", "", text, flags=re.S)
+    lines: list[str] = []
+    for line in text.splitlines():
+        cut = line.find("//")
+        lines.append(line if cut < 0 else line[:cut])
+    return "\n".join(lines)
+
+
+def _novnc_import_specs(text: str) -> list[str]:
+    cleaned = _strip_js_comments(text)
+    specs: list[str] = []
+    for pattern in (
+        r"""(?:\bfrom\s*|\bimport\s*\()\s*(['\"])([^'\"]+)\1""",
+        r"""\bimport\s+(['\"])([^'\"]+)\1""",
+    ):
+        for match in re.finditer(pattern, cleaned):
+            specs.append(match.group(2))
+    return specs
+
+
+def _novnc_resolve_import(current: str, spec: str, present: set[str]) -> str | None:
+    if not spec.startswith("."):
+        return None
+    parts: list[str] = []
+    for part in (Path(current).parent / spec).as_posix().split("/"):
+        if part in ("", "."):
+            continue
+        if part == "..":
+            if not parts:
+                return None
+            parts.pop()
+            continue
+        parts.append(part)
+    relative = "/".join(parts)
+    if relative in present:
+        return relative
+    for ext in (".js", ".mjs", ".json"):
+        candidate = relative + ext
+        if candidate in present:
+            return candidate
+    return None
+
+
+def _read_novnc_files(root: Path) -> list[tuple[str, bytes]]:
+    if root.is_symlink() or not root.is_dir():
+        raise ResourceError("noVNC 资源不是真实目录: vendor/novnc")
+    _refuse_symlink(root)
+    found: list[tuple[str, bytes]] = []
+    for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
+        current = Path(dirpath)
+        if current.is_symlink():
+            raise ResourceError(f"refusing symlink: {current}")
+        if not _contained(current, root):
+            raise ResourceError(f"refusing path outside noVNC root: {current}")
+        kept: list[str] = []
+        for name in dirnames:
+            child = current / name
+            if child.is_symlink():
+                raise ResourceError(f"refusing symlink: {child}")
+            if not _contained(child, root):
+                raise ResourceError(f"refusing path outside noVNC root: {child}")
+            kept.append(name)
+        dirnames[:] = kept
+        for name in filenames:
+            path = current / name
+            if path.is_symlink():
+                raise ResourceError(f"refusing symlink: {path}")
+            if not _contained(path, root):
+                raise ResourceError(f"refusing path outside noVNC root: {path}")
+            relative = path.relative_to(root).as_posix()
+            if not relative or ".." in relative.split("/"):
+                raise ResourceError(f"refusing unsafe noVNC path: {relative}")
+            bundle_rel = f"{NOVNC_BUNDLE_PREFIX}/{relative}"
+            if _rel_forbidden(bundle_rel):
+                raise ResourceError(f"refusing to copy excluded path: {bundle_rel}")
+            found.append((relative, _read_regular(path, root)))
+    found.sort(key=lambda item: item[0])
+    return found
+
+
+def _novnc_metadata_problems(files: dict[str, bytes]) -> list[str]:
+    try:
+        package = json.loads(files["package.json"].decode("utf-8"))
+        source = json.loads(files["CLAWD_SOURCE.json"].decode("utf-8"))
+    except (KeyError, UnicodeError, json.JSONDecodeError):
+        return ["noVNC 版本元数据不可读。"]
+    problems: list[str] = []
+    if (
+        not isinstance(package, dict)
+        or package.get("version") != NOVNC_VERSION
+        or package.get("license") != "MPL-2.0"
+    ):
+        problems.append("noVNC package.json 不是固定版本 1.6.0 / MPL-2.0。")
+    if (
+        not isinstance(source, dict)
+        or source.get("version") != NOVNC_VERSION
+        or source.get("source") != NOVNC_SOURCE
+        or source.get("archive_sha256") != NOVNC_ARCHIVE_SHA256
+        or source.get("files") != 214
+        or source.get("unpacked_bytes") != 2456868
+    ):
+        problems.append("noVNC CLAWD_SOURCE.json 与固定来源不一致。")
+    return problems
+
+
+def _novnc_closure_problems(files: dict[str, bytes]) -> list[str]:
+    present = set(files)
+    missing = [name for name in NOVNC_CLOSURE if name not in present]
+    if missing:
+        return ["noVNC 模块闭包缺失: " + ", ".join(missing[:6])]
+    seen: set[str] = set()
+    stack = ["core/rfb.js"]
+    bad: list[str] = []
+    while stack:
+        current = stack.pop()
+        if current in seen:
+            continue
+        if current not in files:
+            bad.append(current)
+            continue
+        seen.add(current)
+        try:
+            text = files[current].decode("utf-8")
+        except UnicodeError:
+            return [f"noVNC 模块不是 UTF-8: {current}"]
+        for spec in _novnc_import_specs(text):
+            target = _novnc_resolve_import(current, spec, present)
+            if target is None:
+                bad.append(f"{current} -> {spec}")
+            elif target not in seen:
+                stack.append(target)
+    if bad:
+        return ["noVNC 模块依赖未闭合: " + ", ".join(bad[:6])]
+    if seen != set(NOVNC_CLOSURE):
+        return ["noVNC 模块闭包与固定版本不一致，拒绝只复制部分文件。"]
+    return []
+
+
+def _novnc_pair_problems(pairs: list[tuple[str, bytes]]) -> list[str]:
+    ordered = sorted(pairs, key=lambda item: item[0])
+    relatives = [rel for rel, _data in ordered]
+    files = {rel: data for rel, data in ordered}
+    if len(files) != len(relatives):
+        return ["noVNC 路径重复，拒绝发布。"]
+    if (
+        len(relatives) != NOVNC_FILE_COUNT
+        or _novnc_path_list_sha256(relatives) != NOVNC_PATH_LIST_SHA256
+    ):
+        return ["noVNC 文件清单与固定版本不一致，拒绝空目录或部分复制。"]
+    if _novnc_tree_sha256(ordered) != NOVNC_TREE_SHA256:
+        return ["noVNC 文件字节与固定版本不一致，拒绝部分或被替换的树。"]
+    problems: list[str] = []
+    for rel, digest in NOVNC_PINNED_SHA256.items():
+        data = files.get(rel)
+        if data is None or _sha256(data) != digest:
+            problems.append(f"noVNC 固定摘要不符: {rel}")
+    problems.extend(_novnc_metadata_problems(files))
+    problems.extend(_novnc_closure_problems(files))
+    return problems
+
+
+def _novnc_problems(panel: Path) -> list[str]:
+    root = panel / "vendor" / "novnc"
+    if root.is_symlink() or not root.is_dir() or _symlink_component(root) is not None:
+        return ["noVNC 资源不是真实目录: vendor/novnc。拒绝空目录或链接逃逸。"]
+    try:
+        pairs = _read_novnc_files(root)
+    except ResourceError as exc:
+        return [str(exc)]
+    return _novnc_pair_problems(pairs)
+
+
+def _copy_novnc(panel: Path, staging: Path) -> list[dict[str, object]]:
+    problems = _novnc_problems(panel)
+    if problems:
+        raise ResourceError("\n".join(problems))
+    root = panel / "vendor" / "novnc"
+    copied: list[dict[str, object]] = []
+    for relative, _data in _read_novnc_files(root):
+        dest = staging / NOVNC_BUNDLE_PREFIX / relative
+        copied.append(_copy_file(root / relative, dest, root, staging))
+    if len(copied) != NOVNC_FILE_COUNT:
+        raise ResourceError("noVNC 复制数量与固定版本不一致，拒绝部分复制。")
+    return copied
+
+
+def _novnc_installed_problems(dest: Path, contract: dict, listed: dict[str, dict]) -> list[str]:
+    if contract.get("novnc") != NOVNC_BUNDLE_PREFIX:
+        return ["noVNC 契约路径缺失。"]
+    if contract.get("novnc_version") != NOVNC_VERSION:
+        return ["noVNC 契约版本不符。"]
+    if contract.get("novnc_path_list_sha256") != NOVNC_PATH_LIST_SHA256:
+        return ["noVNC 契约清单摘要不符。"]
+    if contract.get("novnc_tree_sha256") != NOVNC_TREE_SHA256:
+        return ["noVNC 契约树摘要不符。"]
+    prefix = NOVNC_BUNDLE_PREFIX + "/"
+    pairs: list[tuple[str, bytes]] = []
+    for relative in listed:
+        if not relative.startswith(prefix):
+            continue
+        rest = relative[len(prefix):]
+        if not rest or ".." in rest.split("/"):
+            return ["noVNC 契约路径不安全。"]
+        target = dest / relative
+        if not _contained(target, dest):
+            return ["noVNC 安装路径越出资源根。"]
+        pairs.append((rest, _read_regular(target, dest)))
+    return _novnc_pair_problems(pairs)
+
+
 def _fill_staging(checkout: Path, panel: Path, staging: Path) -> list[dict[str, object]]:
     copied: list[dict[str, object]] = []
     dist = panel / "dist"
@@ -669,6 +977,7 @@ def _fill_staging(checkout: Path, panel: Path, staging: Path) -> list[dict[str, 
         copied.append(_copy_file(panel / "plugins" / PLUGIN_NAME / name, staging / rel, panel, staging))
     license_rel = Path("LICENSES") / "LICENSE"
     copied.append(_copy_file(checkout / "LICENSE", staging / license_rel, checkout, staging))
+    copied.extend(_copy_novnc(panel, staging))
     if not any(_asset_js(str(item["path"])) for item in copied):
         raise ResourceError("暂存结果没有 apps/panel/dist/assets/*.js，拒绝发布不完整包。")
     return copied
@@ -683,6 +992,10 @@ def _write_contract(staging: Path, copied: list[dict[str, object]]) -> None:
         "sidecar": "apps/panel/sidecar",
         "plugins": [PLUGIN_NAME],
         "license": "LICENSES/LICENSE",
+        "novnc": NOVNC_BUNDLE_PREFIX,
+        "novnc_version": NOVNC_VERSION,
+        "novnc_path_list_sha256": NOVNC_PATH_LIST_SHA256,
+        "novnc_tree_sha256": NOVNC_TREE_SHA256,
         "hash": "sha256",
         "omitted_sidecar": list(OMITTED_SIDECAR),
         "excluded_parts": sorted(DIST_SKIP_PARTS),
@@ -715,7 +1028,7 @@ def stage_distribution(
     resource_root: Path | None = None,
     _before_publish=None,
 ) -> Path:
-    """Copy built panel assets and sidecar/plugin modules into ``dest``.
+    """Copy built panel assets, the pinned noVNC tree, and sidecar/plugin modules into ``dest``.
 
     The canonical slot ``checkout/clawd_server/bundled`` may replace a previous
     bundle that already passes this module's integrity check. That replacement

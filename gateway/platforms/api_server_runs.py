@@ -275,6 +275,11 @@ def _initialize_run_state(self, *, store_factory) -> None:
     self._run_shutdown_requested_at: Optional[float] = None
     # Streaming run id -> its canonical admission id, held while that request observes the turn.
     self._run_admission_aliases: dict[str, str] = {}
+    # Pre-admission stop identity for /api/sessions/{id}/chat/stream (CORE-N02).
+    # Not a shutdown counter: the handler reservation already counts that turn.
+    self._pending_run_cancels: dict[str, dict[str, Any]] = {}
+    # Observation-only Bot Chat deliveries (CORE-N01). Not copied into pollable status.
+    self._live_owner_deliveries: dict[str, dict[str, Any]] = {}
     (
         self._run_owners, self._run_streams, self._run_streams_created, self._active_run_agents,
         self._active_run_tasks, self._run_statuses, self._run_approval_sessions,
@@ -648,7 +653,7 @@ def _forget_run(self, run_id: str, *tables) -> None:
 def _retire_live_run(self, run_id: str) -> None:
     """Retire agent/task/approval control state once the executor-backed task is done."""
     _forget_run(self, run_id, self._active_run_agents, self._active_run_tasks, self._run_approval_sessions,
-                self._stopping_run_ids, self._shutdown_interrupted_run_ids)
+                self._stopping_run_ids, self._shutdown_interrupted_run_ids, self._live_owner_deliveries)
 
 
 def _drop_run_transport(self, run_id: str) -> None:
@@ -862,7 +867,8 @@ async def _handle_runs(self, request: web.Request, *, _api_server) -> web.Respon
     if limited is not None:
         return limited
     run_id = f"run_{uuid.uuid4().hex}"
-    self._run_owners[run_id] = self._run_idempotency_scope(request)
+    # Owner, stream and status are registered only after session resolution, effort
+    # admission and history load succeed. A refusal before that must not leave a stamp.
     # Same precedence as /v1/responses: body session_id > response chain > X-Hermes-Session-Key
     # conversation > run_id (which would otherwise re-key every affinity surface per run).
     # An explicit or chained session owns its routing key and is never rebound to the header.
@@ -899,7 +905,19 @@ async def _handle_runs(self, request: web.Request, *, _api_server) -> web.Respon
     # turn, never consumes the SessionDB delivery row, and is denied on the same contract.
     session_history_delivery = not previous_response_id and not conversation_history
     if not conversation_history and selected_session_id and not previous_response_id:
-        conversation_history = await self._conversation_history_for_session(str(selected_session_id))
+        from gateway.platforms.api_server import _SessionHistoryUnreadable
+        try:
+            conversation_history = await self._conversation_history_for_session(str(selected_session_id))
+        except _SessionHistoryUnreadable:
+            # Not an empty transcript. Do not start the turn and do not register this run.
+            return _json_error(
+                _openai_error,
+                "Session history could not be read; turn not started",
+                code="session_history_unreadable",
+                status=503,
+            )
+    # Preconditions succeeded. Stamp the owner before any other run-keyed state (#93689).
+    self._run_owners[run_id] = self._run_idempotency_scope(request)
     q = self._run_streams[run_id] = _RunStream()
     created_at = self._run_streams_created[run_id] = time.time()
     self._run_approval_sessions[run_id] = run_id  # approval session key (see _RunLaunch)
@@ -940,6 +958,15 @@ async def _handle_runs(self, request: web.Request, *, _api_server) -> web.Respon
             return refused
     self._activate_admitted_request()
     if admitted is not None:
+        home, record = admitted
+        # Stamp before the task is scheduled and before this handler returns, so a stop
+        # cannot arrive in the gap before delivery_id is written onto pollable status.
+        self._live_owner_deliveries[run_id] = {
+            "delivery_id": record.get("delivery_id") if isinstance(record, dict) else None,
+            "admission_id": record.get("admission_id") if isinstance(record, dict) else None,
+            "session_id": (record.get("session_id") if isinstance(record, dict) else None) or launch.session_id,
+            "home": str(home),
+        }
         task = self._active_run_tasks[run_id] = asyncio.create_task(
             _execute_run_via_live_owner(self, launch, *admitted, _api_server=_api_server))
     else:
@@ -1064,13 +1091,12 @@ def _make_approval_notify(self, run: _RunLaunch, *, _api_server) -> Callable[[di
 
 
 async def _execute_run_via_live_owner(self, run: _RunLaunch, home, record: dict[str, Any], *, _api_server) -> None:
-    """Drive a run whose turn a live Bot Chat owner is executing, from that owner's mailbox receipt.
+    """Drive a run whose turn a live Bot Chat owner is executing, from that owner's receipt.
 
-    The receipt is the only truth about the turn: ``settled`` completes the run with the owner's
-    reply, a failed receipt fails it with the owner's classified reason. ``/stop`` cannot reach the
-    owner's turn — the mailbox has no recall once a record is claimed — so a stop ends this run
-    as ``cancelled`` while the chat finishes on its own; the stop handler already reports that a
-    run without an in-process agent is not interruptible here.
+    The receipt is the only terminal truth. A claimed owner cannot be recalled: ``/stop`` is 409
+    and does not register a stop, so this waiter must not treat an observation-only stop as
+    ``cancelled`` or wake continuation. A delivery stop actually cancelled arrives here as a
+    ``cancelled`` receipt and is attributed as that receipt, not as a local task cancel.
     """
     from gateway.platforms.api_server_bot_chat import await_live_delivery
 
@@ -1088,22 +1114,36 @@ async def _execute_run_via_live_owner(self, run: _RunLaunch, home, record: dict[
 
     try:
         self._set_run_status(run_id, "running", delivery_id=delivery_id)
-        record = await await_live_delivery(
-            self, home, record, None, should_stop=lambda: run_id in self._stopping_run_ids)
-        if record["status"] in ("queued", "claimed"):
-            _finish("cancelled", completed=False, partial=False, interrupted=True)
+        # No should_stop. A stop flag is not an owner terminal, and this wait has no budget.
+        record = await await_live_delivery(self, home, record, None)
+        receipt_status = record.get("status") if isinstance(record, dict) else None
+        if receipt_status in ("queued", "claimed", None):
+            # Unreadable or still pending. Not an owner end: do not forge cancelled.
+            self._set_run_status(
+                run_id, "unknown", error="owner_receipt_pending", last_event="run.unknown")
             return
-        if record["status"] == "settled":
+        if receipt_status in ("ambiguous", "unknown"):
+            self._set_run_status(
+                run_id, "unknown", error="unknown_execution", last_event="run.unknown")
+            return
+        if receipt_status == "settled":
             _finish("completed", completed=True, partial=False, interrupted=False,
                     output=record.get("reply") or "", usage={})
-        elif record["status"] == "cancelled":
+        elif receipt_status == "cancelled":
             _finish("cancelled", completed=False, partial=False, interrupted=True)
         else:
             _finish("failed", completed=False, partial=False, interrupted=False,
-                    error=record.get("error") or f"Bot Chat delivery {record['status']}",
+                    error=record.get("error") or f"Bot Chat delivery {receipt_status}",
                     **({"reason": record["reason"]} if record.get("reason") else {}))
     except asyncio.CancelledError:
-        _finish("cancelled", completed=False, partial=False, interrupted=True)
+        if run_id in self._shutdown_interrupted_run_ids:
+            _finish("cancelled", completed=False, partial=False, interrupted=True)
+        else:
+            # Cancelling this observer does not recall the owner. Do not forge cancelled.
+            current = str((self._run_statuses.get(run_id) or {}).get("status") or "")
+            if current not in TERMINAL_STATUSES and current != "unknown":
+                self._set_run_status(
+                    run_id, "unknown", error="observer_cancelled", last_event="run.unknown")
         raise
     except Exception as exc:
         logger.exception("[api_server] run %s (live Bot Chat) failed", run_id)
@@ -1256,7 +1296,7 @@ def _release_run_owner_if_forgotten(self, run_id: str) -> None:
     """Drop the owner stamp only once nothing keyed by *run_id* survives: ownership must
     outlive every surface it protects (retired on different clocks); ownerless = fail-closed."""
     live = (self._run_statuses, self._active_run_agents, self._active_run_tasks, self._run_streams,
-            self._run_approval_sessions)
+            self._run_approval_sessions, self._pending_run_cancels, self._live_owner_deliveries)
     if not any(run_id in table for table in live):
         self._run_owners.pop(run_id, None)
 
@@ -1546,29 +1586,193 @@ async def _handle_steer_run(self, request: web.Request, *, _api_server) -> web.R
     return web.json_response({"object": "hermes.run.steer", "run_id": run_id, "accepted": True})
 
 
+
+def _same_profile_pending_cancel(self, run_id: str) -> Optional[dict[str, Any]]:
+    """Pre-admission stop identity stamped for the owner ``_load_owned_run`` already verified."""
+    gate = getattr(self, "_pending_run_cancels", {}).get(run_id)
+    owner = self._run_owners.get(run_id)
+    if not gate or owner is None or gate.get("owner") != owner or gate.get("session_id") is None:
+        return None
+    return gate
+
+
+def _latch_pending_run_stop(self, run_id: str) -> web.Response:
+    """Remember a stop that arrived before an admission or agent existed.
+
+    Does not mark the run terminal and does not add a shutdown work count.
+    """
+    gate = _same_profile_pending_cancel(self, run_id)
+    gate["stop_requested"] = True
+    self._stopping_run_ids.add(run_id)
+    current = self._run_statuses.get(run_id, {})
+    if current.get("status") not in TERMINAL_STATUSES:
+        self._set_run_status(run_id, "stopping", last_event="run.stopping")
+    latest = self._run_statuses.get(run_id, {})
+    if latest.get("status") in TERMINAL_STATUSES:
+        return web.json_response(latest)
+    return web.json_response({"run_id": run_id, "status": "stopping"})
+
+
+async def _stop_live_owner_observation(self, run_id: str, status: dict[str, Any], _openai_error):
+    """409 when a live Bot Chat owner cannot be recalled. None if this run is not one.
+
+    A proved cancel of the still-queued delivery is the only accepted stop. That path does
+    not add ``_stopping_run_ids`` and does not publish ``cancelled``; the receipt waiter does.
+    """
+    info = getattr(self, "_live_owner_deliveries", {}).get(run_id)
+    if not info:
+        return None
+    if status.get("status") in TERMINAL_STATUSES:
+        return web.json_response(status)
+    kind = await _retract_unclaimed_live_owner(self, run_id, info)
+    current = self._run_statuses.get(run_id) or status
+    if current.get("status") in TERMINAL_STATUSES:
+        return web.json_response(current)
+    if kind in ("retracted", "owner_terminal"):
+        # Non-terminal bridge until the waiter publishes the real receipt. Not a stop latch.
+        if self._run_statuses.get(run_id, {}).get("status") not in TERMINAL_STATUSES:
+            self._set_run_status(run_id, "stopping", last_event="run.stopping")
+        latest = self._run_statuses.get(run_id) or {}
+        if latest.get("status") in TERMINAL_STATUSES:
+            return web.json_response(latest)
+        return web.json_response({"run_id": run_id, "status": "stopping"})
+    if self._run_statuses.get(run_id, {}).get("status") == "stopping":
+        return web.json_response({"run_id": run_id, "status": "stopping"})
+    return _json_error(
+        _openai_error,
+        f"Live Bot Chat owner holds this turn and it cannot be recalled: {run_id}",
+        code="run_not_interruptible",
+        status=409,
+    )
+
+
+async def _retract_unclaimed_live_owner(self, run_id: str, info: dict[str, Any]) -> str:
+    """``retracted`` only when this delivery's own queued receipt became ``cancelled``.
+
+    ``owner_terminal`` means the owner receipt is already settled/failed/cancelled.
+    Anything claimed, unknown, or aimed at another session is ``held``.
+    """
+    delivery_id = info.get("delivery_id")
+    if not isinstance(delivery_id, str) or not delivery_id:
+        return "held"
+    if info.get("admission_id"):
+        return await _retract_queued_bot_admission(self, run_id, info)
+    return await asyncio.to_thread(_retract_queued_mailbox, info)
+
+
+def _retract_queued_mailbox(info: dict[str, Any]) -> str:
+    from tools.bot_live_delivery import cancel_queued_delivery, read_delivery_result
+
+    home = info.get("home")
+    delivery_id = info.get("delivery_id")
+    if not home or not isinstance(delivery_id, str):
+        return "held"
+    current = read_delivery_result(home, delivery_id)
+    if not isinstance(current, dict):
+        return "held"
+    if current.get("admission_id") or current.get("delivery_id") not in (None, delivery_id):
+        return "held"
+    status = current.get("status")
+    if status in ("settled", "failed", "cancelled"):
+        return "owner_terminal"
+    if status != "queued":
+        return "held"
+    updated = cancel_queued_delivery(
+        home, delivery_id, error="Stop requested via API", reason="run_stop")
+    if not isinstance(updated, dict) or updated.get("delivery_id") != delivery_id:
+        return "held"
+    if updated.get("status") == "cancelled":
+        return "retracted"
+    if updated.get("status") in ("settled", "failed"):
+        return "owner_terminal"
+    return "held"
+
+
+async def _retract_queued_bot_admission(self, run_id: str, info: dict[str, Any]) -> str:
+    from gateway.session_authorities import active_authority
+    from gateway.session_contract import Principal, SessionRef
+    from hermes_state_runtime import RuntimeStoreError, get_session_admission
+
+    authority = active_authority(getattr(self, "gateway_runner", None))
+    admission_id = info.get("admission_id")
+    session_id = info.get("session_id")
+    delivery_id = info.get("delivery_id")
+    if authority is None or not admission_id or not session_id or not isinstance(delivery_id, str):
+        return "held"
+    try:
+        row = get_session_admission(authority.db, admission_id=admission_id)
+    except RuntimeStoreError:
+        return "held"
+    if not isinstance(row, dict):
+        return "held"
+    if row.get("status") == "unknown":
+        return "held"
+    if (row.get("admission_id") != admission_id or row.get("target_session_id") != session_id
+            or row.get("request_id") != "bot:" + delivery_id):
+        return "held"
+    if row.get("status") == "terminal":
+        return "owner_terminal"
+    if row.get("status") != "queued":
+        return "held"
+    actor = Principal(
+        "api", authority.profile_id,
+        frozenset({"session:submit", "session:control"}), "api-run:" + run_id)
+    ref = SessionRef(authority.profile_id, session_id)
+    try:
+        await authority.cancel_queued(actor, ref, admission_id)
+    except RuntimeStoreError:
+        return "held"
+    try:
+        after = get_session_admission(authority.db, admission_id=admission_id) or {}
+    except RuntimeStoreError:
+        return "held"
+    if (after.get("admission_id") == admission_id and after.get("target_session_id") == session_id
+            and after.get("status") == "terminal" and after.get("outcome") == "cancelled"):
+        return "retracted"
+    if after.get("status") == "terminal":
+        return "owner_terminal"
+    return "held"
+
+
 async def _handle_stop_run(self, request: web.Request, *, _api_server) -> web.Response:
-    """POST /v1/runs/{run_id}/stop — interrupt a running agent."""
+    """POST /v1/runs/{run_id}/stop — interrupt a running agent.
+
+    A live Bot Chat observation is not an in-process agent. A claimed owner is 409 and is
+    not registered as stopping. A session-stream run published before its admission exists
+    latches a same-profile cancel instead of returning 409 and forgetting the stop.
+    """
     _openai_error = _api_server._openai_error
     run_id, status, agent, task, err = _load_owned_run(
         self, request, _api_server=_api_server, permission="stop", active_fallback=True)
     if err is not None:
         return err
-    # A run whose turn a live Bot Chat owns (``_execute_run_via_live_owner``) is not an API
-    # admission: its stop is the legacy in-process task cancel below, never ``stop_run``.
-    if (getattr(self.gateway_runner, 'session_authority', None) is not None
-            and not (task is not None and status.get("delivery_id"))):
+    live = await _stop_live_owner_observation(self, run_id, status, _openai_error)
+    if live is not None:
+        return live
+    if getattr(self.gateway_runner, "session_authority", None) is not None:
         from gateway.platforms.api_server_authority_runs import stop_run, store_error_response
         from hermes_state_runtime import RuntimeStoreError
         try:
             return web.json_response(await stop_run(self, run_id))
         except RuntimeStoreError as exc:
+            # No durable admission yet. Latch only the identity this profile already owns.
+            if exc.reason == "not_found" and _same_profile_pending_cancel(self, run_id) is not None:
+                if status.get("status") in TERMINAL_STATUSES:
+                    return web.json_response(status)
+                return _latch_pending_run_stop(self, run_id)
+            # unknown_execution stays 409 and does not become a terminal run status.
             return store_error_response(_openai_error, exc)
     if status.get("status") in TERMINAL_STATUSES:
         return web.json_response(status)
+    pending = _same_profile_pending_cancel(self, run_id)
     if agent is None and task is None:
+        if pending is not None:
+            return _latch_pending_run_stop(self, run_id)
         return _json_error(
             _openai_error, f"Run is not active in this gateway process: {run_id}",
             code="run_not_active", status=409)
+    if pending is not None:
+        pending["stop_requested"] = True
     self._set_run_status(run_id, "stopping", last_event="run.stopping")
     self._stopping_run_ids.add(run_id)
     if agent is not None:
@@ -1577,6 +1781,8 @@ async def _handle_stop_run(self, request: web.Request, *, _api_server) -> web.Re
         # Reap only this run's background processes (epoch-gated inside, so a concurrent
         # run on the same session_id keeps its own); no-op if the run already finished.
         _api_server._reap_disconnected_agent_processes(agent, source="api_server_run_stop")
+    # Do not task.cancel. Cancelling an observer does not recall a Bot Chat owner, and
+    # cancelling an in-flight admit orphan-schedules the committed admission.
     return web.json_response({"run_id": run_id, "status": "stopping"})
 
 

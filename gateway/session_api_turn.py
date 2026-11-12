@@ -130,12 +130,15 @@ def admit_api_turn(adapter, **kwargs):
     return run_steps(admit_api_steps(adapter, **kwargs))
 
 
-async def admit_api_turn_async(adapter, steps=None, **kwargs):
+async def admit_api_turn_async(adapter, steps=None, *, orphaned=None, **kwargs):
     """``admit_api_turn`` (or *steps*, a generator ending in ``admit_api_steps``) with every SQLite
-    write off the owner loop, in admission order."""
+    write off the owner loop, in admission order. ``orphaned`` replaces the caller-cancel hook;
+    None keeps ``schedule_orphan``."""
     from gateway.session_authorities import require_active_authority
     authority = require_active_authority(adapter.gateway_runner)
-    return await run_steps_off_loop(authority, steps or admit_api_steps(adapter, **kwargs), orphaned=schedule_orphan)
+    return await run_steps_off_loop(
+        authority, steps or admit_api_steps(adapter, **kwargs),
+        orphaned=schedule_orphan if orphaned is None else orphaned)
 
 
 def schedule_orphan(admitted):
@@ -316,8 +319,164 @@ def recover_authority_api_turns(adapter, authority):
             logging.getLogger(__name__).warning('API session %s paused: %s', sid, exc.reason)
 
 
+def _retain_latched_gate(adapter, run_id, gate):
+    """Restore a closed-over gate the stream finally already popped.
+
+    A different object already in the registry is a newer identity and is left
+    alone. The restored object keeps ``stop_requested`` after the pop.
+    """
+    pending = getattr(adapter, '_pending_run_cancels', None)
+    if not isinstance(pending, dict) or not isinstance(gate, dict) or not run_id:
+        return False
+    current = pending.get(run_id)
+    if current is not None:
+        return False
+    gate['_retained_after_pop'] = True
+    pending[run_id] = gate
+    return True
+
+
+def _schedule_exact_cancel(adapter, run_id, admitted, gate=None):
+    """Cancel the admission a cancelled caller already committed.
+
+    The task holds *gate*, so the stream finally can pop the registry without
+    dropping the latched stop. A schedule failure puts that object back.
+    Background failure is logged; it is not discarded.
+    """
+    import logging
+    log = logging.getLogger(__name__)
+    if isinstance(gate, dict):
+        try:
+            gate['admitted'] = admitted
+        except Exception:
+            log.exception('exact admission cancel could not store identity for %s', run_id)
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        log.error('exact admission cancel was not scheduled; no running loop for run %s', run_id)
+        _retain_latched_gate(adapter, run_id, gate)
+        return
+    from gateway.platforms.api_server_authority_runs import cancel_exact_admission
+
+    async def _cancel():
+        outcome = await cancel_exact_admission(adapter, run_id, admitted)
+        if outcome not in ('cancelled', 'stopping', 'settled'):
+            raise RuntimeStoreError('admission_conflict')
+        return outcome
+
+    cancel_coro = _cancel()
+    try:
+        task = loop.create_task(cancel_coro)
+    except Exception:
+        cancel_coro.close()
+        log.exception('exact admission cancel could not be scheduled for run %s', run_id)
+        _retain_latched_gate(adapter, run_id, gate)
+        return
+    if gate is not None:
+        try:
+            task._clawd_latched_cancel_gate = gate
+        except Exception:
+            log.exception('exact admission cancel could not retain its gate for run %s', run_id)
+    track = getattr(adapter, '_track_background_task', None)
+    if track is None:
+        log.error('exact admission cancel has no task tracker for run %s', run_id)
+    else:
+        try:
+            track(task)
+        except Exception:
+            log.exception('exact admission cancel was not tracked for run %s', run_id)
+
+    def _log_task_error(exc):
+        log.error(
+            'exact admission cancel failed for run %s: %s',
+            run_id, getattr(exc, 'reason', None) or type(exc).__name__,
+            exc_info=(type(exc), exc, exc.__traceback__))
+
+    def _retrieve(done, _gate=gate, _run_id=run_id, _adapter=adapter):
+        # Keep the gate object alive for this task even after the registry pop.
+        if isinstance(_gate, dict):
+            _gate.get('stop_requested')
+        if done.cancelled():
+            log.error('exact admission cancel task was cancelled for run %s', _run_id)
+            _retain_latched_gate(_adapter, _run_id, _gate)
+            return
+        exc = done.exception()
+        if exc is not None:
+            _log_task_error(exc)
+            _retain_latched_gate(_adapter, _run_id, _gate)
+            return
+        if isinstance(_gate, dict) and _gate.get('_retained_after_pop'):
+            pending = getattr(_adapter, '_pending_run_cancels', None)
+            if isinstance(pending, dict) and pending.get(_run_id) is _gate:
+                pending.pop(_run_id, None)
+            release = getattr(_adapter, '_release_run_owner_if_forgotten', None)
+            if release is not None:
+                try:
+                    release(_run_id)
+                except Exception:
+                    log.exception('exact admission cancel could not release owner for %s', _run_id)
+
+    try:
+        task.add_done_callback(_retrieve)
+    except Exception:
+        log.exception('exact admission cancel result will be unobserved for run %s', run_id)
+        if task.done() and not task.cancelled():
+            exc = task.exception()
+            if exc is not None:
+                _log_task_error(exc)
+        _retain_latched_gate(adapter, run_id, gate)
+
+
 async def run_api_turn(adapter, *, approval_notify_callback=None, approval_session_key=None, **kwargs):
-    admitted = await admit_api_turn_async(adapter, **kwargs)
+    run_key = kwargs.get('active_run_id') or approval_session_key
+    gate = getattr(adapter, '_pending_run_cancels', {}).get(run_key) if run_key else None
+    orphaned = None
+    if gate is not None:
+        gate['phase'] = 'admitting'
+
+        def orphaned(admitted, _gate=gate, _adapter=adapter, _key=run_key):
+            if _gate.get('stop_requested'):
+                # Close over the gate object. The stream finally may already have
+                # popped the registry; that pop must not drop this latch.
+                _schedule_exact_cancel(_adapter, _key, admitted, _gate)
+                return
+            schedule_orphan(admitted)
+    try:
+        admitted = await admit_api_turn_async(adapter, orphaned=orphaned, **kwargs)
+    except BaseException:
+        raise
+    else:
+        if gate is not None:
+            gate['phase'] = 'admitted'
+            gate['admitted'] = admitted
+    if gate is not None and gate.get('stop_requested') and run_key:
+        from gateway.platforms.api_server_authority_runs import cancel_exact_admission
+        import logging
+        _cancel_log = logging.getLogger(__name__)
+        try:
+            outcome = await cancel_exact_admission(adapter, run_key, admitted)
+        except RuntimeStoreError as exc:
+            if exc.reason == 'unknown_execution':
+                raise
+            if exc.reason == 'not_found':
+                # The committed row is gone. Do not replay the admit snapshot.
+                _cancel_log.warning('exact admission cancel found no row for %s', run_key)
+                raise RuntimeStoreError('unknown_execution') from exc
+            if exc.reason in ('stale_generation', 'stale_epoch'):
+                # Not this row's current generation or epoch. Observe the same
+                # admission below; do not interrupt another epoch and do not
+                # invent a cancelled result.
+                _cancel_log.warning(
+                    'exact admission cancel was not applied for %s: %s', run_key, exc.reason)
+            else:
+                _cancel_log.warning(
+                    'exact admission cancel was not applied for %s: %s', run_key, exc.reason)
+                raise
+        else:
+            if outcome not in ('cancelled', 'stopping', 'settled'):
+                _cancel_log.error(
+                    'exact admission cancel for %s returned %s', run_key, outcome)
+                raise RuntimeStoreError('admission_conflict')
     if approval_notify_callback is None or not approval_session_key:
         return await observe_api_turn(admitted, **kwargs)
     # A streaming surface advertises its own run id (``chatcmpl-*`` / ``run_*``): bind it to this
@@ -347,7 +506,14 @@ async def observe_api_turn(admitted, **kwargs):
     # The admission-time snapshot is stale once a drain already running ahead claims and settles
     # (or a stop cancels) the row; a waiter registered after that is never resolved. The current
     # row decides, read with no suspension before the waiter is registered.
-    status = (get_session_admission(authority.db, admission_id=row['admission_id']) or row)['status']
+    from gateway.platforms.api_server_authority_runs import read_exact_admission
+    try:
+        current = read_exact_admission(admitted)
+    except RuntimeStoreError as exc:
+        if exc.reason == 'not_found':
+            raise RuntimeStoreError('unknown_execution') from exc
+        raise
+    status = current['status']
     if status == 'unknown':
         raise RuntimeStoreError('unknown_execution')
     if status == 'terminal':
@@ -392,7 +558,8 @@ def _settled_api_result(authority, admission_id):
     if saved is None:
         from hermes_state_runtime import get_session_admission
         current = get_session_admission(authority.db, admission_id=admission_id)
-        if current['outcome'] == 'cancelled':
+        if (isinstance(current, dict) and current.get('admission_id') == admission_id
+                and current.get('status') == 'terminal' and current.get('outcome') == 'cancelled'):
             return {'final_response': '', 'interrupted': True, 'completed': False}, {}
         raise RuntimeStoreError('unknown_execution')
     return saved['result'], saved['usage']
@@ -429,9 +596,12 @@ def observe_api_controls(admitted, sink):
             sink(params['type'], params.get('payload') or {})
     with events.lock:
         events.observers.add(observer)
-        current = get_session_admission(authority.db, admission_id=row['admission_id']) or row
-        if current['status'] == 'started':
-            for prompt in live.controls.snapshot(ref.session_id, current['generation']):
+        current = get_session_admission(authority.db, admission_id=row['admission_id'])
+        generation = current.get('generation') if isinstance(current, dict) else None
+        if (isinstance(current, dict) and current.get('admission_id') == row.get('admission_id')
+                and current.get('target_session_id') == ref.session_id
+                and current.get('status') == 'started' and type(generation) is int):
+            for prompt in live.controls.snapshot(ref.session_id, generation):
                 sink(prompt['kind'] + '.request', prompt)
     try:
         yield

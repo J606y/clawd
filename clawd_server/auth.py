@@ -172,7 +172,7 @@ def _canonical_name(hostname: str) -> str | None:
     if ":" in text or not text or len(text) > 253 or ".." in text:
         return None
     labels = text.split(".")
-    if any(label.isdigit() for label in labels):
+    if labels[-1].isdigit():
         return None
     if any(_DNS_LABEL.fullmatch(label) is None for label in labels):
         return None
@@ -364,7 +364,10 @@ def origin_allowed(method: str, headers: Any, peer: str | None) -> bool:
         return True
 
     if fetch_site == "same-origin":
-        return False
+        # Browsers omit Origin on same-origin GET/HEAD requests.
+        if method_name not in {"GET", "HEAD"}:
+            return False
+        return bool(host is not None and referer is not None and _endpoint_match(host, referer))
     if method_name in UNSAFE:
         if host is None:
             return False
@@ -372,3 +375,95 @@ def origin_allowed(method: str, headers: Any, peer: str | None) -> bool:
             return referer is not None and _endpoint_match(host, referer)
         return _loopback_peer(peer)
     return True
+
+
+def _transport_peer(request: Any) -> str | None:
+    """Socket peer only. Forwarding middleware can rewrite request.remote."""
+    transport = getattr(request, "transport", None)
+    if transport is None:
+        return None
+    getter = getattr(transport, "get_extra_info", None)
+    if not callable(getter):
+        return None
+    try:
+        peer = getter("peername")
+    except Exception:
+        return None
+    if isinstance(peer, str):
+        return peer
+    if not peer:
+        return None
+    try:
+        host = peer[0]
+    except (TypeError, IndexError, KeyError):
+        return None
+    return host if isinstance(host, str) else None
+
+
+def _real_tls(request: Any) -> bool:
+    """This hop's TLS. A forwarded scheme is not enough."""
+    scheme = getattr(request, "scheme", None)
+    if scheme == "https" or getattr(request, "secure", None) is True:
+        return True
+    transport = getattr(request, "transport", None)
+    if transport is None:
+        return False
+    getter = getattr(transport, "get_extra_info", None)
+    if not callable(getter):
+        return False
+    try:
+        return getter("sslcontext") is not None or getter("ssl_object") is not None
+    except Exception:
+        return False
+
+
+def _strict_https_proto(values: list[str] | None) -> bool:
+    """One X-Forwarded-Proto value, exactly https. Commas and repeats fail."""
+    return values is not None and len(values) == 1 and values[0] == "https"
+
+
+def _forwarded_allows_https(values: list[str] | None) -> bool:
+    """Absent Forwarded is allowed. Comma, repeat, or non-https proto conflicts."""
+    if values is None:
+        return False
+    if not values:
+        return True
+    if len(values) != 1:
+        return False
+    raw = values[0]
+    if not isinstance(raw, str) or not raw or len(raw) > 512 or "," in raw:
+        return False
+    if any(ord(char) < 32 or ord(char) == 127 for char in raw):
+        return False
+    if '"' in raw or "'" in raw:
+        return False
+    protos: list[str] = []
+    for param in raw.split(";"):
+        piece = param.strip()
+        if not piece:
+            return False
+        key, sep, token = piece.partition("=")
+        if not sep:
+            return False
+        if key.strip().lower() != "proto":
+            continue
+        protos.append(token.strip())
+    return not protos or protos == ["https"]
+
+
+def request_is_https(request: Any) -> bool:
+    """Whether hp_auth Set-Cookie should include Secure.
+
+    Real TLS on this hop is true. Otherwise the socket peer — not
+    request.remote — must pass _loopback_peer, X-Forwarded-Proto must be one
+    exact https, and Forwarded must be absent or not conflict. Loopback alone
+    is false. A non-loopback peer cannot make a forwarded header true.
+    """
+    if _real_tls(request):
+        return True
+    if not _loopback_peer(_transport_peer(request)):
+        return False
+    headers = getattr(request, "headers", None)
+    if not _strict_https_proto(_header_values(headers, "X-Forwarded-Proto")):
+        return False
+    return _forwarded_allows_https(_header_values(headers, "Forwarded"))

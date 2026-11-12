@@ -2,9 +2,11 @@ import { API_BASE, ApiError, AUTH_EXPIRED_EVENT, request, type SessionSummary } 
 import {
   migrationIsApplied,
   migrationPlanAccepted,
+  parseAutoMigration,
   projectMemoryScope,
   projectPathError,
   projectSessionToSummary,
+  type AutoMigrationResult,
   type CreateProjectBody,
   type MigrationMappingInput,
   type ProjectMemoryScope,
@@ -44,6 +46,9 @@ export interface ProjectMemoryView {
   usage?: string;
   char_count?: number;
   char_limit?: number;
+  instructions?: string;
+  instructionsError?: string;
+  archives?: { name: string }[];
 }
 
 export interface ProjectMemoryWriteResult {
@@ -127,6 +132,16 @@ async function projectMemoryCall<T>(
   }
 }
 
+function archiveNames(value: unknown): { name: string }[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const name = (item as { name?: unknown }).name;
+    if (typeof name !== "string" || !name.trim() || name.includes("/") || name.includes("\\")) return [];
+    return [{ name }];
+  });
+}
+
 function requireProjectMemory(payload: unknown, projectId: string): ProjectMemoryView {
   if (!payload || typeof payload !== "object") {
     throw new ProjectMemoryAccessError(0, "invalid_json", "项目记忆返回格式异常，未当作空记忆");
@@ -139,12 +154,24 @@ function requireProjectMemory(payload: unknown, projectId: string): ProjectMemor
   if (!memory || typeof memory !== "object" || !Array.isArray((memory as { entries?: unknown }).entries)) {
     throw new ProjectMemoryAccessError(0, "invalid_json", "项目记忆缺少 entries，未当作空记忆");
   }
-  const view = memory as Partial<ProjectMemoryView>;
+  const view = memory as Partial<ProjectMemoryView> & { instructions_error?: unknown; archives?: unknown; archives_error?: unknown };
+  if (typeof view.archives_error === "string" && view.archives_error.trim()) {
+    throw new ProjectMemoryAccessError(503, "archives_unreadable", view.archives_error);
+  }
+  if (view.archives === null) {
+    throw new ProjectMemoryAccessError(503, "archives_unreadable", "项目档案无法读取，未当作空档案");
+  }
+  if (view.archives !== undefined && !Array.isArray(view.archives)) {
+    throw new ProjectMemoryAccessError(0, "invalid_json", "项目档案返回格式异常，未当作空档案");
+  }
   return {
     entries: view.entries as string[],
     usage: typeof view.usage === "string" ? view.usage : undefined,
     char_count: typeof view.char_count === "number" ? view.char_count : undefined,
     char_limit: typeof view.char_limit === "number" ? view.char_limit : undefined,
+    instructions: typeof view.instructions === "string" ? view.instructions : "",
+    instructionsError: typeof view.instructions_error === "string" ? view.instructions_error : "",
+    archives: archiveNames(view.archives),
   };
 }
 
@@ -193,12 +220,20 @@ export const projectsApi = {
     return body.projects.map((item) => requireProject(item));
   },
   create: async (body: CreateProjectBody): Promise<ProjectRecord> => {
-    const pathError = projectPathError(body.primary_path);
-    if (pathError) throw new ApiError("server", 0, pathError);
-    if (body.create_directory !== true && body.create_directory !== false) {
-      throw new ApiError("server", 0, "create_directory 必须显式为布尔值");
+    const name = typeof body?.name === "string" ? body.name.trim() : "";
+    if (!name) throw new ApiError("server", 0, "文件夹名称不能为空");
+    const explicitPath = typeof body.primary_path === "string" ? body.primary_path : "";
+    if (explicitPath) {
+      const pathError = projectPathError(explicitPath);
+      if (pathError) throw new ApiError("server", 0, pathError);
+      if (body.create_directory !== true && body.create_directory !== false) {
+        throw new ApiError("server", 0, "create_directory 必须显式为布尔值");
+      }
     }
-    const result = await request<{ project?: unknown }>("api/projects", { method: "POST", body: JSON.stringify(body) });
+    const payload = explicitPath
+      ? { name, primary_path: explicitPath, create_directory: body.create_directory === true }
+      : { name };
+    const result = await request<{ project?: unknown }>("api/projects", { method: "POST", body: JSON.stringify(payload) });
     return requireProject(result?.project);
   },
   patch: async (id: string, patch: { name?: string; archived?: boolean }): Promise<ProjectRecord> => {
@@ -251,7 +286,8 @@ export async function loadProjectIndex(): Promise<ProjectIndex> {
         }
         const existing = assignments[summary.id];
         if (existing && existing !== project.id) {
-          conflicts.push(`${summary.id} 同时出现在 ${existing} 与 ${project.id}，保留先出现的归属`);
+          const conflictText = "有对话同时出现在多个文件夹，已保留先出现的归属";
+          if (!conflicts.includes(conflictText)) conflicts.push(conflictText);
           continue;
         }
         assignments[summary.id] = project.id;
@@ -421,4 +457,61 @@ export const folderMigrationApi = {
     }
     return payload;
   },
+  /**
+   * POST /api/projects/migrations/auto
+   * 忙时后端返回 pending，这里原样交回，不把非 2xx 或 pending 改写成成功。
+   */
+  auto: async (): Promise<AutoMigrationResult> => {
+    const ctrl = new AbortController();
+    const timer = window.setTimeout(() => ctrl.abort(), 60000);
+    try {
+      const res = await fetch(new URL("api/projects/migrations/auto", API_BASE), {
+        method: "POST",
+        body: JSON.stringify({}),
+        signal: ctrl.signal,
+        credentials: "same-origin",
+        headers: { Accept: "application/json", "Content-Type": "application/json" },
+      });
+      const text = await res.text();
+      let payload: unknown;
+      try {
+        payload = text ? JSON.parse(text) : undefined;
+      } catch {
+        throw new ApiError("server", res.status, "迁移返回无法解析，未当作成功");
+      }
+      if (res.status === 401) {
+        window.dispatchEvent(new Event(AUTH_EXPIRED_EVENT));
+        throw new ApiError("unauthorized", 401, "未登录，迁移未执行");
+      }
+      const parsed = parseAutoMigration(payload);
+      if (parsed) {
+        if (!res.ok) return { success: false, pending: parsed.pending === true, errors: parsed.errors };
+        return parsed;
+      }
+      if (!res.ok) throw new MigrationClientError(res.status, payload);
+      throw new ApiError("server", res.status, "迁移返回格式异常，未当作成功");
+    } catch (error) {
+      if (error instanceof MigrationClientError || error instanceof ApiError) throw error;
+      throw new ApiError("network", 0, "迁移请求失败，未当作成功");
+    } finally {
+      window.clearTimeout(timer);
+    }
+  },
 };
+
+let autoMigrationFlight: Promise<AutoMigrationResult> | null = null;
+let autoMigrationLast: AutoMigrationResult | null = null;
+
+/** 同一页面生命周期只自动打一次。进行中的请求合并。失败或 pending 不缓存成成功，重试必须 force。 */
+export function migrateLegacyFoldersOnce(force = false): Promise<AutoMigrationResult> {
+  if (autoMigrationFlight) return autoMigrationFlight;
+  if (!force && autoMigrationLast) return Promise.resolve(autoMigrationLast);
+  const run = folderMigrationApi.auto().then((result) => {
+    autoMigrationLast = result;
+    return result;
+  });
+  autoMigrationFlight = run.finally(() => {
+    autoMigrationFlight = null;
+  });
+  return autoMigrationFlight;
+}
