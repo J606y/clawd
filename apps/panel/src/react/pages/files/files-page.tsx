@@ -118,7 +118,7 @@ export function FilesPage() {
     const stillThere = () => rootRef.current === startedRoot && pathRef.current === startedPath;
     for (const file of files) {
       if (file.size > MAX_UPLOAD_BYTES) {
-        if (mounted.current && stillThere()) setNotice(`${file.name} 超过 50MB，未上传`);
+        if (mounted.current && stillThere()) setNotice(`${file.name} 超过 500MB，未上传`);
         continue;
       }
       const entry: UploadRow = { id: ++uploadSeq.current, name: file.name, progress: 0 };

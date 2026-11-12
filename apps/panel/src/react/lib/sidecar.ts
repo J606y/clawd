@@ -1,6 +1,6 @@
 // 面板辅助服务（HK 127.0.0.1:8651，经 nginx panel-sidecar/）：主机状态、技能、配置、服务重启。
 
-import { ApiError, request, type SessionSummary } from "./api.js";
+import { API_BASE, ApiError, request, type SessionSummary } from "./api.js";
 import type { EditBoundary } from "./message-edit.js";
 
 const BASE = new URL("panel-sidecar/", document.baseURI);
@@ -314,10 +314,10 @@ export interface LiveState {
   title?: string;
 }
 
-export const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
+export const MAX_UPLOAD_BYTES = 500 * 1024 * 1024;
 
 /**
- * 上传：原始请求体即文件内容（sidecar 不解析 multipart）。用 XHR 以便拿到进度。
+ * 上传：原始请求体即文件内容（核心 /api/uploads，不解析 multipart）。用 XHR 以便拿到进度。
  * `timeoutMs` 为 0 表示不限时（大文件）；照片存档这类不能卡住发送的上传要给上限。
  */
 function relativeUploadDir(dir: string | undefined): string | null {
@@ -335,7 +335,7 @@ export function uploadFile(file: File, root = "uploads", onProgress?: (fraction:
     const q = new URLSearchParams({ root, name: file.name || (file.type.startsWith("image/") ? "图片" : "文件") });
     if (relative) q.set("dir", relative);
     const xhr = new XMLHttpRequest();
-    xhr.open("POST", new URL(`files/upload?${q}`, BASE));
+    xhr.open("POST", new URL(`api/uploads?${q}`, API_BASE));
     xhr.withCredentials = true;
     xhr.setRequestHeader("Content-Type", "application/octet-stream");
     xhr.upload.onprogress = (e) => {

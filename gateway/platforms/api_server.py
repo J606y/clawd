@@ -168,6 +168,7 @@ def listen_address(extra: dict[str, Any]) -> tuple[str, int]:
         raw_port = os.getenv("API_SERVER_PORT", str(DEFAULT_PORT))
     return host, _coerce_port(raw_port, DEFAULT_PORT)
 MAX_REQUEST_BYTES = 10_000_000  # 10 MB — accommodates long agent conversations with tool calls
+UPLOAD_BYTE_LIMIT = 500 * 1024 * 1024  # 500 MB — chat/file uploads via POST /api/uploads
 # Send a comment before remote API clients' common 20-second idle deadline.
 # This constant is shared by OpenAI chat/Responses and native session SSE.
 CHAT_COMPLETIONS_SSE_KEEPALIVE_SECONDS = 10.0
@@ -674,6 +675,14 @@ if AIOHTTP_AVAILABLE:
             from clawd_projects.resources import FILE_BYTE_LIMIT
             limit = FILE_BYTE_LIMIT + 16 * 1024
             request = request.clone(client_max_size=limit)
+        elif request.method == "POST" and canonical in {
+            "/api/uploads",
+            "/p/{profile}/api/uploads",
+        }:
+            # Raw octet-stream body (panel file upload, ex-sidecar): no
+            # multipart overhead, so the limit is the file cap itself.
+            limit = UPLOAD_BYTE_LIMIT
+            request = request.clone(client_max_size=limit)
         if request.method in {"POST", "PUT", "PATCH"}:
             cl = request.headers.get("Content-Length")
             if cl is not None:
@@ -1132,6 +1141,145 @@ def _run_route_delegate(name: str):
         return await getattr(_api_runs, name)(self, request, _api_server=sys.modules[__name__])
     _handler.__name__ = name
     return _handler
+
+
+
+# ---------------------------------------------------------------------------
+# Panel file uploads (POST /api/uploads) — moved in from the sidecar.
+# Same protocol as the sidecar's /files/upload: the raw request body is the
+# file, ?root=&name=&dir= select the destination, the response carries
+# {ok, root, path, absPath, size}. Writes go through a temp file and commit
+# atomically (os.link) without overwriting, mirroring ProjectFileWriter.
+# ---------------------------------------------------------------------------
+
+_UPLOAD_NAME_RE = re.compile(r'[\x00-\x1f/\\:*?"<>|]')
+_UPLOAD_DENY_RE = re.compile(
+    r"(^\.env(\..*)?$|^config\.ya?ml$|\.db(-wal|-shm|-journal)?$|\.key$|\.pem$"
+    r"|^id_[a-z0-9_]+$|^authorized_keys$|^auth\.json$)",
+    re.IGNORECASE,
+)
+_UPLOAD_ROOTS = {"uploads", "workspace"}
+_UPLOAD_READ_ONLY_ROOTS = {"cron", "images"}
+
+
+def _clean_upload_name(raw: str) -> str | None:
+    """Validate + sanitize an upload filename; None when rejected."""
+    if not isinstance(raw, str) or "\x00" in raw or "/" in raw or "\\" in raw:
+        return None
+    if not raw.strip() or raw.strip().startswith("."):
+        return None
+    cleaned = _UPLOAD_NAME_RE.sub("_", raw).strip(" .")[:180]
+    if not cleaned or cleaned.startswith(".") or _UPLOAD_DENY_RE.search(cleaned):
+        return None
+    return cleaned
+
+
+def _clean_upload_subdir(raw: str) -> list[str] | None:
+    """Split a ?dir= value into safe path parts; None when rejected."""
+    if "\\" in raw or "\x00" in raw or raw.startswith(("/", "\\")):
+        return None
+    if any(ord(c) < 32 or ord(c) == 127 for c in raw):
+        return None
+    parts = [part for part in raw.split("/") if part]
+    if any(part in {".", ".."} or part.startswith(".") for part in parts):
+        return None
+    return parts
+
+
+class _UploadWriter:
+    """Streaming writer for one panel upload: temp file + atomic commit."""
+
+    def __init__(self, folder: Path, name: str) -> None:
+        self.folder = folder
+        self.name = name
+        self.size = 0
+        self._fd: int | None = None
+        self._tmp: Path | None = None
+        self._finished = False
+        self._aborted = False
+        self._tmp = folder / f".upload-{uuid.uuid4().hex}.tmp"
+        flags = os.O_CREAT | os.O_EXCL | os.O_WRONLY
+        if hasattr(os, "O_NOFOLLOW"):
+            flags |= os.O_NOFOLLOW
+        if hasattr(os, "O_CLOEXEC"):
+            flags |= os.O_CLOEXEC
+        self._fd = os.open(self._tmp, flags, 0o600)
+
+    def write(self, chunk: bytes) -> None:
+        if self._finished or self._aborted or self._fd is None:
+            raise ValueError("upload writer is closed")
+        if not chunk:
+            return
+        self.size += len(chunk)
+        if self.size > UPLOAD_BYTE_LIMIT:
+            self.abort()
+            raise ValueError("file_too_large")
+        view = memoryview(bytes(chunk))
+        while view:
+            try:
+                wrote = os.write(self._fd, view)
+            except OSError:
+                self.abort()
+                raise
+            if wrote <= 0:
+                self.abort()
+                raise OSError("short write on upload temp file")
+            view = view[wrote:]
+
+    def finish(self) -> Path:
+        if self._finished:
+            raise ValueError("upload writer already finished")
+        if self._aborted or self._fd is None or self._tmp is None:
+            raise ValueError("upload writer aborted")
+        try:
+            os.fsync(self._fd)
+        except OSError:
+            self.abort()
+            raise
+        os.close(self._fd)
+        self._fd = None
+        stem = Path(self.name).stem
+        suffix = Path(self.name).suffix
+        dest: Path | None = None
+        for i in range(1000):
+            cand = self.folder / self.name if i == 0 else self.folder / f"{stem} ({i}){suffix}"
+            try:
+                os.link(self._tmp, cand)
+                dest = cand
+                break
+            except FileExistsError:
+                continue
+        if dest is None:
+            self.abort()
+            raise ValueError("name_exhausted")
+        self._finished = True
+        try:
+            self._tmp.unlink(missing_ok=True)
+        except OSError:
+            pass
+        try:
+            os.chmod(dest, 0o600)
+        except OSError:
+            pass
+        if dest.is_symlink() or not dest.is_file():
+            raise ValueError("invalid_destination")
+        return dest
+
+    def abort(self) -> None:
+        if self._finished:
+            return
+        self._aborted = True
+        if self._fd is not None:
+            try:
+                os.close(self._fd)
+            except OSError:
+                pass
+            self._fd = None
+        if self._tmp is not None:
+            try:
+                self._tmp.unlink(missing_ok=True)
+            except OSError:
+                pass
 
 
 class APIServerAdapter(OpenAICompatRoutesMixin, BasePlatformAdapter):
@@ -1689,7 +1837,10 @@ class APIServerAdapter(OpenAICompatRoutesMixin, BasePlatformAdapter):
             ("DELETE", "/api/jobs/{job_id}", self._handle_delete_job),
             ("POST", "/api/jobs/{job_id}/pause", self._handle_pause_job),
             ("POST", "/api/jobs/{job_id}/resume", self._handle_resume_job),
-            ("POST", "/api/jobs/{job_id}/run", self._handle_run_job)]
+            ("POST", "/api/jobs/{job_id}/run", self._handle_run_job),
+            # Panel file upload, moved in from the sidecar: raw body, same
+            # query protocol (?root=&name=&dir=) and response shape.
+            ("POST", "/api/uploads", self._handle_upload)]
         routes.extend(_room_grants._http_routes(self))
         routes.extend(_api_runs._http_routes(self))
         from gateway.platforms.clawd_runtime_routes import http_routes as _clawd_runtime_http_routes
@@ -4069,6 +4220,86 @@ class APIServerAdapter(OpenAICompatRoutesMixin, BasePlatformAdapter):
                 extra_prompt = extra_prompt or None
         return self._job_response(
             lambda jid: _cron_trigger(jid, extra_prompt=extra_prompt), job_id, notify=False)
+
+    @_require_auth
+    async def _handle_upload(self, request: web.Request) -> web.Response:
+        """POST /api/uploads — panel file upload, moved in from the sidecar.
+
+        Raw request body is the file (same protocol as the sidecar's
+        /files/upload: ?root=&name=&dir=, response {ok, root, path, absPath,
+        size}). Streams to a temp file under the uploads root and commits
+        atomically; never buffers the body. Chunked bodies (no
+        Content-Length, e.g. via the panel proxy's streaming upload) are
+        capped by counting bytes, not by a header.
+        """
+        root_id = request.query.get("root", "uploads")
+        if root_id not in _UPLOAD_ROOTS:
+            if root_id in _UPLOAD_READ_ONLY_ROOTS:
+                return _error_response("该目录是只读目录", 403, code="read_only")
+            return _error_response("未知的目录", 404, code="unknown_root")
+        content_length = request.content_length
+        if content_length is not None and content_length > UPLOAD_BYTE_LIMIT:
+            return _error_response("单个文件不能超过 500MB", 413, code="too_large")
+        name = _clean_upload_name(request.query.get("name", ""))
+        if name is None:
+            return _error_response("文件名不合法", 400, code="invalid_name")
+        sub_raw = request.query.get("dir") or (
+            time.strftime("%Y-%m-%d") if root_id == "uploads" else ""
+        )
+        sub_parts = _clean_upload_subdir(sub_raw)
+        if sub_parts is None:
+            return _error_response("路径不合法", 400, code="invalid_path")
+        from hermes_constants import get_hermes_home
+
+        home = get_hermes_home()
+        base = home / root_id
+        folder = base.joinpath(*sub_parts) if sub_parts else base
+        try:
+            folder.mkdir(mode=0o700, parents=True, exist_ok=True)
+        except OSError:
+            logger.exception("upload folder create failed")
+            return _error_response("上传目录不可用", 500, code="upload_failed")
+        writer: _UploadWriter | None = None
+        try:
+            writer = _UploadWriter(folder, name)
+            async for chunk in request.content.iter_chunked(65536):
+                if not chunk:
+                    continue
+                try:
+                    await asyncio.to_thread(writer.write, chunk)
+                except ValueError as exc:
+                    if str(exc) == "file_too_large":
+                        return _error_response(
+                            "单个文件不能超过 500MB", 413, code="too_large"
+                        )
+                    raise
+            if content_length is not None and writer.size != content_length:
+                writer.abort()
+                return _error_response("上传中断", 400, code="incomplete")
+            dest = await asyncio.to_thread(writer.finish)
+        except asyncio.CancelledError:
+            raise
+        except ValueError as exc:
+            if str(exc) == "name_exhausted":
+                return _error_response("同名文件过多", 409, code="name_exhausted")
+            return _error_response("文件名不合法", 400, code="invalid_name")
+        except Exception:
+            logger.exception("panel upload failed")
+            return _error_response("上传失败", 500, code="upload_failed")
+        finally:
+            if writer is not None:
+                try:
+                    writer.abort()
+                except Exception:
+                    logger.exception("panel upload abort failed")
+        try:
+            rel = str(dest.relative_to(base))
+        except ValueError:
+            rel = dest.name
+        logger.info("uploaded %s (%d bytes) via panel api", dest, writer.size)
+        return web.json_response(
+            {"ok": True, "root": root_id, "path": rel, "absPath": str(dest), "size": writer.size}
+        )
 
     async def _handle_cron_fire(self, request: web.Request) -> web.Response:
         """POST /api/cron/fire — Chronos fire webhook (NAS -> agent), authenticated by a

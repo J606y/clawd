@@ -153,7 +153,9 @@ class PanelServer:
         self._start_sidecar()
         timeout = ClientTimeout(total=None, sock_connect=5, sock_read=None)
         self.client = ClientSession(timeout=timeout)
-        app = web.Application(client_max_size=52 * 1024 * 1024)
+        # 502 MB admits 500 MB uploads with headroom; the gateway enforces
+        # the 500 MB cap per route, this is only the outer proxy's ceiling.
+        app = web.Application(client_max_size=502 * 1024 * 1024)
         app.router.add_get("/clawd/ready", self._ready)
         app.router.add_post("/panel-auth/renew", self._renew)
         app.router.add_route("*", "/panel-auth/logout", self._logout)
@@ -324,13 +326,25 @@ class PanelServer:
         # The outer panel has authenticated the browser and checked its origin.
         # Internal loopback services receive only their own injected credentials.
         headers.update(inject)
-        body = await request.read()
         assert self.client is not None
+        # 500 MB uploads must not be buffered whole in this process: stream
+        # the request body for the upload route only; everything else keeps
+        # the existing buffered path.
+        stream_upload = tail == "api/uploads"
         try:
-            upstream = await self.client.request(
-                request.method, url, headers=headers, data=body if body else None, allow_redirects=False,
-            )
-        except (OSError, asyncio.TimeoutError) as exc:
+            if stream_upload:
+                data = request.content.iter_chunked(65536)
+                upstream = await self.client.request(
+                    request.method, url, headers=headers, data=data, allow_redirects=False,
+                )
+            else:
+                body = await request.read()
+                upstream = await self.client.request(
+                    request.method, url, headers=headers, data=body if body else None, allow_redirects=False,
+                )
+        except web.HTTPRequestEntityTooLarge:
+            return _json_error(413, "too_large", "单个文件不能超过 500MB")
+        except (OSError, TimeoutError) as exc:
             log.warning("upstream unavailable: %s", type(exc).__name__)
             return _json_error(503, "upstream_unavailable", "上游服务暂不可用")
         response = web.StreamResponse(status=upstream.status)

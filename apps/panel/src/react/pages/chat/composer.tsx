@@ -163,7 +163,7 @@ export function Composer({
       onPreparingRef.current(true);
       try {
         if (uploadImage || !isInline(file)) {
-          if (file.size > MAX_UPLOAD_BYTES) throw new AttachmentError(`${file.name} 超过 50MB`);
+          if (file.size > MAX_UPLOAD_BYTES) throw new AttachmentError(`${file.name} 超过 500MB`);
           const uploaded = await uploadFile(file, "uploads");
           if (!owned()) return;
           const now = liveDraft.current;
@@ -179,7 +179,7 @@ export function Composer({
         }
         if (prepared.kind === "image") {
           try {
-            if (file.size > MAX_UPLOAD_BYTES) throw new AttachmentError("原图超过 50MB");
+            if (file.size > MAX_UPLOAD_BYTES) throw new AttachmentError("原图超过 500MB");
             const archived = await uploadFile(file, "uploads", undefined, ARCHIVE_MS);
             if (!owned()) return;
             prepared.absPath = archived.absPath;
