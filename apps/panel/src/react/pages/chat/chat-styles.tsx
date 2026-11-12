@@ -1467,7 +1467,8 @@ const CSS = `
   .hp-word-in, .hp-word-blur, .hp-block-in { animation: none; }
 }
 @media (max-width: 768px) {
-  .hp-chat .col { padding: 16px 14px 8px; }
+  .hp-chat .col { padding: 8px 14px 8px; }
+  .hp-chat .empty { padding-bottom: 16vh; }
   .hp-chat .composer { padding: 6px 10px calc(max(4px, calc(var(--safe-bottom) - 26px)) + var(--keyboard-inset, 0px)); }
   .hp-chat .bubble { max-width: 92%; }
   .hp-chat .user-atts { max-width: 92%; }
