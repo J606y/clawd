@@ -1576,20 +1576,34 @@ const PROJECT_HOME_DELETE_CSS = `
   align-items: center;
   justify-content: center;
   flex: none;
-  min-width: 44px;
-  min-height: 44px;
+  width: 30px;
+  height: 30px;
   margin: 0;
-  padding: 0 10px;
+  padding: 0;
   border: 0;
-  border-radius: 10px;
+  border-radius: 50%;
   background: transparent;
-  color: var(--danger, #e85d66);
-  font: inherit;
-  font-size: 14px;
-  line-height: 1;
+  color: var(--text-secondary);
   cursor: pointer;
+  transition: background 0.15s var(--ease), color 0.15s var(--ease), opacity 0.15s var(--ease);
+}
+.project-home .session-delete:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--danger, #e85d66);
+}
+.project-home .session-delete[aria-expanded="true"] {
   opacity: 1;
-  visibility: visible;
+  background: var(--bg-hover);
+  color: var(--danger, #e85d66);
+}
+@media (hover: hover) and (pointer: fine) {
+  .project-home .session-delete {
+    opacity: 0;
+  }
+  .project-home .session-line:hover .session-delete,
+  .project-home .session-line:focus-within .session-delete {
+    opacity: 1;
+  }
 }
 .project-home .session-delete:disabled {
   opacity: 0.45;
@@ -1614,11 +1628,12 @@ const PROJECT_HOME_DELETE_CSS = `
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 10px;
+  justify-content: flex-end;
 }
 .project-home .session-delete-actions button {
-  min-height: 40px;
-  padding: 0 12px;
-  border-radius: 10px;
+  min-height: 36px;
+  padding: 0 14px;
+  border-radius: 999px;
   border: 1px solid var(--border);
   background: transparent;
   color: var(--text);
@@ -1627,7 +1642,9 @@ const PROJECT_HOME_DELETE_CSS = `
   cursor: pointer;
 }
 .project-home .session-delete-actions button:first-child {
-  color: var(--danger, #e85d66);
+  border-color: transparent;
+  background: var(--danger, #e85d66);
+  color: #fff;
 }
 .project-home .session-delete-actions button:disabled {
   opacity: 0.45;

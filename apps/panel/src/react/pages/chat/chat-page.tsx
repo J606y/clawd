@@ -638,7 +638,7 @@ function ProjectHome(props: {
                           disabled={pending || pendingId !== ""}
                           onClick={() => askDelete(session)}
                         >
-                          删除
+                          <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 4h11M6.5 4V2.8A.8.8 0 0 1 7.3 2h1.4a.8.8 0 0 1 .8.8V4M4 4l.7 9.2A1 1 0 0 0 5.7 14h4.6a1 1 0 0 0 1-0.8L12 4M6.5 7v4M9.5 7v4" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" /></svg>
                         </button>
                       </div>
                       {openConfirm ? (
