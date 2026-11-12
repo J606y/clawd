@@ -22,8 +22,10 @@ import {
   createNamedProjectBody,
   legacyMappingNeeds,
   projectActionError,
+  readCollapsedMap,
   rememberLegacyMappingNeeds,
   restorePatchBody,
+  writeCollapsed,
 } from "@/lib/project-model.js";
 import { getOpenProjectId, getPendingNewChatProjectId, setOpenProjectId, setPendingNewChatProjectId, subscribeOpenProject } from "@/lib/project-send.js";
 import { relativeTime, subscribeTick } from "@/lib/time.js";
@@ -109,6 +111,23 @@ export const SessionList = forwardRef<SessionListHandle, {
   const [folderDelete, setFolderDelete] = useState("");
   const [pendingProject, setPendingProject] = useState<string | null>(() => getPendingNewChatProjectId());
   const [archivedOpen, setArchivedOpen] = useState(false);
+  const [collapsedMap, setCollapsedMap] = useState<Record<string, boolean>>(() => {
+    try {
+      return typeof localStorage === "undefined" ? {} : readCollapsedMap(localStorage);
+    } catch {
+      return {};
+    }
+  });
+
+  const toggleProjectCollapsed = (projectId: string) => {
+    const next = !collapsedMap[projectId];
+    setCollapsedMap((current) => ({ ...current, [projectId]: next }));
+    try {
+      if (typeof localStorage !== "undefined") writeCollapsed(localStorage, projectId, next);
+    } catch {
+      // 折叠状态只存本地，写不进去也不影响使用。
+    }
+  };
   const [now, setNow] = useState(() => Date.now());
   const searchRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
@@ -732,8 +751,19 @@ export const SessionList = forwardRef<SessionListHandle, {
   const renderProject = (project: (typeof projects)[number], archived: boolean) => {
     const items = folderSessionItems(sessions, assignedSessions, project.id, assignments, query, deleted.current);
     const sessionsFailed = Boolean(index?.sessionErrors[project.id]);
+    const collapsed = Boolean(collapsedMap[project.id]);
     return (
       <div className="folder" data-folder-id={project.id} key={project.id}>
+        <button
+          type="button"
+          className="folder-collapse"
+          aria-expanded={!collapsed}
+          aria-label={collapsed ? `展开文件夹：${project.name}` : `折叠文件夹：${project.name}`}
+          disabled={projectBusyNow}
+          onClick={() => toggleProjectCollapsed(project.id)}
+        >
+          {collapsed ? "\u25b8" : "\u25be"}
+        </button>
         <button
           className="folder-toggle"
           aria-current={openProjectId === project.id ? "page" : undefined}
@@ -764,7 +794,7 @@ export const SessionList = forwardRef<SessionListHandle, {
             <button disabled={projectBusyNow} onClick={() => setFolderDelete("")}>取消归档</button>
           </div>
         ) : null}
-        {searching ? (
+        {searching && !collapsed ? (
           sessionsFailed ? (
             <div className="folder-confirm" role="alert">
               此文件夹的对话归属加载失败，未当作空列表。

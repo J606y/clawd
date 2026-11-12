@@ -590,8 +590,13 @@
 
 .session-list .folder {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
   align-items: start;
+}
+
+.session-list .folder-collapse {
+  min-width: 20px;
+  padding: 4px 2px;
 }
 
 .session-list .folder-toggle {
