@@ -85,7 +85,13 @@ export const SessionList = forwardRef<SessionListHandle, {
   const patchProject = usePatchProject();
   const bindSession = useBindSessionProject();
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
+  let navigate: (to: string) => void;
+  try {
+    navigate = useNavigate();
+  } catch {
+    // Fixtures mount SessionList without a Router; navigating is a no-op there.
+    navigate = () => {};
+  }
   const openProjectId = useSyncExternalStore(subscribeOpenProject, getOpenProjectId, () => null);
   const [tracker] = useState(() => new LiveRetentionTracker());
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
