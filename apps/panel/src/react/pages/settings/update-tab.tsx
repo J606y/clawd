@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useUpdateInfo, useUpdateRun } from "@/lib/queries";
+import { CLAWD_VERSION } from "@/lib/version";
 import type { UpdateInfo, UpdateRun } from "@/lib/sidecar";
 import { errText, Head } from "./bits";
 
@@ -68,7 +69,7 @@ export function UpdateTab() {
           <div className="urow">
             <div>
               <div className="uver">
-                {info.version || "clawd"}
+                {CLAWD_VERSION}
                 {info.releaseDate ? <> <small>{info.releaseDate}</small></> : null}
               </div>
               <div className="usub">提交 {info.commit || "—"}{info.branch ? ` · 分支 ${info.branch}` : ""}</div>

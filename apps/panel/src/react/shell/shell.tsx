@@ -6,6 +6,7 @@ import { api, type SessionSummary } from "@/lib/api.js";
 import { clearCredential } from "@/lib/auth.js";
 import { saveLiveView, type LiveView } from "@/lib/live-view.js";
 import { useHealth, useProjects } from "@/lib/queries";
+import { CLAWD_VERSION } from "@/lib/version";
 import { getOpenProjectId, subscribeOpenProject } from "@/lib/project-send";
 import { NAV_MS, reducedMotion } from "@/lib/route-motion.js";
 import { useResumeRuns } from "@/lib/stream";
@@ -412,7 +413,7 @@ export function Shell() {
   }, [location.pathname]);
 
   const offline = linkDown || health.isError;
-  const version = health.data?.version ?? "";
+  const version = CLAWD_VERSION;
   const openProjectId = useSyncExternalStore(subscribeOpenProject, getOpenProjectId, () => null);
   const projects = useProjects();
   const openProject = openProjectId

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ApiError, type HealthDetailed } from "@/lib/api";
 import { useHealthDetailed, useHostStatus, useRestartService } from "@/lib/queries";
+import { CLAWD_VERSION } from "@/lib/version";
 import type { ServiceState } from "@/lib/sidecar";
 import { usePageVisible } from "./visible";
 import "./status.css";
@@ -201,7 +202,7 @@ export function StatusPage() {
         ) : null}
         {platforms.length ? (
           <section>
-            <h2>clawd {health?.version ?? ""} · 消息平台</h2>
+            <h2>clawd {CLAWD_VERSION} · 消息平台</h2>
             <div className="card list">
               {platforms.map(([name, platform]) => (
                 <div className="plat" key={name}>
