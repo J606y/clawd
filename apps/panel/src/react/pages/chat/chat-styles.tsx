@@ -1644,6 +1644,156 @@ const PROJECT_HOME_DELETE_CSS = `
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
+.project-home-wrap {
+  width: 100%;
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 24px 32px 48px;
+}
+.project-home-crumbs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+.project-home-crumbs button {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.project-home-crumbs button:hover {
+  color: var(--text);
+  text-decoration: underline;
+}
+.project-home-crumbs [aria-current="page"] {
+  color: var(--text);
+}
+.project-home-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+.project-home-head h1 {
+  margin: 0;
+  font-size: 28px;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+.project-home-rename {
+  display: flex;
+  flex: 1;
+  gap: 8px;
+}
+.project-home-rename input {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-s);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 20px;
+}
+.project-home-menu {
+  position: relative;
+  flex: none;
+}
+.project-home-menu-button {
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 50%;
+  background: none;
+  color: var(--text);
+  font-size: 20px;
+  line-height: 1;
+  cursor: pointer;
+}
+.project-home-menu-button:hover {
+  background: var(--bg-hover);
+}
+.project-home-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  border: 0;
+  background: transparent;
+  cursor: default;
+}
+.project-home-menu-list {
+  position: absolute;
+  top: 40px;
+  right: 0;
+  z-index: 41;
+  display: flex;
+  flex-direction: column;
+  min-width: 160px;
+  padding: 4px;
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-l);
+  background: var(--glass-solid);
+  box-shadow: var(--shadow);
+}
+.project-home-menu-list button {
+  padding: 8px 12px;
+  border: 0;
+  border-radius: var(--radius-s);
+  background: none;
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  cursor: pointer;
+}
+.project-home-menu-list button:hover {
+  background: var(--bg-hover);
+}
+.project-home-error {
+  margin: 0 0 12px;
+  color: var(--danger, #e85d66);
+  font-size: 13px;
+}
+.project-home-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 32px;
+  align-items: start;
+}
+.project-home-composer {
+  margin-bottom: 32px;
+}
+.project-home-main h2 {
+  margin: 0 0 12px;
+  font-size: 15px;
+  font-weight: 600;
+}
+.project-home-main > ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.project-home-main .session-line {
+  border-top: 1px solid var(--glass-border);
+}
+.project-home-main .session-line .row:hover .title {
+  text-decoration: underline;
+}
+@media (max-width: 900px) {
+  .project-home-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .project-home-wrap {
+    padding: 16px 16px 32px;
+  }
+}
 `;
 
 export function ProjectHomeDeleteStyles() {

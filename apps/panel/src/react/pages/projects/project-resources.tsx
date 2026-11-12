@@ -39,6 +39,8 @@ export function ProjectResources(props: {
   projectId: string;
   projectName: string;
   archived: boolean;
+  /** "cards": preload the snapshot and render the three resource cards. */
+  variant?: "pills" | "cards";
 }): JSX.Element {
   const titleId = useId();
   const helperId = useId();
@@ -133,7 +135,7 @@ export function ProjectResources(props: {
   }, [props.projectId]);
 
   useEffect(() => {
-    if (!sheet) return;
+    if (!sheet && props.variant !== "cards") return;
     const ticket = reads.current.begin(props.projectId);
     const ctrl = new AbortController();
     loadAbort.current = ctrl;
@@ -362,13 +364,63 @@ export function ProjectResources(props: {
   );
   const canSave = saveBlocked === "" && dirty && !saving;
 
+  const instructionsPreview = (() => {
+    if (!view && phase === "loading") return "正在读取…";
+    if (phase === "error") return "读取失败，点开重试。";
+    const text = view?.instructions.trim() ?? "";
+    return text ? text.slice(0, 160) : "添加指示，让这个项目里的回复更合你意。";
+  })();
+  const memoryPreview = (() => {
+    if (!view && phase === "loading") return "正在读取…";
+    if (phase === "error") return "读取失败，点开重试。";
+    const memories = view?.memories ?? [];
+    if (!memories.length) return "查看和管理这个项目里记住的内容。";
+    const titles = memories.slice(0, 3).map((item) => item.title || "未命名记忆");
+    return memories.length > 3 ? `${titles.join("、")} 等 ${memories.length} 条` : titles.join("、");
+  })();
+  const contextPreview = (() => {
+    if (!view && phase === "loading") return "正在读取…";
+    if (phase === "error") return "读取失败，点开重试。";
+    const files = view?.files ?? [];
+    if (!files.length) return "添加 PDF、文档或其他文本，供这个项目引用。";
+    const names = files.slice(0, 3).map((file) => file.name);
+    return files.length > 3 ? `${names.join("、")} 等 ${files.length} 个文件` : names.join("、");
+  })();
+
   return (
     <div className="project-resources" data-project-id={props.projectId}>
-      <div className="project-resources-pills" role="group" aria-label="项目入口">
-        <button type="button" aria-pressed={sheet === "archive"} onClick={(event) => openSheet("archive", event.currentTarget)}>新增档案</button>
-        <button type="button" aria-pressed={sheet === "instructions"} onClick={(event) => openSheet("instructions", event.currentTarget)}>新增指示</button>
-        <button type="button" aria-pressed={sheet === "memory"} onClick={(event) => openSheet("memory", event.currentTarget)}>查看记忆</button>
-      </div>
+      {props.variant === "cards" ? (
+        <div className="project-resources-cards" role="group" aria-label="项目资源">
+          <section className="project-resources-card" aria-label="指示">
+            <header className="project-resources-card-head">
+              <h3>Instructions</h3>
+              <button type="button" className="project-resources-card-add" aria-label="添加指示" onClick={(event) => openSheet("instructions", event.currentTarget)}>+</button>
+            </header>
+            <p>{instructionsPreview}</p>
+          </section>
+          <section className="project-resources-card" aria-label="记忆">
+            <header className="project-resources-card-head">
+              <h3>Memory</h3>
+              <span className="project-resources-only">Only you</span>
+            </header>
+            <p>{memoryPreview}</p>
+            <button type="button" className="project-resources-card-link" onClick={(event) => openSheet("memory", event.currentTarget)}>View memory</button>
+          </section>
+          <section className="project-resources-card" aria-label="上下文">
+            <header className="project-resources-card-head">
+              <h3>Context</h3>
+              <button type="button" className="project-resources-card-add" aria-label="添加档案" onClick={(event) => openSheet("archive", event.currentTarget)}>+</button>
+            </header>
+            <p>{contextPreview}</p>
+          </section>
+        </div>
+      ) : (
+        <div className="project-resources-pills" role="group" aria-label="项目入口">
+          <button type="button" aria-pressed={sheet === "archive"} onClick={(event) => openSheet("archive", event.currentTarget)}>新增档案</button>
+          <button type="button" aria-pressed={sheet === "instructions"} onClick={(event) => openSheet("instructions", event.currentTarget)}>新增指示</button>
+          <button type="button" aria-pressed={sheet === "memory"} onClick={(event) => openSheet("memory", event.currentTarget)}>查看记忆</button>
+        </div>
+      )}
       {noticeText ? <p className="project-resources-status" role="status">{noticeText}</p> : null}
       <ResourceDialog
         open={sheet !== ""}

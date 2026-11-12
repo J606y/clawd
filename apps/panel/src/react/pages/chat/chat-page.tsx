@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { useQueryClient } from "@tanstack/react-query";
-import { ApiError, api, type ApprovalChoice, type Message, type SessionSummary } from "@/lib/api";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
+import { useQueryClient, type UseQueryResult } from "@tanstack/react-query";
+import { ApiError, api, type ApprovalChoice, type Message, type ModelOptions, type SessionSummary } from "@/lib/api";
 import { buildContent, type Attachment } from "@/lib/attachments";
 import { chatModel, nextChatModel, rememberChatModel } from "@/lib/chat-selection";
 import { loadCommentary, type Commentary } from "@/lib/commentary";
@@ -8,7 +8,7 @@ import { cachedSessionEffort, currentEffort, hydrateSessionEffort } from "@/lib/
 import { ensureSessionEffort, fetchSessionEffort, invalidateSessionEffort, saveSessionEffort } from "@/lib/effort-service";
 import { canonicalModel } from "@/lib/model-effort";
 import { editBoundary, resendEdited, type EditAttempt } from "@/lib/message-edit";
-import { queryKeys, useContextUsage, useCreateSession, useEditBranch, useLockModel, useModelOptions, useProjects, useSessionBackground, useSessionList, useSessionMessages, useStopExecution, useSubagents } from "@/lib/queries";
+import { queryKeys, useContextUsage, useCreateSession, useEditBranch, useLockModel, useModelOptions, usePatchProject, useProjects, useSessionBackground, useSessionList, useSessionMessages, useStopExecution, useSubagents } from "@/lib/queries";
 import { RUN_CHANGED, RUN_FINISHED, runs, type LiveRun } from "@/lib/runs";
 import { prepareCreatedSession, getOpenProjectId, getPendingNewChatProjectId, setOpenProjectId, setPendingNewChatProjectId, subscribeOpenProject } from "@/lib/project-send";
 import { projectsApi } from "@/lib/projects";
@@ -247,15 +247,37 @@ function deletionRefusal(result: unknown, sessionId: string): string {
 
 const projectHomeDeletes = new Set<string>();
 
-function ProjectHome(props: { projectId: string; heldSessionId: string }) {
+function ProjectHome(props: {
+  projectId: string;
+  heldSessionId: string;
+  displayModel: string;
+  displayProvider: string;
+  models: UseQueryResult<ModelOptions>;
+  onModel: (model: string, provider: string) => void;
+  onSendText: (value: string, attachments: Attachment[]) => void;
+}) {
   const index = useProjects();
   const client = useQueryClient();
   const setSelectedSessionId = useUiStore((state) => state.setSelectedSessionId);
+  const setEffortFor = useUiStore((state) => state.setEffortFor);
+  const effortNext = useUiStore((state) => state.effortNext);
   const [now, setNow] = useState(() => Date.now());
   const [confirm, setConfirm] = useState<{ sessionId: string; projectId: string; title: string } | null>(null);
   const [pendingId, setPendingId] = useState("");
   const [rowError, setRowError] = useState<{ sessionId: string; projectId: string; message: string } | null>(null);
   const [pageNotice, setPageNotice] = useState<{ projectId: string; message: string } | null>(null);
+  const patchProject = usePatchProject();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [renaming, setRenaming] = useState(false);
+  const [renameValue, setRenameValue] = useState("");
+  const [renameError, setRenameError] = useState("");
+  const [renameBusy, setRenameBusy] = useState(false);
+  const [archiveError, setArchiveError] = useState("");
+  const [archiving, setArchiving] = useState(false);
+  const [homeDraft, setHomeDraft] = useState("");
+  const [homeAttachments, setHomeAttachments] = useState<Attachment[]>([]);
+  const [homePreparing, setHomePreparing] = useState(false);
+  const [homeFlash, setHomeFlash] = useState("");
   const alive = useRef(true);
 
   useEffect(() => subscribeTick(() => setNow(Date.now())), []);
@@ -298,12 +320,66 @@ function ProjectHome(props: { projectId: string; heldSessionId: string }) {
     window.dispatchEvent(new CustomEvent("hp-select-session", { detail: session }));
   };
 
-  const startChat = () => {
+  const sendHome = (value: string, attachments: Attachment[]) => {
     if (!project || project.archived) return;
     setPendingNewChatProjectId(project.id);
+    props.onSendText(value, attachments);
     setSelectedSessionId(null);
     setShellSession(null);
     setOpenProjectId(null);
+  };
+
+  const startRename = () => {
+    if (!project) return;
+    setRenameValue(project.name);
+    setRenameError("");
+    setRenaming(true);
+    setMenuOpen(false);
+  };
+
+  const commitRename = (event: FormEvent) => {
+    event.preventDefault();
+    if (!project || renameBusy) return;
+    const name = renameValue.trim();
+    if (!name) {
+      setRenameError("项目名称不能为空");
+      return;
+    }
+    if (index.data?.projects.some((item) => item.id !== project.id && item.name.trim() === name)) {
+      setRenameError("已经有同名项目了");
+      return;
+    }
+    setRenameBusy(true);
+    void (async () => {
+      try {
+        await patchProject.mutateAsync({ id: project.id, patch: { name } });
+        if (!alive.current) return;
+        setRenaming(false);
+        setRenameError("");
+      } catch (error) {
+        if (!alive.current) return;
+        setRenameError(error instanceof Error ? error.message : "改名失败");
+      } finally {
+        if (alive.current) setRenameBusy(false);
+      }
+    })();
+  };
+
+  const toggleArchive = () => {
+    if (!project || archiving) return;
+    setMenuOpen(false);
+    setArchiveError("");
+    setArchiving(true);
+    void (async () => {
+      try {
+        await patchProject.mutateAsync({ id: project.id, patch: { archived: !project.archived } });
+      } catch (error) {
+        if (!alive.current) return;
+        setArchiveError(error instanceof Error ? error.message : "归档失败");
+      } finally {
+        if (alive.current) setArchiving(false);
+      }
+    })();
   };
 
   const askDelete = (session: SessionSummary) => {
@@ -398,60 +474,201 @@ function ProjectHome(props: { projectId: string; heldSessionId: string }) {
   return (
     <section className="page hp-chat project-home" aria-label={project.name}>
       <ProjectHomeDeleteStyles />
-      <div className="project-body">
-        <ProjectResources key={project.id} projectId={project.id} projectName={project.name} archived={project.archived} />
-        {index.isError ? <div role="alert">项目列表加载失败，对话归属未当作空列表。<button type="button" onClick={() => void index.refetch()}>重试</button></div> : null}
-        <h2>对话</h2>
-        {pageNotice?.projectId === project.id ? <div className="session-delete-error" role="alert">{pageNotice.message}</div> : null}
-        <button type="button" className="new-chat" disabled={project.archived} onClick={startChat}>+ 新增对话</button>
-        {sessionsFailed ? (
-          <div role="alert">这个项目的对话归属加载失败，未当作空列表。<button type="button" onClick={() => void index.refetch()}>重试</button></div>
-        ) : items.length ? (
-          <ul aria-label="这个项目的对话">
-            {items.map((session) => {
-              const title = session.title?.trim() || "未命名对话";
-              const openConfirm = confirm?.projectId === project.id && confirm.sessionId === session.id ? confirm : null;
-              const error = rowError?.projectId === project.id && rowError.sessionId === session.id ? rowError.message : "";
-              const pending = pendingId === session.id;
-              return (
-                <li key={session.id}>
-                  <div className="session-line">
-                    <button type="button" className="row" onClick={() => openSession(session)}>
-                      <span className="icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 20 20"><path d="M4 5.2h12a1.4 1.4 0 0 1 1.4 1.4v5.6a1.4 1.4 0 0 1-1.4 1.4H8.2L5.2 16v-2.4H4a1.4 1.4 0 0 1-1.4-1.4V6.6A1.4 1.4 0 0 1 4 5.2z" fill="none" stroke="currentColor" strokeWidth="1.4" /></svg></span>
-                      <span className="title">{session.title || "未命名对话"}</span>
-                      <span className="time">{relativeTime(session.last_active ?? session.started_at, now)}</span>
-                    </button>
-                    <button
-                      type="button"
-                      className="session-delete"
-                      aria-label={`删除对话：${title}`}
-                      aria-expanded={openConfirm ? true : false}
-                      disabled={pending || pendingId !== ""}
-                      onClick={() => askDelete(session)}
-                    >
-                      删除
-                    </button>
-                  </div>
-                  {openConfirm ? (
-                    <div className="session-delete-confirm" role="alertdialog" aria-label="删除对话确认">
-                      <p>删除「{openConfirm.title}」？会删除这个对话和其中的消息。不会删除项目、档案、指示、项目记忆或工作目录。正在运行或仍有回合锁时，服务器会拒绝，这一行会保留。</p>
-                      {pending ? <p role="status">正在删除，请稍候</p> : null}
-                      {error ? <p className="session-delete-error" role="alert">{error}</p> : null}
-                      <div className="session-delete-actions">
-                        <button type="button" disabled={pending} onClick={() => confirmDelete()}>确认删除</button>
-                        <button type="button" disabled={pending} onClick={() => setConfirm(null)}>取消</button>
+      <div className="project-home-wrap">
+        <nav className="project-home-crumbs" aria-label="面包屑">
+          <button type="button" onClick={() => setOpenProjectId(null)}>
+            Projects
+          </button>
+          <span aria-hidden="true">/</span>
+          <span aria-current="page">{project.name}</span>
+        </nav>
+        <div className="project-home-head">
+          {renaming ? (
+            <form className="project-home-rename" onSubmit={commitRename}>
+              <input
+                value={renameValue}
+                onChange={(event) => setRenameValue(event.target.value)}
+                aria-label="项目名称"
+                autoFocus
+              />
+              <button type="submit" disabled={renameBusy}>
+                保存
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setRenaming(false);
+                  setRenameError("");
+                }}
+              >
+                取消
+              </button>
+            </form>
+          ) : (
+            <h1>{project.name}</h1>
+          )}
+          <div className="project-home-menu">
+            <button
+              type="button"
+              className="project-home-menu-button"
+              aria-label="项目菜单"
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen((value) => !value)}
+            >
+              …
+            </button>
+            {menuOpen ? (
+              <>
+                <button
+                  type="button"
+                  className="project-home-menu-backdrop"
+                  aria-label="关闭菜单"
+                  onClick={() => setMenuOpen(false)}
+                />
+                <div className="project-home-menu-list" role="menu">
+                  <button type="button" role="menuitem" onClick={startRename}>
+                    改名
+                  </button>
+                  <button type="button" role="menuitem" disabled={archiving} onClick={() => void toggleArchive()}>
+                    {project.archived ? "取消归档" : "归档"}
+                  </button>
+                </div>
+              </>
+            ) : null}
+          </div>
+        </div>
+        {renameError ? (
+          <p className="project-home-error" role="alert">
+            {renameError}
+          </p>
+        ) : null}
+        {archiveError ? (
+          <p className="project-home-error" role="alert">
+            {archiveError}
+          </p>
+        ) : null}
+        {index.isError ? (
+          <div role="alert">
+            项目列表加载失败，对话归属未当作空列表。
+            <button type="button" onClick={() => void index.refetch()}>
+              重试
+            </button>
+          </div>
+        ) : null}
+        <div className="project-home-grid">
+          <div className="project-home-main">
+            <div className="project-home-composer">
+              <Composer
+                sessionId=""
+                value={homeDraft}
+                attachments={homeAttachments}
+                disabled={project.archived}
+                running={false}
+                canSteer={false}
+                preparing={homePreparing}
+                stopping={false}
+                flash={homeFlash}
+                onChange={(value, attachments) => {
+                  setHomeDraft(value);
+                  setHomeAttachments(attachments);
+                }}
+                onPreparing={setHomePreparing}
+                onFlash={setHomeFlash}
+                onSend={() => sendHome(homeDraft, homeAttachments)}
+                onSteer={() => undefined}
+                onStop={() => undefined}
+                tools={
+                  <>
+                    <ModelPicker
+                      value={props.displayModel}
+                      provider={props.displayProvider}
+                      options={props.models.data}
+                      failed={props.models.isError}
+                      onOpen={() => {
+                        void props.models.refetch();
+                      }}
+                      onSelect={(model, provider) => void props.onModel(model, provider)}
+                    />
+                    <EffortPicker
+                      model={props.displayModel || props.models.data?.current.model || ""}
+                      stored={effortNext}
+                      sessionId=""
+                      onChange={(level) => setEffortFor(level, "")}
+                    />
+                  </>
+                }
+              />
+            </div>
+            <h2>Recents</h2>
+            {pageNotice?.projectId === project.id ? (
+              <div className="session-delete-error" role="alert">
+                {pageNotice.message}
+              </div>
+            ) : null}
+            {sessionsFailed ? (
+              <div role="alert">
+                这个项目的对话归属加载失败，未当作空列表。
+                <button type="button" onClick={() => void index.refetch()}>
+                  重试
+                </button>
+              </div>
+            ) : items.length ? (
+              <ul aria-label="这个项目的对话">
+                {items.map((session) => {
+                  const title = session.title?.trim() || "未命名对话";
+                  const openConfirm = confirm?.projectId === project.id && confirm.sessionId === session.id ? confirm : null;
+                  const error = rowError?.projectId === project.id && rowError.sessionId === session.id ? rowError.message : "";
+                  const pending = pendingId === session.id;
+                  return (
+                    <li key={session.id}>
+                      <div className="session-line">
+                        <button type="button" className="row" onClick={() => openSession(session)}>
+                          <span className="icon" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 20 20"><path d="M4 5.2h12a1.4 1.4 0 0 1 1.4 1.4v5.6a1.4 1.4 0 0 1-1.4 1.4H8.2L5.2 16v-2.4H4a1.4 1.4 0 0 1-1.4-1.4V6.6A1.4 1.4 0 0 1 4 5.2z" fill="none" stroke="currentColor" strokeWidth="1.4" /></svg></span>
+                          <span className="title">{session.title || "未命名对话"}</span>
+                          <span className="time">{relativeTime(session.last_active ?? session.started_at, now)}</span>
+                        </button>
+                        <button
+                          type="button"
+                          className="session-delete"
+                          aria-label={`删除对话：${title}`}
+                          aria-expanded={openConfirm ? true : false}
+                          disabled={pending || pendingId !== ""}
+                          onClick={() => askDelete(session)}
+                        >
+                          删除
+                        </button>
                       </div>
-                    </div>
-                  ) : error ? (
-                    <p className="session-delete-error" role="alert">{error}</p>
-                  ) : null}
-                </li>
-              );
-            })}
-          </ul>
-        ) : (
-          <p>这个项目还没有对话</p>
-        )}
+                      {openConfirm ? (
+                        <div className="session-delete-confirm" role="alertdialog" aria-label="删除对话确认">
+                          <p>删除「{openConfirm.title}」？会删除这个对话和其中的消息。不会删除项目、档案、指示、项目记忆或工作目录。正在运行或仍有回合锁时，服务器会拒绝，这一行会保留。</p>
+                          {pending ? <p role="status">正在删除，请稍候</p> : null}
+                          {error ? <p className="session-delete-error" role="alert">{error}</p> : null}
+                          <div className="session-delete-actions">
+                            <button type="button" disabled={pending} onClick={() => confirmDelete()}>确认删除</button>
+                            <button type="button" disabled={pending} onClick={() => setConfirm(null)}>取消</button>
+                          </div>
+                        </div>
+                      ) : error ? (
+                        <p className="session-delete-error" role="alert">{error}</p>
+                      ) : null}
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <p>这个项目还没有对话</p>
+            )}
+          </div>
+          <aside className="project-home-rail" aria-label="项目资源">
+            <ProjectResources
+              variant="cards"
+              key={project.id}
+              projectId={project.id}
+              projectName={project.name}
+              archived={project.archived}
+            />
+          </aside>
+        </div>
       </div>
     </section>
   );
@@ -1092,16 +1309,16 @@ export function ChatPage() {
   }, [turns, shown, notice, showLive, displayRun]);
   const keys = useMemo(() => rows.map((row) => row.key), [rows]);
 
-  const onSend = useCallback(async () => {
+  const onSend = useCallback(async (sendOverride?: { value: string; attachments: Attachment[]; forceNew?: boolean }) => {
     const held = runs.get(sessionId);
     const abandonedUnconfirmed = Boolean(held?.unverified && !held.runId && !liveRef.current.isActive);
     if (editingKey || preparing) return;
     if (serverBusy && !liveRef.current.isActive && !abandonedUnconfirmed) return;
-    const text = draft.value.trim();
-    const attachments = draft.attachments.slice();
+    const text = (sendOverride?.value ?? draft.value).trim();
+    const attachments = sendOverride ? sendOverride.attachments.slice() : draft.attachments.slice();
     if (!text && attachments.length === 0) return;
     const content = buildContent(text, attachments);
-    const origin = sessionId;
+    const origin = sendOverride?.forceNew ? "" : sessionId;
     const token = ++sendToken.current;
     setNotice("");
     setStick(true);
@@ -1388,7 +1605,17 @@ export function ChatPage() {
   const since = starts.length ? ` · 已运行 ${duration(Date.now() / 1000 - Math.min(...starts))}` : "";
 
   if (openProjectId) {
-    return <ProjectHome projectId={openProjectId} heldSessionId={sessionId} />;
+    return (
+      <ProjectHome
+        projectId={openProjectId}
+        heldSessionId={sessionId}
+        displayModel={displayModel}
+        displayProvider={displayProvider}
+        models={models}
+        onModel={(model, provider) => void onModel(model, provider)}
+        onSendText={(value, attachments) => void onSend({ value, attachments, forceNew: true })}
+      />
+    );
   }
 
   return (
