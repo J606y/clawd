@@ -1779,6 +1779,10 @@ const PROJECT_HOME_DELETE_CSS = `
   list-style: none;
   margin: 0;
   padding: 0;
+  max-height: 480px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
 }
 .project-home-main .session-line {
   border-top: 1px solid var(--glass-border);
