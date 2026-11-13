@@ -1077,7 +1077,8 @@ export function ChatPage() {
             setDraft({ value: run.userText, attachments: run.attachments });
           }
         } else setNotice("");
-        liveRef.current.clear(id);
+        // A completed run with settled server usage keeps its tail so the real total stays visible; the next run replaces it.
+        if (!(run?.status === "completed" && run?.tokenReal)) liveRef.current.clear(id);
         window.setTimeout(() => { void context.refetch(); }, 800);
         window.dispatchEvent(new CustomEvent("hp-session-updated", { detail: id }));
       })();
@@ -1215,7 +1216,7 @@ export function ChatPage() {
     return text === shown.text ? shown : { ...shown, text };
   }, [shown, ownsHistory, messages, localActive, serverBusy, notes]);
   const displayRun = liveView ?? shown;
-  const showLive = Boolean(displayRun && (displayRun.status === "starting" || displayRun.status === "running" || displayRun.text || displayRun.error));
+  const showLive = Boolean(displayRun && (displayRun.status === "starting" || displayRun.status === "running" || (displayRun.status === "completed" && displayRun.tokenReal === true) || displayRun.text || displayRun.error));
   const pendingVisible = Boolean(pendingSend) && !(showLive && displayRun?.userText.trim() === pendingSend.trim());
   const keepRunningTools = localActive && !shouldStripInFlightHistory(shown, { localActive, ownsHistory });
   const turns = useMemo(

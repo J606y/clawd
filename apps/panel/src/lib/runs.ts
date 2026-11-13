@@ -8,7 +8,7 @@ import { getSse } from "./sse.js";
 import { sidecar, type SessionRunState } from "./sidecar.js";
 import { buildTurns, isTurnStart, type NoteStep, type Step, type ToolStep } from "./transcript.js";
 import { currentEffort } from "./effort.js";
-import { applyTurnUsage, createTurnUsage, formatTurnTokens } from "./turn-usage.js";
+import { applyTurnUsage, createTurnUsage, formatTurnTokens, parseServerUsage, settleTurnUsage, turnOutputTokens, type ServerRunUsage } from "./turn-usage.js";
 import { clarifyIdentity, parseClarifyEvent, CLARIFY_ANSWER_MAX, type ClarifyAnswer, type ClarifyPrompt } from "./clarify.js";
 import { parseVaultEvent, type VaultPrompt } from "./vault.js";
 
@@ -82,6 +82,10 @@ export interface LiveRun {
   /** Observable output estimate; unavailable after an incomplete replay. */
   usage?: import("./turn-usage.js").TurnUsage;
   tokenLabel?: string;
+  /** The token label shows settled server usage instead of the running estimate. */
+  tokenReal?: boolean;
+  /** Wall-clock end of the run (milliseconds); freezes the elapsed time on the settled line. */
+  endedAt?: number;
 }
 
 export const RUN_CHANGED = "hp-run-changed";
@@ -98,6 +102,43 @@ const RETIRED_PER_SESSION = 8;
 const RETIRED_SESSIONS = 32;
 /** 事件流已被服务端丢弃后，轮询回合状态的间隔。 */
 const STATUS_POLL_MS = 4_000;
+
+/** Last `run.completed` usage snapshot per session, so the next run's real output is the counters' delta. Kept in memory and in localStorage (32 sessions max) so a page reload does not lose the baseline; every access tolerates missing storage. */
+const LAST_USAGE_KEY = "hp_last_run_usage";
+const LAST_USAGE_SESSIONS = 32;
+const lastRunUsage = new Map<string, ServerRunUsage>();
+let lastRunUsageLoaded = false;
+
+function loadLastRunUsage(): void {
+  if (lastRunUsageLoaded) return;
+  lastRunUsageLoaded = true;
+  try {
+    const raw: unknown = JSON.parse(window.localStorage.getItem(LAST_USAGE_KEY) ?? "{}");
+    if (!raw || typeof raw !== "object") return;
+    for (const [sid, value] of Object.entries(raw as Record<string, unknown>)) {
+      const usage = parseServerUsage(value);
+      if (usage) lastRunUsage.set(sid, usage);
+    }
+  } catch {
+    // Storage unavailable or corrupt: baselines just start empty.
+  }
+}
+
+function saveLastRunUsage(): void {
+  try {
+    const entries = [...lastRunUsage.entries()].slice(-LAST_USAGE_SESSIONS);
+    lastRunUsage.clear();
+    for (const [sessionId, usage] of entries) lastRunUsage.set(sessionId, usage);
+    // Stored in the gateway's wire shape so loadLastRunUsage can parse it back.
+    const wire = Object.fromEntries(entries.map(([sid, u]) => [sid, {
+      input_tokens: u.inputTokens, output_tokens: u.outputTokens, total_tokens: u.totalTokens,
+      cache_read_tokens: u.cacheReadTokens, cache_write_tokens: u.cacheWriteTokens,
+    }]));
+    window.localStorage.setItem(LAST_USAGE_KEY, JSON.stringify(wire));
+  } catch {
+    // Storage unavailable: the in-memory map still works for this page.
+  }
+}
 /** 事件流至少保持这么久才断，就视为连接健康。 */
 const HEALTHY_STREAM_MS = 10_000;
 /** 与服务端「订阅早于 _run_streams 注册」同一窗口：20 次、每次 50ms。只用于还没见过事件的 404。 */
@@ -771,7 +812,7 @@ class RunStore extends EventTarget {
   /** 只结算当前 run/session 的 completed/failed/cancelled/interrupted。无正向身份则拒绝。 */
   private finishFromStatus(
     run: LiveRun,
-    payload: { run_id?: unknown; session_id?: unknown; status?: unknown; error?: unknown } | null | undefined,
+    payload: { run_id?: unknown; session_id?: unknown; status?: unknown; error?: unknown; usage?: unknown } | null | undefined,
   ): boolean {
     const status = terminalClaim(payload);
     if (!isLive(run.status) || !status || !trustedTerminalIdentity(run, payload)) return false;
@@ -783,6 +824,10 @@ class RunStore extends EventTarget {
         run.approval = null;
         run.clarify = null;
         run.vault = null;
+        // Polling found the terminal state after the event stream was lost:
+        // settle from the same persisted usage the run.completed event carries.
+        this.settleRunUsage(run, payload as Record<string, unknown>);
+        if (run.usage) run.tokenLabel = formatTurnTokens(run.usage);
         return true;
       case "cancelled":
         run.status = "cancelled";
@@ -804,6 +849,27 @@ class RunStore extends EventTarget {
   }
 
   /** /v1/runs 事件名与 chat/stream 不同，统一翻译成 apply() 认识的那套。 */
+  /**
+   * Settle a completed run's token label from the server's own counters.
+   * `run.completed` usage is session-cumulative, so this turn's real output is the
+   * delta against the previous completed snapshot; without a baseline (first run
+   * observed) the estimate stays and the snapshot becomes the baseline for next time.
+   * Idempotent for a replayed completion: a zero delta never overwrites a real total.
+   */
+  private settleRunUsage(run: LiveRun, d: Record<string, unknown>): void {
+    const current = parseServerUsage(d.usage);
+    if (!current) return;
+    loadLastRunUsage();
+    const baseline = lastRunUsage.get(run.sessionId) ?? null;
+    const delta = turnOutputTokens(baseline, current);
+    const usage = run.usage ??= createTurnUsage();
+    if (delta !== null && (delta > 0 || usage.realOutputTokens === null)) settleTurnUsage(usage, delta);
+    lastRunUsage.set(run.sessionId, current);
+    saveLastRunUsage();
+    run.endedAt = Date.now();
+    run.tokenReal = typeof usage.realOutputTokens === "number" && usage.realOutputTokens > 0;
+  }
+
   private applyRunEvent(run: LiveRun, d: Record<string, unknown>): void {
     if (foreignIdentity(run, d) || !isLive(run.status)) return;
     // 事件流终态仍走缺字段兼容，不在这里要求 session_id。可信状态体才走 finishFromStatus。
@@ -877,6 +943,7 @@ class RunStore extends EventTarget {
         // subagent.* 等：这里不展示（子代理另有专门的面板）。
         break;
     }
+    if (d.event === "run.completed") this.settleRunUsage(run, d);
     run.tokenLabel = formatTurnTokens(usage);
   }
 

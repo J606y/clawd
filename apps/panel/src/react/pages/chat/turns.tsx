@@ -559,20 +559,24 @@ export function RunStatusLine({
   sessionId,
   runId,
   startedAt,
+  endedAt,
   lastEventAt,
   stopping,
   streaming,
   busy,
   tokenLabel,
+  settled,
 }: {
   sessionId: string;
   runId: string;
   startedAt: number;
+  endedAt?: number;
   lastEventAt: number;
   stopping: boolean;
   streaming: boolean;
   busy: boolean;
   tokenLabel: string;
+  settled?: boolean;
 }) {
   const [now, setNow] = useState(() => Date.now());
   const [wait, setWait] = useState<RunWait | null>(null);
@@ -580,14 +584,15 @@ export function RunStatusLine({
   const [pollError, setPollError] = useState("");
   const verb = useRef(spinnerVerb());
   useEffect(() => {
+    if (settled) return;
     const timer = window.setInterval(() => {
       if (document.visibilityState === "hidden" || stopping) return;
       setNow(Date.now());
     }, 1000);
     return () => window.clearInterval(timer);
-  }, [stopping]);
+  }, [stopping, settled]);
   useEffect(() => {
-    if (!sessionId || !runId || stopping || document.visibilityState === "hidden") return;
+    if (settled || !sessionId || !runId || stopping || document.visibilityState === "hidden") return;
     const ctrl = new AbortController();
     const poll = async () => {
       try {
@@ -616,14 +621,21 @@ export function RunStatusLine({
       ctrl.abort();
       window.clearInterval(timer);
     };
-  }, [sessionId, runId, stopping, lastEventAt]);
+  }, [sessionId, runId, stopping, lastEventAt, settled]);
   if (wait && Date.now() - fetchedAt > 13_000) return null;
-  const elapsed = startedAt ? formatElapsed(now - startedAt) : "";
+  const elapsed = settled
+    ? startedAt && endedAt
+      ? formatElapsed(endedAt - startedAt)
+      : ""
+    : startedAt
+      ? formatElapsed(now - startedAt)
+      : "";
   const retry = !stopping && wait?.state === "retrying" ? wait : null;
+  const tokenTitle = settled ? "服务端真实用量：本轮输出 token（含隐藏思考；思考 token 未单独上报）" : "Approximate observable output this turn; excludes unavailable hidden thinking and tool inputs";
   if (retry) {
     const left = typeof retry.remainingSeconds === "number" ? retry.remainingSeconds - (now - fetchedAt) / 1000 : null;
     const label = retryReason(retry.summary, retry.httpStatus);
-    const token = tokenLabel ? <span className="tokens" title="Approximate observable output this turn; excludes unavailable hidden thinking and tool inputs">{tokenLabel}</span> : null;
+    const token = tokenLabel ? <span className="tokens" title={tokenTitle}>{tokenLabel}</span> : null;
     const meta = elapsed || tokenLabel ? <span className="elapsed" title={pollError}>({elapsed}{elapsed && tokenLabel ? " · " : null}{token})</span> : null;
     return (
       <div className="run-status">
@@ -637,9 +649,9 @@ export function RunStatusLine({
     );
   }
   const showThinking = busy || !streaming || now - lastEventAt >= 2000;
-  const label = stopping ? "Stopping…" : showThinking ? `${verb.current}…` : "";
-  const note = stopping ? "" : silentLine(now - lastEventAt);
-  const token = tokenLabel ? <span className="tokens" title="Approximate observable output this turn; excludes unavailable hidden thinking and tool inputs">{tokenLabel}</span> : null;
+  const label = settled ? "" : stopping ? "Stopping…" : showThinking ? `${verb.current}…` : "";
+  const note = settled || stopping ? "" : silentLine(now - lastEventAt);
+  const token = tokenLabel ? <span className="tokens" title={tokenTitle}>{tokenLabel}</span> : null;
   const meta = elapsed || tokenLabel ? <span className="elapsed" title={pollError}>({elapsed}{elapsed && tokenLabel ? " · " : null}{token})</span> : null;
   return (
     <div className="run-status">

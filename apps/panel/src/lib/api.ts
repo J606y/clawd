@@ -418,6 +418,6 @@ export const api = {
       headers: { "Idempotency-Key": idempotencyKey || crypto.randomUUID() },
     }, 30000),
   runStatus: (runId: string, signal?: AbortSignal) =>
-    request<{ status: string; error?: string; run_id?: string; session_id?: string; created_at?: number }>(`v1/runs/${encodeURIComponent(runId)}`, { signal }, 10000),
+    request<{ status: string; error?: string; run_id?: string; session_id?: string; created_at?: number; usage?: { input_tokens?: number; output_tokens?: number; total_tokens?: number; cache_read_tokens?: number; cache_write_tokens?: number } }>(`v1/runs/${encodeURIComponent(runId)}`, { signal }, 10000),
   stopRun: (runId: string) => request<unknown>(`v1/runs/${encodeURIComponent(runId)}/stop`, { method: "POST", body: "{}" }),
 };
