@@ -553,9 +553,11 @@ const CSS = `
   content: "";
   position: absolute;
   inset: 0 auto 0 0;
-  width: calc(var(--thumb) / 2 + (100% - var(--thumb)) * var(--f));
+  width: calc(100% - var(--thumb));
   background: color-mix(in srgb, var(--accent) 28%, transparent);
-  transition: width 0.12s ease-out;
+  transform: translateX(calc(var(--thumb) / 2)) scaleX(var(--f, 0));
+  transform-origin: left center;
+  transition: transform 0.12s ease-out;
 }
 .hp-chat .effort-picker .dots i {
   position: absolute;
@@ -606,11 +608,18 @@ const CSS = `
 }
 .hp-chat .effort-picker .track.ultra {
   background: linear-gradient(90deg, #2a1c63, #5636c9, #b24bd6, #5636c9, #2a1c63);
-  background-size: 200% 100%;
   box-shadow: 0 0 16px rgb(143 107 255 / 0.5);
-  animation: hp-effort-flow 3.2s linear infinite;
 }
-.hp-chat .effort-picker .track.ultra::before { display: none; }
+/* 流光改 transform 位移高光层：原 background-position 动画每帧重绘轨道。 */
+.hp-chat .effort-picker .track.ultra::before {
+  display: block;
+  width: 45%;
+  background: linear-gradient(100deg, transparent, rgb(255 255 255 / 0.45), transparent);
+  transform: translateX(-120%);
+  animation: hp-track-sheen 3.2s ease-in-out infinite;
+  transition: none;
+}
+@keyframes hp-track-sheen { to { transform: translateX(340%); } }
 .hp-chat .effort-picker .track.ultra {
   --ultra-crab: 37.18px;
 }
@@ -672,12 +681,12 @@ const CSS = `
   text-overflow: ellipsis;
 }
 @keyframes hp-effort-flow { to { background-position: -200% 0; } }
+/* 闪光只留 opacity 呼吸：星点底图静止，原 background-position 动画每帧重绘。 */
 @keyframes hp-effort-sparkle {
-  0% { background-position: 0 0, 7px 5px, 3px 2px; opacity: 0.55; }
+  0% { opacity: 0.55; }
   50% { opacity: 1; }
-  100% { background-position: -46px 0, -74px 5px, -34px 2px; opacity: 0.6; }
+  100% { opacity: 0.6; }
 }
-@keyframes hp-effort-pulse { 50% { box-shadow: 0 0 18px 4px rgb(215 190 255 / 1); } }
 @media (prefers-reduced-motion: reduce) {
   .hp-chat .effort-picker .cur.ultra,
   .hp-chat .effort-picker .track.ultra,
@@ -1584,6 +1593,23 @@ const CSS = `
   .hp-chat .composer { padding: 6px 10px calc(max(4px, calc(var(--safe-bottom) - 26px)) + var(--keyboard-inset, 0px)); }
   .hp-chat .bubble { max-width: 92%; }
   .hp-chat .user-atts { max-width: 92%; }
+}
+@media (max-width: 768px), (pointer: coarse) {
+  /* 窄屏/触屏动画降级：强度文字只留静态渐变；螃蟹高频动画降频；轨道光效放慢。 */
+  .hp-chat .effort-picker .cur.ultra { animation: none; }
+  .hp-chat .effort-picker .bang { animation-duration: 1s; }
+  .hp-chat .effort-picker .hat, .hp-chat .effort-picker .guitar { animation-duration: .5s; }
+  .hp-chat .effort-picker .strum { animation-duration: .33s; }
+  .hp-chat .effort-picker .la, .hp-chat .effort-picker .lb { animation-duration: .5s; }
+  .hp-chat .effort-picker .sl { animation-duration: .32s; }
+  .hp-chat .effort-picker .wob { animation-duration: 1.2s; }
+  .hp-chat .effort-picker .track.ultra::before { animation-duration: 6.4s; }
+  .hp-chat .effort-picker .track.ultra::after { animation-duration: 8s; }
+  /* 布局属性过渡只在桌面端跑：移动端折叠直接开合，槽位只留 opacity/transform。 */
+  .hp-chat .tool-steps .fold { transition: none; }
+  .hp-chat .composer-panels .slot-tasks,
+  .hp-chat .composer-panels .slot-agents { transition: opacity 0.28s cubic-bezier(0.32, 0.72, 0, 1), transform 0.28s cubic-bezier(0.32, 0.72, 0, 1); }
+  .hp-chat .composer-panels .panel-shell { transition: none; }
 }
 @media (max-width: 560px) {
   .hp-chat .hint { display: none; }

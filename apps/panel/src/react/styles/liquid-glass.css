@@ -82,3 +82,27 @@
     }
   }
 }
+
+/* 窄屏/触屏：关掉 backdrop-filter，用实底色（移动端 backdrop-filter 采样贵；
+   桌面 Chromium 上无影响，iOS Safari 效果待真机验证）。 */
+@media (max-width: 768px), (pointer: coarse) {
+  :root,
+  :root[data-theme="dark"] {
+    --glass-filter: none;
+    --glass-solid: var(--bg-elevated);
+    --context-glass-filter: none;
+    --context-glass-solid: var(--bg-elevated);
+    --glass-inset: inset 0 0 0 transparent;
+  }
+}
+@media (prefers-color-scheme: dark) {
+  @media (max-width: 768px), (pointer: coarse) {
+    :root:not([data-theme="light"]) {
+      --glass-filter: none;
+      --glass-solid: var(--bg-elevated);
+      --context-glass-filter: none;
+      --context-glass-solid: var(--bg-elevated);
+      --glass-inset: inset 0 0 0 transparent;
+    }
+  }
+}

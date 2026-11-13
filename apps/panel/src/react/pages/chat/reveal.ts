@@ -15,12 +15,18 @@ export type RevealRegion = ProseRegion | BlockRegion;
 
 const CJK = /[\u3400-\u9FFF\uF900-\uFAFF\u3040-\u30FF\uAC00-\uD7AF]/;
 
+const SURROGATE = /[\uD800-\uDBFF]/;
+
 export function codePointLength(text: string): number {
+  // 纯 BMP 文本：UTF-16 长度即码点数，免去迭代器 + 数组分配。
+  if (!SURROGATE.test(text)) return text.length;
   return [...text].length;
 }
 
 export function sliceCodePoints(text: string, count: number): string {
   if (count <= 0) return "";
+  // 纯 BMP 文本：按 UTF-16 下标切即按码点切。
+  if (!SURROGATE.test(text)) return text.slice(0, count);
   let out = "";
   let seen = 0;
   for (const ch of text) {
@@ -37,9 +43,12 @@ export function releaseCount(backlog: number): number {
   return Math.max(1, Math.ceil(backlog / 12));
 }
 
+// 单例 Segmenter：构造开销只付一次（实测单例本身不治本，但没理由每帧重建）。
+let sharedSegmenter: Intl.Segmenter | null = null;
+
 function segmenterWords(text: string): string[] {
-  const segmenter = new Intl.Segmenter("zh", { granularity: "word" });
-  return [...segmenter.segment(text)].map((part) => part.segment).filter((part) => part.length > 0);
+  if (!sharedSegmenter) sharedSegmenter = new Intl.Segmenter("zh", { granularity: "word" });
+  return [...sharedSegmenter.segment(text)].map((part) => part.segment).filter((part) => part.length > 0);
 }
 
 function fallbackWords(text: string): string[] {
@@ -72,6 +81,37 @@ function fallbackWords(text: string): string[] {
 export function segmentWords(text: string): string[] {
   if (typeof Intl.Segmenter === "function") return segmenterWords(text);
   return fallbackWords(text);
+}
+
+export interface SegmentState {
+  /** 已分词的文本（words + pending 覆盖的原文前缀）。 */
+  text: string;
+  /** 已确定的词：不含最后一个未闭合词。 */
+  words: string[];
+  /** 最后一个词：还可能随新增文本继续变长，渲染时照常显示。 */
+  pending: string;
+}
+
+/**
+ * 增量分词：只对本帧新增的后缀分词，已确定的词直接复用。
+ * 最后一个词先留作 pending，下次与新增文本一起重分——词边界变化时
+ * 最多只影响末尾一个词的显示。文本不是追加关系时全量重分。
+ */
+export function segmentWordsIncremental(prev: SegmentState | null, text: string): SegmentState {
+  if (!prev || !text.startsWith(prev.text)) {
+    const all = segmentWords(text);
+    const pending = all.pop() ?? "";
+    return { text, words: all, pending };
+  }
+  if (text.length === prev.text.length) return prev;
+  const tail = prev.pending + text.slice(prev.text.length);
+  const parts = segmentWords(tail);
+  const pending = parts.pop() ?? "";
+  return { text, words: [...prev.words, ...parts], pending };
+}
+
+export function segmentStateWords(state: SegmentState): string[] {
+  return state.pending ? [...state.words, state.pending] : state.words;
 }
 
 function lineAt(text: string, index: number): { line: string; end: number } {

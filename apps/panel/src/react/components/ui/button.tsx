@@ -35,13 +35,17 @@ function reducedMotion(): boolean {
   return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
 
+function coarsePointer(): boolean {
+  return window.matchMedia("(pointer: coarse)").matches;
+}
+
 export function Button({ className, variant, size, asChild = false, type = "button", children, ...props }: ButtonProps) {
   const classes = cn(buttonVariants({ variant, size }), className);
   if (asChild) return <Slot className={classes} {...props}>{children}</Slot>;
   return (
     <m.span
       className="inline-flex"
-      whileTap={reducedMotion() ? undefined : { scale: 0.97 }}
+      whileTap={reducedMotion() || coarsePointer() ? undefined : { scale: 0.97 }}
       transition={spring}
     >
       <button type={type} className={cn(classes, "w-full")} {...props}>{children}</button>
