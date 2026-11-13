@@ -127,7 +127,7 @@ function useWebhookDeliveries(route?: string, limit?: number, visible?: boolean)
 function useUsage(days: number, visible?: boolean): UseQueryResult<Usage>;
 function useLogSources(): UseQueryResult<LogSources>;
 function useLogs(q: LogQuery, follow: boolean): UseQueryResult<LogResult>;
-function useUpdateInfo(force?: boolean): UseQueryResult<UpdateInfo>;
+function useUpdateInfo(force?: boolean, channel?: UpdateChannel): UseQueryResult<UpdateInfo>;
 function useUpdateRun(running: boolean): UseQueryResult<UpdateRun>;
 function useUpdatePlan(enabled: boolean): UseQueryResult<{ plan: string; exitCode: number }>;
 function useFileRoots(): UseQueryResult<FileRoot[]>;
@@ -158,7 +158,7 @@ function useRunJob(): UseMutationResult<unknown, Error, string>;
 function useRestartService(): UseMutationResult<{ ok: boolean }, Error, { name: string; force?: boolean }>;
 function useSaveSkill(): UseMutationResult<{ ok: boolean; unchanged: boolean; modifiedAt: number; backup?: string }, Error, { path: string; content: string; baseModifiedAt: number }>;
 function useSetSkillEnabled(): UseMutationResult<{ ok: boolean }, Error, { name: string; enabled: boolean }>;
-function useUpdateStart(): UseMutationResult<{ ok: boolean; runId: string }, Error, void>;
+function useUpdateStart(): UseMutationResult<{ ok: boolean; runId: string }, Error, { tag?: string; channel?: UpdateChannel }>;
 function useSetSetting(): UseMutationResult<{ ok: boolean }, Error, { key: string; value: unknown }>;
 function useResetSetting(): UseMutationResult<{ ok: boolean }, Error, string>;
 function useSetConfig(): UseMutationResult<ConfigSetResult, Error, { key: string; value: string }>;

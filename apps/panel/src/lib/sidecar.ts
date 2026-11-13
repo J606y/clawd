@@ -162,6 +162,8 @@ export interface McpServer {
   editable: boolean;
 }
 
+export type UpdateChannel = "stable" | "beta";
+
 export interface UpdateInfo {
   version: string;
   releaseDate?: string;
@@ -175,6 +177,11 @@ export interface UpdateInfo {
   recent?: { sha: string; title: string; date: string }[];
   compareUrl?: string;
   checkedAt?: number;
+  channel?: UpdateChannel;
+  latestVersion?: string;
+  latestTag?: string;
+  releaseUrl?: string;
+  releaseNotes?: string;
   error?: string;
   stale?: boolean;
 }
@@ -413,8 +420,20 @@ export const sidecar = {
   setSkillEnabled: (name: string, enabled: boolean) => request<{ ok: boolean }>("skills/enabled", post({ name, enabled }), 90000, BASE),
   updatePlan: () => request<{ plan: string; exitCode: number }>("update/plan", {}, 100000, BASE),
   updateStatus: () => request<UpdateRun>("update/status", {}, 15000, BASE),
-  updateStart: () => request<{ ok: boolean; runId: string }>("update/start", post({ confirm: "update" }), 60000, BASE),
-  updateCheck: (force = false) => request<UpdateInfo>(`update/check${force ? "?force=1" : ""}`, {}, 30000, BASE),
+  updateStart: (tag?: string, channel?: UpdateChannel) =>
+    request<{ ok: boolean; runId: string }>(
+      "update/start",
+      post({ confirm: "update", tag, channel }),
+      60000,
+      BASE,
+    ),
+  updateCheck: (force = false, channel?: UpdateChannel) => {
+    const params = new URLSearchParams();
+    if (force) params.set("force", "1");
+    if (channel) params.set("channel", channel);
+    const query = params.toString();
+    return request<UpdateInfo>(`update/check${query ? `?${query}` : ""}`, {}, 30000, BASE);
+  },
   settings: () => request<SettingsView>("settings", {}, 90000, BASE),
   setSetting: (key: string, value: unknown) => request<{ ok: boolean }>("settings/set", post({ key, value }), 90000, BASE),
   resetSetting: (key: string) => request<{ ok: boolean }>("settings/reset", post({ key }), 90000, BASE),

@@ -60,6 +60,7 @@ import {
   type Skill,
   type SkillBackup,
   type SubagentsView,
+  type UpdateChannel,
   type UpdateInfo,
   type UpdateRun,
   type Usage,
@@ -315,10 +316,10 @@ export function useLogs(q: LogQuery, follow: boolean): UseQueryResult<LogResult>
   });
 }
 
-export function useUpdateInfo(force = false): UseQueryResult<UpdateInfo> {
+export function useUpdateInfo(force = false, channel?: UpdateChannel): UseQueryResult<UpdateInfo> {
   return useQuery({
-    queryKey: [...queryKeys.updateInfo, { force }] as const,
-    queryFn: () => sidecar.updateCheck(force),
+    queryKey: [...queryKeys.updateInfo, { force, channel }] as const,
+    queryFn: () => sidecar.updateCheck(force, channel),
   });
 }
 
@@ -549,10 +550,14 @@ export function useSetSkillEnabled(): UseMutationResult<SkillEnabledResult, Erro
   });
 }
 
-export function useUpdateStart(): UseMutationResult<{ ok: boolean; runId: string }, Error, void> {
+export function useUpdateStart(): UseMutationResult<
+  { ok: boolean; runId: string },
+  Error,
+  { tag?: string; channel?: UpdateChannel }
+> {
   const invalidate = useInvalidate();
   return useMutation({
-    mutationFn: () => sidecar.updateStart(),
+    mutationFn: ({ tag, channel }) => sidecar.updateStart(tag, channel),
     onSuccess: () => invalidate(queryKeys.updateRun),
   });
 }

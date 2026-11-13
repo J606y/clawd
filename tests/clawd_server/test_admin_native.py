@@ -43,14 +43,21 @@ def test_install_binds_replacements_and_refuses_cli():
         assert exc.code == "cli_retired"
     else:
         raise AssertionError("cli was not refused")
+    # Updates are clawd-native now: bound, not refused. Host restart stays refused.
+    assert mod._clawd_update_native is True
+    assert "start_update" not in BLOCKED
+    assert "get_update_plan" not in BLOCKED
+    assert "get_update_status" not in BLOCKED
+    assert callable(mod.start_update)
+    assert callable(mod.get_update_plan)
+    assert callable(mod.get_update_status)
     try:
-        mod.start_update("update")
+        mod.restart_service("clawd-panel-accept")
     except ApiError as exc:
         assert exc.status == 403
-        assert exc.code == "update_disabled"
+        assert exc.code == "restart_disabled"
     else:
-        raise AssertionError("update was not refused")
-    assert mod.get_update_status()["running"] is False
+        raise AssertionError("restart was not refused")
     assert callable(mod.config_set)
     assert callable(mod.preview_delete_profile)
     assert callable(mod.confirm_delete_profile)
