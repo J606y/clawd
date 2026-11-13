@@ -1,21 +1,28 @@
 import { useEffect, useRef, useState } from "react";
-import { useUpdateInfo, useUpdateRun } from "@/lib/queries";
+import { useUpdateInfo, useUpdateRun, useUpdateStart } from "@/lib/queries";
 import { CLAWD_VERSION } from "@/lib/version";
-import type { UpdateInfo, UpdateRun } from "@/lib/sidecar";
+import type { UpdateChannel, UpdateInfo, UpdateRun } from "@/lib/sidecar";
 import { errText, Head } from "./bits";
 
 export function UpdateTab() {
   const [force, setForce] = useState(false);
-  const infoQ = useUpdateInfo(force);
+  const [channel, setChannel] = useState<UpdateChannel>("stable");
+  const infoQ = useUpdateInfo(force, channel);
   const [shown, setShown] = useState<UpdateInfo | null>(null);
   const [poll, setPoll] = useState(false);
   const runQ = useUpdateRun(poll);
+  const startM = useUpdateStart();
   const knownRunning = useRef(false);
   const sawRunning = useRef(false);
 
   useEffect(() => {
     if (infoQ.isSuccess && infoQ.data) setShown(infoQ.data);
   }, [infoQ.isSuccess, infoQ.data]);
+
+  // Server remembers the channel; adopt it when a check reports one.
+  useEffect(() => {
+    if (infoQ.data?.channel) setChannel(infoQ.data.channel);
+  }, [infoQ.data?.channel]);
 
   useEffect(() => {
     if (!infoQ.isError) return;
@@ -56,6 +63,19 @@ export function UpdateTab() {
     else setForce(true);
   }
 
+  function startUpdate() {
+    const info = shown;
+    if (!info?.latestTag) return;
+    const label = info.channel === "beta" ? "测试版" : "正式版";
+    if (
+      !window.confirm(
+        `更新到 ${info.latestTag}（${label}）？\n更新会重启面板和网关，对话会短暂中断；失败时自动回滚到更新前。`,
+      )
+    )
+      return;
+    startM.mutate({ tag: info.latestTag, channel });
+  }
+
   const running = Boolean(runQ.data?.running || runQ.data?.state === "running" || knownRunning.current && poll);
   const info = shown;
 
@@ -75,12 +95,28 @@ export function UpdateTab() {
               <div className="usub">提交 {info.commit || "—"}{info.branch ? ` · 分支 ${info.branch}` : ""}</div>
             </div>
             <div className="uact">
-              {info.behindBy == null ? <span className="pill mid">未能检查</span> : info.behindBy === 0 ? <span className="pill on">已是最新</span> : <span className="pill mid">落后 {info.behindBy} 个提交</span>}
+              {info.behindBy == null ? <span className="pill mid">未能检查</span> : info.behindBy === 0 ? <span className="pill on">已是最新</span> : <span className="pill mid">有新版本</span>}
               <button type="button" className="btn" disabled={infoQ.isFetching || running} onClick={recheck}>{infoQ.isFetching ? "检查中…" : "重新检查"}</button>
             </div>
           </div>
-          {info.behindBy != null && info.behindBy > 0 ? (
-            <div className="uline warn">没有安全的进程内更新接口，不能从这里立即更新。此页只保留检查结果。</div>
+          <div className="urow">
+            <label className="usub" htmlFor="update-channel">版本通道</label>
+            <select id="update-channel" value={channel} disabled={infoQ.isFetching || running} onChange={(event) => setChannel(event.target.value as UpdateChannel)}>
+              <option value="stable">正式版</option>
+              <option value="beta">测试版</option>
+            </select>
+            <span className="usub">{channel === "beta" ? "测试版带 C 前缀（如 C0.0.1），从 GitHub prerelease 拉取" : "正式版不带 C 前缀，只看正式 release"}</span>
+          </div>
+          {info.behindBy != null && info.behindBy > 0 && info.latestVersion ? (
+            <div className="uline">
+              <div>最新{info.channel === "beta" ? "测试版" : "正式版"}：<strong>{info.latestVersion}</strong>{info.releaseDate ? `（${info.releaseDate}）` : ""}</div>
+              {info.releaseNotes ? <div className="uline faint">{info.releaseNotes}</div> : null}
+              {info.releaseUrl ? <div><a href={info.releaseUrl} target="_blank" rel="noopener noreferrer">在 GitHub 查看该版本</a></div> : null}
+              <button type="button" className="btn" disabled={running || startM.isPending || info.localChanges.length > 0} onClick={startUpdate}>
+                {startM.isPending ? "正在启动更新…" : `立即更新到 ${info.latestVersion}`}
+              </button>
+              {startM.isError ? <div className="error uline">{errText(startM.error, "启动更新失败")}</div> : null}
+            </div>
           ) : null}
           <RunBlock run={runQ.data} />
           {info.error ? <div className="error uline">{info.error}{info.stale ? "（以下为上次检查结果）" : ""}</div> : null}
@@ -105,7 +141,7 @@ export function UpdateTab() {
               ) : null}
             </>
           ) : null}
-          <div className="uline faint">{info.checkedAt ? `检查于 ${new Date(info.checkedAt * 1000).toLocaleTimeString()} · ` : ""}对比上游 main；数据来自 GitHub 比较接口</div>
+          <div className="uline faint">{info.checkedAt ? `检查于 ${new Date(info.checkedAt * 1000).toLocaleTimeString()} · ` : ""}检查 J606y/clawd 的 GitHub release，按所选通道过滤</div>
         </div>
       )}
     </div>

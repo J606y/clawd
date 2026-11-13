@@ -49,9 +49,6 @@ REPLACED = (
 # Kept refused, or not safe to call from a multi-threaded panel process.
 BLOCKED = {
     "restart_service": "宿主重启保持禁用",
-    "start_update": "宿主 hermes update 保持禁用",
-    "get_update_plan": "不执行 update --plan",
-    "get_update_status": "不读更新单元",
     "delete_profile": "现有请求只带名称，不能当确认；确认接口另挂，不调用会改写进程环境的核心删除",
     "recent_deliveries": "投递日志刮取没有进程内读接口",
     "use_profile_process_switch": "只写 sticky 文件，不修改 os.environ",
@@ -71,20 +68,7 @@ def _keep_host_disabled(mod: Any) -> None:
         del name, force
         raise mod.ApiError(403, "restart_disabled", "clawd 不重启系统服务；生命周期由 clawd panel 统一管理")
 
-    def start_update(confirm: Any) -> Any:
-        del confirm
-        raise mod.ApiError(403, "update_disabled", "clawd 不通过面板更新或重启系统 Hermes")
-
-    def get_update_plan() -> dict[str, Any]:
-        return {"plan": "clawd 不执行系统 hermes update", "exitCode": 0}
-
-    def get_update_status() -> dict[str, Any]:
-        return {"running": False, "state": "idle", "runId": None, "logTail": "系统更新单元已禁用"}
-
     mod.restart_service = restart_service
-    mod.start_update = start_update
-    mod.get_update_plan = get_update_plan
-    mod.get_update_status = get_update_status
 
 
 def _bind_skill_export(mod: Any) -> None:
@@ -166,6 +150,11 @@ def install(mod: Any) -> None:
     mod._hermes_set = lambda key, value: _refuse_cli(mod, "config", "set")
     mod._hermes_unset = lambda key: _refuse_cli(mod, "config", "unset")
     _keep_host_disabled(mod)
+    # Updates are clawd-native now: check our own GitHub releases and pull
+    # them with a detached runner. The host hermes update stays disabled.
+    from clawd_server import update_native
+
+    update_native.install_update(mod)
     from clawd_server.admin_routes import install as install_routes
 
     install_routes(mod)

@@ -6163,7 +6163,7 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/update/plan":
                 return get_update_plan()
             if path == "/update/check":
-                return get_update_info(query.get("force") == "1")
+                return get_update_info(query.get("force") == "1", query.get("channel"))
             if path == "/usage":
                 try:
                     days = int(query.get("days", "30"))
@@ -6211,7 +6211,7 @@ class Handler(BaseHTTPRequestHandler):
         elif method == "POST":
             body = self._json_body()
             routes: dict[str, Any] = {
-                "/update/start": lambda: start_update(body.get("confirm")),
+                "/update/start": lambda: start_update(body.get("confirm"), body.get("tag"), body.get("channel")),
                 "/settings/set": lambda: set_setting(body.get("key"), body.get("value")),
                 "/settings/reset": lambda: reset_setting(body.get("key")),
                 "/models/default": lambda: set_default_model(body.get("model"), body.get("provider")),
