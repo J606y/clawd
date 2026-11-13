@@ -44,28 +44,28 @@ _SESSION_ID_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_\-]{5,79}$")
 # not an end-to-end chat, panel, or browser proof.
 REAL_HTTP_INTEGRATION_NOT_E2E = (
     {
-        "entry": "GET /panel-sidecar/run-wait",
-        "sidecar_path": "/run-wait",
+        "entry": "GET /panel-core/run-wait",
+        "panel_core_path": "/run-wait",
         "requires": "PanelServer.start then bind then native.install, isolated home, no production state",
         "not_e2e": "not a chat turn, not a browser, not the uninstalled log scraper",
     },
     {
-        "entry": "GET /panel-sidecar/sessions/run",
-        "sidecar_path": "/sessions/run",
-        "requires": "same installed sidecar process and isolated home",
+        "entry": "GET /panel-core/sessions/run",
+        "panel_core_path": "/sessions/run",
+        "requires": "same installed panel-core process and isolated home",
         "not_e2e": "not proof that a gateway /v1/runs admission succeeded",
     },
     {
-        "entry": "GET /panel-sidecar/sessions/run/resolve",
-        "sidecar_path": "/sessions/run/resolve",
-        "requires": "same installed sidecar process and isolated home",
+        "entry": "GET /panel-core/sessions/run/resolve",
+        "panel_core_path": "/sessions/run/resolve",
+        "requires": "same installed panel-core process and isolated home",
         "not_e2e": "not proof of cross-process replay",
     },
 )
 
 
 class SimulatedApiError(Exception):
-    """SIMULATED sidecar error. Same constructor as the sidecar ApiError, not the sidecar class."""
+    """SIMULATED panel-core error. Same constructor as the panel-core ApiError, not the panel-core class."""
 
     def __init__(self, status: int, code: str, message: str) -> None:
         super().__init__(message)
@@ -257,9 +257,9 @@ def test_http_entries_are_listed_and_not_called_here():
     assert "panel-sidecar" not in text.split("REAL_HTTP_INTEGRATION_NOT_E2E", 1)[0]
 
 
-def test_uninstalled_sidecar_log_case_keeps_original_semantics():
+def test_uninstalled_panel_core_log_case_keeps_original_semantics():
     root = Path(__file__).resolve().parents[2]
-    wait = (root / "apps/panel/sidecar/test_run_wait.py").read_text(encoding="utf-8")
+    wait = (root / "apps/panel/tests/test_run_wait.py").read_text(encoding="utf-8")
     assert "self.assertEqual(w['source'],'log')" in wait
     assert "self.assertEqual(w['state'],'retrying')" in wait
     assert "project_run_wait" not in wait

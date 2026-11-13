@@ -61,7 +61,6 @@ MANIFEST_LINES = [
     "include clawd_server/bundled/RESOURCE_CONTRACT.json",
     "recursive-include clawd_server/bundled/LICENSES *",
     "recursive-include clawd_server/bundled/apps/panel/dist *",
-    "recursive-include clawd_server/bundled/apps/panel/sidecar *.py",
     "recursive-include clawd_server/bundled/apps/panel/plugins *",
     "recursive-include tools/vendor/browser_harness_0_1_13 *",
     "global-exclude */node_modules/*",

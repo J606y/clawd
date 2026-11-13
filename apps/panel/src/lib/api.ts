@@ -292,7 +292,7 @@ export const api = {
       for (let offset = 0; offset < candidates.length; offset += 200) {
         const batch = candidates.slice(offset, offset + 200);
         const query = new URLSearchParams({ session_id: sessionId, ids: batch.map((m) => String(m.id)).join(",") });
-        const result = await request<{ items: Record<string, unknown> }>(`sessions/message-origins?${query}`, { signal }, 4000, new URL("panel-sidecar/", document.baseURI));
+        const result = await request<{ items: Record<string, unknown> }>(`sessions/message-origins?${query}`, { signal }, 4000, new URL("panel-core/", document.baseURI));
         signal?.throwIfAborted();
         if (!result?.items || typeof result.items !== "object" || Array.isArray(result.items)) throw new Error("消息来源响应格式异常");
         for (const message of batch) {

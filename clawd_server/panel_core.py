@@ -1,22 +1,33 @@
 #!/usr/bin/env python3
-"""Hermes 面板 sidecar：补齐 api_server 没有的能力（主机状态、技能、配置、服务重启、文件、活动）。
+"""面板核心逻辑：补齐 api_server 没有的能力（主机状态、技能、配置、文件、活动、生图）。
 
-设计约束：
+前身是 apps/panel/sidecar/hermes_panel_sidecar.py。HTTP 形态已收进核心：
+本模块不再开监听、不再起独立 HTTP 服务线程，`register_panel_core_routes`
+把同一批路由挂到面板统一进程的 aiohttp 应用上（前缀 /panel-core/），鉴权
+由面板的 cookie + Origin 检查（PanelServer._authed）负责。
+
+`Handler` 是普通分发类（不再继承标准库的 HTTP 处理基类），只做一件事：
+把一次请求（method/path/headers/body）按旧 sidecar 的路由表分发给同名函数，
+把状态行 + 头 + 体写进 `self.wfile`。单元测试与文件鉴权用例继续用它；
+生产经由 aiohttp 处理函数调用它（JSON 路由），文件下载/预览另走流式路径。
+
+设计约束（沿用 sidecar 时期）：
 - 核心逻辑坚持仅用标准库且绝不 import Hermes 内部模块——Hermes 频繁自动更新，内部 API 随时会变。
-  配置读写一律走 `hermes config get/set/unset`（由 Hermes 自己校验与落盘）；技能直接读 SKILL.md。
+  配置读写一律走核心配置服务；技能直接读 SKILL.md。
   对于配置展示脱敏，引入锁定版本的 PyYAML 依赖；若环境缺少 yaml 模块，则显式报错不可用，不破坏进程启动。
-- 只监听 127.0.0.1，由 nginx 做登录门并注入 X-Panel-Key；本进程再校验一次（纵深防御）。
 - 所有外部命令带超时；任何异常都返回结构化 JSON 错误，不吞异常。
 """
 
 from __future__ import annotations
 
+import asyncio
 import concurrent.futures
 import contextlib
 import errno
 import fcntl
 import hashlib
 import hmac
+import io
 import select
 import signal
 import json
@@ -36,7 +47,7 @@ import tempfile
 import threading
 import time
 import unicodedata
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from aiohttp import web
 from pathlib import Path
 from typing import Any, BinaryIO, Iterator
 from urllib.parse import parse_qs, quote, unquote, urlsplit
@@ -49,8 +60,6 @@ except ImportError:
     except ImportError:
         yaml = None  # type: ignore[assignment]
 
-HOST = "127.0.0.1"
-PORT = int(os.environ.get("PANEL_SIDECAR_PORT", "8651"))
 KEY_FILE = Path(os.environ.get("PANEL_SIDECAR_KEY_FILE", "/etc/hermes-panel/sidecar.key"))
 HERMES_HOME = Path(os.environ.get("HERMES_HOME", "/root/.hermes"))
 HERMES_BIN = os.environ.get("HERMES_BIN", "/usr/local/bin/hermes")
@@ -5254,16 +5263,6 @@ def reset_setting(key: Any) -> dict[str, Any]:
 # ---------------------------------------------------------------- HTTP
 
 
-def _read_key() -> str:
-    try:
-        key = KEY_FILE.read_text(encoding="ascii").strip()
-    except OSError as exc:
-        sys.exit(f"cannot read key file {KEY_FILE}: {exc}")
-    if len(key) < 32:
-        sys.exit(f"key in {KEY_FILE} is too short")
-    return key
-
-
 # ---------------------------------------------------------------- Hermes 更新检查（只读）
 
 HERMES_INSTALL = Path(os.environ.get("HERMES_INSTALL", "/usr/local/lib/hermes-agent"))
@@ -5860,13 +5859,96 @@ def _upload_home(handler: Any, query: dict[str, str]) -> dict[str, Any]:
         _close_fd(root_fd)
 
 
-class Handler(BaseHTTPRequestHandler):
-    server_version = "hermes-panel-sidecar"
-    sys_version = ""
-    key = ""
+def _resolve_artifact(absolute: str) -> tuple[str, str]:
+    """Validate an absolute artifact path and resolve it to (root_id, rel).
 
-    def log_message(self, fmt: str, *args: Any) -> None:  # 访问日志交给 nginx
-        return
+    Same checks as the old Handler._artifact; no I/O beyond path validation.
+    Raises ApiError exactly like the old code.
+    """
+    # Validate the undecorated lexical path before Path/resolve can erase segments.
+    if (not absolute.startswith("/") or absolute.startswith("//") or "\\" in absolute
+            or any(ord(c) < 32 or ord(c) == 127 for c in absolute)
+            or any(part in (".", "..") for part in absolute.split("/"))):
+        raise ApiError(400, "invalid_path", "需要合法的绝对文件路径")
+    target = Path(absolute)
+    if (any(target == p or p in target.parents for p in DENY_PREFIXES)
+            or any(DENY_NAME_RE.search(part) for part in target.parts)):
+        raise ApiError(403, "denied", "该文件不允许通过面板访问")
+    if _clawd_home_raw():
+        root_id, rel = _match_home_artifact(absolute)
+        _reject_workspace_browse(root_id, rel)
+        return root_id, rel
+    for root_id, spec in FILE_ROOTS.items():
+        try:
+            rel = target.relative_to(spec["path"])
+        except ValueError:
+            continue
+        # 根目录之下的点文件/点目录（.git、.aws、.npmrc…）与凭据容器不经助手引用对外提供。
+        if any(part.startswith(".") or ARTIFACT_SECRET_RE.search(part) for part in rel.parts):
+            raise ApiError(403, "denied", "该文件不允许通过面板访问")
+        _reject_workspace_browse(root_id, str(rel))
+        return root_id, str(rel)
+    raise ApiError(403, "outside_root", "不允许访问该路径")
+
+
+def _download_response_headers(f: Any, target: Path, size: int, preview: bool) -> dict[str, str]:
+    """Response headers for a file download/artifact. Sniffs raster bytes for preview."""
+    ctype = mimetypes.guess_type(target.name)[0] or "application/octet-stream"
+    inline_type = None
+    if preview:
+        inline_type = _raster_mime(target.name, f.read(32))
+        f.seek(0)
+        if not inline_type and target.suffix.lower() in (".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"):
+            ctype = "application/octet-stream"
+    disposition = "inline" if inline_type else "attachment"
+    return {
+        "Content-Type": inline_type or ctype,
+        "Content-Length": str(size),
+        "Content-Disposition": f"{disposition}; filename*=UTF-8''{quote(target.name)}",
+        "Content-Security-Policy": "sandbox; default-src 'none'; base-uri 'none'",
+        "X-Content-Type-Options": "nosniff",
+        "Cache-Control": "no-store",
+    }
+
+
+@contextlib.contextmanager
+def open_download(root_id: str, rel: str, *, preview: bool = False):
+    """Open a file for download: yields (headers, fileobj, size). Caller closes."""
+    with _open_download(root_id, rel) as (f, info, target):
+        yield _download_response_headers(f, target, info.st_size, preview), f, info.st_size
+
+
+class Handler:
+    """请求分发器：不是 HTTP 服务器，不监听、不读 socket。
+
+    调用方填好 `key` / `path`（含查询串）/ `headers`（`.get` 即可）/
+    `rfile`（读 body 的二进制流）/ `wfile`（写响应的二进制流），再调
+    `_dispatch(method)`。`_send` 会把状态行、头、体写进 `wfile`。
+    """
+
+    key = ""
+    close_connection = False
+
+    def __init__(self) -> None:
+        self.path = "/"
+        self.headers: Any = {}
+        self.rfile: Any = None
+        self.wfile: Any = None
+
+    def send_response(self, status: int) -> None:
+        self._resp_status = status
+        self._resp_headers: list[tuple[str, str]] = []
+        self._resp_head = f"HTTP/1.1 {status} \r\n".encode("ascii")
+
+    def send_header(self, key: str, value: str) -> None:
+        self._resp_headers.append((key, value))
+
+    def end_headers(self) -> None:
+        head = bytearray(self._resp_head)
+        for key, value in self._resp_headers:
+            head += f"{key}: {value}\r\n".encode("utf-8", "replace")
+        head += b"\r\n"
+        self.wfile.write(bytes(head))
 
     def _send(self, status: int, payload: Any) -> None:
         try:
@@ -5899,11 +5981,12 @@ class Handler(BaseHTTPRequestHandler):
             raise ApiError(400, "invalid_json", "请求体必须是对象")
         return body
 
-    def _dispatch(self, method: str) -> None:
+    def _dispatch(self, method: str, *, key_required: bool = True) -> None:
         try:
-            provided_key = self.headers.get("X-Panel-Key", "")
-            if not provided_key.isascii() or not hmac.compare_digest(provided_key, self.key):
-                raise ApiError(401, "unauthorized", "unauthorized")
+            if key_required:
+                provided_key = self.headers.get("X-Panel-Key", "")
+                if not provided_key.isascii() or not hmac.compare_digest(provided_key, self.key):
+                    raise ApiError(401, "unauthorized", "unauthorized")
             url = urlsplit(self.path)
             path = unquote(url.path).rstrip("/") or "/"
             query = {k: v[0] for k, v in parse_qs(url.query, keep_blank_values=True).items()}
@@ -5933,54 +6016,17 @@ class Handler(BaseHTTPRequestHandler):
         except Exception:
             # Request URLs can contain credentials; do not put query strings in logs.
             log.exception("unhandled error on %s request", method)
-            self._send(500, {"error": {"code": "internal", "message": "内部错误，详见 journalctl -u hermes-panel-sidecar"}})
+            self._send(500, {"error": {"code": "internal", "message": "内部错误"}})
 
     def _artifact(self, absolute: str, preview: bool) -> None:
-        # Validate the undecorated lexical path before Path/resolve can erase segments.
-        if (not absolute.startswith("/") or absolute.startswith("//") or "\\" in absolute
-                or any(ord(c) < 32 or ord(c) == 127 for c in absolute)
-                or any(part in (".", "..") for part in absolute.split("/"))):
-            raise ApiError(400, "invalid_path", "需要合法的绝对文件路径")
-        target = Path(absolute)
-        if (any(target == p or p in target.parents for p in DENY_PREFIXES)
-                or any(DENY_NAME_RE.search(part) for part in target.parts)):
-            raise ApiError(403, "denied", "该文件不允许通过面板访问")
-        if _clawd_home_raw():
-            root_id, rel = _match_home_artifact(absolute)
-            _reject_workspace_browse(root_id, rel)
-            self._download(root_id, rel, preview=preview)
-            return
-        for root_id, spec in FILE_ROOTS.items():
-            try:
-                rel = target.relative_to(spec["path"])
-            except ValueError:
-                continue
-            # 根目录之下的点文件/点目录（.git、.aws、.npmrc…）与凭据容器不经助手引用对外提供。
-            if any(part.startswith(".") or ARTIFACT_SECRET_RE.search(part) for part in rel.parts):
-                raise ApiError(403, "denied", "该文件不允许通过面板访问")
-            _reject_workspace_browse(root_id, str(rel))
-            self._download(root_id, str(rel), preview=preview)
-            return
-        raise ApiError(403, "outside_root", "不允许访问该路径")
+        root_id, rel = _resolve_artifact(absolute)
+        self._download(root_id, rel, preview=preview)
 
     def _download(self, root_id: str, rel: str, *, preview: bool = False) -> None:
-        with _open_download(root_id, rel) as (f, info, target):
-            size = info.st_size
-            ctype = mimetypes.guess_type(target.name)[0] or "application/octet-stream"
-            inline_type = None
-            if preview:
-                inline_type = _raster_mime(target.name, f.read(32))
-                f.seek(0)
-                if not inline_type and target.suffix.lower() in (".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"):
-                    ctype = "application/octet-stream"
+        with open_download(root_id, rel, preview=preview) as (headers, f, size):
             self.send_response(200)
-            self.send_header("Content-Type", inline_type or ctype)
-            self.send_header("Content-Length", str(size))
-            disposition = "inline" if inline_type else "attachment"
-            self.send_header("Content-Disposition", f"{disposition}; filename*=UTF-8''{quote(target.name)}")
-            self.send_header("Content-Security-Policy", "sandbox; default-src 'none'; base-uri 'none'")
-            self.send_header("X-Content-Type-Options", "nosniff")
-            self.send_header("Cache-Control", "no-store")
+            for key, value in headers.items():
+                self.send_header(key, value)
             try:
                 self.end_headers()
                 remaining = size
@@ -6242,28 +6288,149 @@ class Handler(BaseHTTPRequestHandler):
         self._dispatch("POST")
 
 
-def _warm_up() -> None:
-    """启动后预热读缓存，第一次打开模型/MCP/插件/配置档页就不用等 hermes 进程。失败只记日志。"""
-    for name, fn in (("models", get_models), ("mcp", list_mcp), ("plugins", list_plugins), ("profiles", list_profiles), ("webhooks", list_webhooks)):
-        try:
-            fn()
-        except Exception:
-            log.warning("warm-up %s failed", name, exc_info=True)
+# ---------------------------------------------------------------------------
+# aiohttp 接入层：把同一批路由挂到面板统一进程上（前缀 /panel-core/）。
+# 鉴权由 PanelServer._authed（cookie + Origin）负责，本层不再校验内网密钥。
+# ---------------------------------------------------------------------------
 
 
-def main() -> None:
-    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
-    Handler.key = _read_key()
-    server = ThreadingHTTPServer((HOST, PORT), Handler)
-    server.daemon_threads = True
-    log.info("listening on %s:%d", HOST, PORT)
-    threading.Thread(target=_warm_up, name="warm-up", daemon=True).start()
-    threading.Thread(target=_continue_watcher, name="auto-continue", daemon=True).start()
+def new_handler(method: str, path: str, headers: dict[str, str], body: bytes) -> Handler:
+    """Build a dispatch Handler for one request (same shape tests use)."""
+    handler = object.__new__(Handler)
+    handler.key = ""
+    handler.path = path
+    handler.headers = headers
+    handler.rfile = io.BytesIO(body)
+    handler.wfile = io.BytesIO()
+    handler.close_connection = False
+    handler.request_version = "HTTP/1.1"
+    handler.protocol_version = "HTTP/1.1"
+    handler.requestline = f"{method} {path} HTTP/1.1"
+    return handler
+
+
+def parse_raw_response(raw: bytes) -> tuple[int, dict[str, str], bytes]:
+    """Split a Handler-written response (status line + headers + body)."""
+    head, _, body = raw.partition(b"\r\n\r\n")
+    if not head:
+        raise ValueError("handler wrote no HTTP response")
+    lines = head.split(b"\r\n")
+    status = int(lines[0].split()[1])
+    headers: dict[str, str] = {}
+    for line in lines[1:]:
+        if b":" in line:
+            name, value = line.split(b":", 1)
+            headers[name.decode().strip()] = value.strip().decode()
+    return status, headers, body
+
+
+def _resolve_file_response(tail: str, query: dict[str, str]) -> tuple[str, str, bool]:
+    """Resolve a download/artifact request to (root_id, rel, preview)."""
+    if tail == "/files/artifact":
+        root_id, rel = _resolve_artifact(query.get("path", ""))
+        return root_id, rel, query.get("preview") == "1"
+    root_id, rel = query.get("root", ""), query.get("path", "")
+    _reject_workspace_browse(root_id, rel)
+    return root_id, rel, False
+
+
+def _json_error_response(status: int, code: str, message: str) -> web.Response:
+    return web.json_response(
+        {"error": {"code": code, "message": message}},
+        status=status,
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+async def _handle_file_stream(request: web.Request, tail: str, dispatch_path: str) -> web.StreamResponse:
+    """Stream /files/download and /files/artifact without buffering the file."""
+    query = {k: v[0] for k, v in parse_qs(urlsplit(dispatch_path).query, keep_blank_values=True).items()}
     try:
-        server.serve_forever()
+        root_id, rel, preview = await asyncio.to_thread(_resolve_file_response, tail, query)
+    except ApiError as exc:
+        return _json_error_response(exc.status, exc.code, exc.message)
+    except Exception:
+        log.exception("file response failed")
+        return _json_error_response(500, "internal", "内部错误")
+    stack = contextlib.ExitStack()
+    prepared = False
+    try:
+        f, info, target = stack.enter_context(_open_download(root_id, rel))
+        headers = _download_response_headers(f, target, info.st_size, preview)
+        response = web.StreamResponse(status=200, headers=headers)
+        await response.prepare(request)
+        prepared = True
+        remaining = info.st_size
+        try:
+            while remaining:
+                chunk = await asyncio.to_thread(f.read, min(64 * 1024, remaining))
+                if not chunk:
+                    break
+                await response.write(chunk)
+                remaining -= len(chunk)
+        except (BrokenPipeError, ConnectionResetError, asyncio.CancelledError):
+            pass
+        try:
+            await response.write_eof()
+        except (BrokenPipeError, ConnectionResetError, asyncio.CancelledError):
+            pass
+        return response
+    except ApiError as exc:
+        if prepared:
+            raise
+        return _json_error_response(exc.status, exc.code, exc.message)
+    except OSError:
+        log.exception("file response stream failed")
+        if prepared:
+            raise
+        return _json_error_response(500, "internal", "内部错误")
     finally:
-        server.server_close()
+        stack.close()
 
 
-if __name__ == "__main__":
-    main()
+async def _handle_panel_core(server: Any, request: web.Request, *, prefix: str = "/panel-core") -> web.StreamResponse:
+    denied = server._authed(request)
+    if denied is not None:
+        return denied
+    raw_path = request.rel_url.raw_path
+    tail = raw_path[len(prefix):] if prefix else raw_path
+    raw_qs = request.rel_url.raw_query_string
+    dispatch_path = tail + ("?" + raw_qs if raw_qs else "")
+    if tail in ("/files/download", "/files/artifact"):
+        return await _handle_file_stream(request, tail, dispatch_path)
+    length_raw = request.headers.get("Content-Length")
+    cap = MAX_UPLOAD_BYTES if tail == "/files/upload" else MAX_SKILL_BODY_BYTES
+    if length_raw is not None:
+        try:
+            length = int(length_raw)
+        except (ValueError, TypeError):
+            length = -1
+        if length > cap:
+            return _json_error_response(413, "too_large", "请求体过大")
+    body = await request.read()
+    if len(body) > cap:
+        return _json_error_response(413, "too_large", "请求体过大")
+    headers = {"Content-Length": length_raw} if length_raw is not None else {}
+    handler = new_handler(request.method, dispatch_path, headers, body)
+    await asyncio.to_thread(handler._dispatch, request.method, key_required=False)
+    status, resp_headers, resp_body = parse_raw_response(handler.wfile.getvalue())
+    out_headers = {k: v for k, v in resp_headers.items() if k.lower() != "content-length"}
+    return web.Response(status=status, body=resp_body, headers=out_headers)
+
+
+def register_panel_core_routes(app: web.Application, server: Any, *, prefix: str = "/panel-core") -> None:
+    """Mount the panel-core routes (``prefix/*``) on the panel app.
+
+    Must be registered before the static catch-all. Auth is PanelServer._authed
+    (panel cookie + Origin), the same check the old /panel-sidecar/ proxy used.
+    ``prefix=""`` mounts the same dispatcher at the root; test fixtures use it
+    to serve panel-core routes without the panel prefix.
+    """
+    async def panel_core(request: web.Request) -> web.StreamResponse:
+        return await _handle_panel_core(server, request, prefix=prefix)
+
+    if prefix:
+        app.router.add_route("*", prefix + "/{tail:.*}", panel_core)
+        app.router.add_route("*", prefix, panel_core)
+    else:
+        app.router.add_route("*", "/{tail:.*}", panel_core)

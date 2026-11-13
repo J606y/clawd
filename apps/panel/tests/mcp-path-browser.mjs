@@ -331,9 +331,9 @@ try {
     if (report.dialogs !== 0 || report.copyButtons !== 0) failures.push(`${width} added dialog or copy button`);
     if (report.pane.overflowY !== "auto") failures.push(`${width} pane overflowY ${report.pane.overflowY}`);
     if (report.pane.scrollWidth > report.pane.clientWidth + 1 || report.pane.scrollLeft !== 0) failures.push(`${width} pane horizontal scroll`);
-    const writes = report.traffic.filter((item) => item.method !== "GET" || !new URL(item.url).pathname.endsWith("/panel-sidecar/mcp"));
+    const writes = report.traffic.filter((item) => item.method !== "GET" || !new URL(item.url).pathname.endsWith("/panel-core/mcp"));
     if (writes.length) failures.push(`${width} unexpected request ${JSON.stringify(writes)}`);
-    if (!report.traffic.some((item) => item.method === "GET" && item.url.includes("/panel-sidecar/mcp"))) failures.push(`${width} list GET missing`);
+    if (!report.traffic.some((item) => item.method === "GET" && item.url.includes("/panel-core/mcp"))) failures.push(`${width} list GET missing`);
 
     await evaluate(`(() => {
       const pane = document.querySelector(".settings-hub .pane");

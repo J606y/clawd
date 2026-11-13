@@ -3,6 +3,17 @@
 Synthetic helpers implement actual page-attached CDP calls, not the installed
 Hermes harness. No model call, production browser or plugin installation.
 """
+import sys as _sys
+from pathlib import Path as _Path
+_REPO_ROOT = _Path(__file__).resolve().parents[3]
+_TESTS_DIR = _Path(__file__).resolve().parent
+if str(_TESTS_DIR) not in _sys.path:
+    _sys.path.insert(0, str(_TESTS_DIR))
+if str(_REPO_ROOT) not in _sys.path:
+    _sys.path.append(str(_REPO_ROOT))
+
+from panel_core_http_fixture import start_panel_core_server, stop_panel_core_server
+
 import importlib.util
 import json
 import os
@@ -19,8 +30,8 @@ from pathlib import Path
 from unittest.mock import patch
 from urllib.parse import urlsplit
 
-from sidecar import hermes_panel_sidecar as sc
-from sidecar.live_task_store import Store
+from clawd_server import panel_core as sc
+from clawd_server.live_task_store import Store
 
 ROOT = Path(__file__).resolve().parent.parent
 spec = importlib.util.spec_from_file_location('guard_chain', ROOT / 'plugins/browser-window-guard/__init__.py')
@@ -47,7 +58,7 @@ class TaskLiveChainTests(unittest.TestCase):
                                      '--disable-dev-shm-usage', '--remote-debugging-port=0',
                                      '--user-data-dir=' + str(profile), 'about:blank'],
                                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            server = thread = browser = None
+            loop = runner = thread = browser = None
             try:
                 deadline = time.monotonic() + 8
                 port_file = profile / 'DevToolsActivePort'
@@ -69,7 +80,7 @@ class TaskLiveChainTests(unittest.TestCase):
                 user_target = cdp_http('/json/list')[0]['id']
                 helpers = '''
 import json, urllib.request
-from sidecar.hermes_panel_sidecar import _CdpSocket
+from clawd_server.panel_core import _CdpSocket
 host = HOST
 browser = _CdpSocket(BROWSER_URL)
 current = USER_TARGET
@@ -106,7 +117,7 @@ def js(expression):
 switch_tab(USER_TARGET)
 '''.replace('HOST', repr(host)).replace('BROWSER_URL', repr(version['webSocketDebuggerUrl'])).replace('USER_TARGET', repr(user_target))
                 env = dict(os.environ, PANEL_LIVE_TASK_DB=str(db), HERMES_LIVE_CDP_HOST=host,
-                           PANEL_LIVE_STORE_MODULE=str(ROOT / 'sidecar/live_task_store.py'))
+                           PANEL_LIVE_STORE_MODULE=str(ROOT.parents[1] / 'clawd_server/live_task_store.py'))
                 with patch.dict(os.environ, env):
                     from native_browser_fixture import bind_profile, install_native, register_page
                     from tools.browser_task_cdp import create_page
@@ -146,13 +157,9 @@ switch_tab(USER_TARGET)
                     all_ids = {item['id'] for item in cdp_http('/json/list') if item.get('type') == 'page'}
                     self.assertEqual(all_ids, {user_target, a['targetId'], b['targetId']})
                     browser.call('Target.activateTarget', {'targetId': user_target})
-                    class Handler(sc.Handler):
-                        key = 'isolated-chain-key'
-                    server = ThreadingHTTPServer(('127.0.0.1', 0), Handler)
-                    thread = threading.Thread(target=server.serve_forever, daemon=True)
-                    thread.start()
-                    url = 'http://127.0.0.1:' + str(server.server_port) + '/live/task?session_id=session-a&task_id=' + a['taskId']
-                    request = urllib.request.Request(url, headers={'X-Panel-Key': Handler.key})
+                    loop, runner, thread, port = start_panel_core_server(sc, 'isolated-chain-key')
+                    url = 'http://127.0.0.1:' + str(port) + '/live/task?session_id=session-a&task_id=' + a['taskId']
+                    request = urllib.request.Request(url, headers={'X-Panel-Key': 'isolated-chain-key'})
                     with urllib.request.urlopen(request, timeout=8) as response:
                         frame = json.load(response)
                     self.assertEqual(frame['title'], 'Owned A')
@@ -164,7 +171,7 @@ switch_tab(USER_TARGET)
 
                     def post(endpoint_url, body):
                         req = urllib.request.Request(endpoint_url, data=json.dumps(body).encode(),
-                            headers={'X-Panel-Key': Handler.key, 'Content-Type': 'application/json'})
+                            headers={'X-Panel-Key': 'isolated-chain-key', 'Content-Type': 'application/json'})
                         with urllib.request.urlopen(req, timeout=6) as response:
                             return json.load(response)
 
@@ -182,11 +189,8 @@ switch_tab(USER_TARGET)
                     close_owned(b['taskId'])
                     self.assertEqual({item['id'] for item in cdp_http('/json/list') if item.get('type') == 'page'}, {user_target})
             finally:
-                if server:
-                    server.shutdown()
-                    server.server_close()
-                if thread:
-                    thread.join(timeout=3)
+                if loop is not None:
+                    stop_panel_core_server(loop, runner, thread)
                 if browser:
                     browser.close()
                 if proc.poll() is None:

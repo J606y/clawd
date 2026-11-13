@@ -293,7 +293,7 @@ def test_page_uses_the_runtime_channel_and_legacy_function_remains():
     assert "sidecar.usage(days)" in queries
     page = (_REPO / "apps/panel/src/react/pages/settings/usage-tab.tsx").read_text(encoding="utf-8")
     assert "useUsage(days, visible)" in page
-    legacy = (_REPO / "apps/panel/sidecar/hermes_panel_sidecar.py").read_text(encoding="utf-8")
+    legacy = (_REPO / "clawd_server/panel_core.py").read_text(encoding="utf-8")
     assert "def get_usage(days: int)" in legacy
     assert "sqlite3.connect" in legacy
     tsconfig = json.loads((_REPO / "apps/panel/tsconfig.json").read_text(encoding="utf-8"))

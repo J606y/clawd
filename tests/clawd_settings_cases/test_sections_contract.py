@@ -80,11 +80,11 @@ def test_error_codes_and_secret_boundaries():
     assert "没有切换 memory.provider" in memory
 
 
-def test_frozen_components_call_sidecar_paths():
+def test_frozen_components_call_panel_core_paths():
     expected = {
-        "tools": ("export function ToolsSection", "panel-sidecar/", "tools/toolsets", "tools/toolsets/enabled"),
-        "memory": ("export function MemorySection", "panel-sidecar/", "memory/providers", "memory/providers/config"),
-        "connections": ("export function ConnectionsSection", "panel-sidecar/", "connections/platforms", "connections/platforms/enabled"),
+        "tools": ("export function ToolsSection", "panel-core/", "tools/toolsets", "tools/toolsets/enabled"),
+        "memory": ("export function MemorySection", "panel-core/", "memory/providers", "memory/providers/config"),
+        "connections": ("export function ConnectionsSection", "panel-core/", "connections/platforms", "connections/platforms/enabled"),
     }
     for key, needles in expected.items():
         text = _text(TSX[key])

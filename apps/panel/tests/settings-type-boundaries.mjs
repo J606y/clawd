@@ -202,7 +202,7 @@ test("collector still includes the 51st child, and a mid-walk failure is not an 
   }, 1), (error) => error.message === "page-2-down" && !Array.isArray(error.data));
 });
 
-const PUT_URL = "https://panel.example.test/panel-sidecar/plugins/config";
+const PUT_URL = "https://panel.example.test/panel-core/plugins/config";
 
 function putSchema(extra = {}) {
   return {

@@ -1427,6 +1427,21 @@ def _take_real_profile_note(route_key: str) -> dict:
     return {"real_profile_unavailable": _real_profile_fallback[route_key]}
 
 
+def _native_live_eligible(env: dict, autospawn, cloud_id, local_sidecar,
+                        bot_desktop_browser) -> bool:
+    """Native execution applies only to the local live browser.
+
+    Cloud/autospawn/sidecar/real-profile routes keep the harness daemon:
+    the supervisor refuses a second websocket to a signed cloud endpoint,
+    and those browsers are not the core-owned live one.
+    """
+    if autospawn or cloud_id or local_sidecar or bot_desktop_browser:
+        return False
+    from tools.browser_native_exec import is_native_live_endpoint
+    cdp = env.get("BU_CDP_WS") or env.get("BU_CDP_URL") or ""
+    return is_native_live_endpoint(cdp)
+
+
 def browser_exec(code: str, session: str = "", timeout_s: int = _DEFAULT_TIMEOUT_S,
                  task_id: Optional[str] = None, local: bool = False,
                  session_id: Optional[str] = None, turn_id: Optional[str] = None):
@@ -1473,6 +1488,17 @@ def browser_exec(code: str, session: str = "", timeout_s: int = _DEFAULT_TIMEOUT
     _exec_local_engine.set(local_engine)  # only local browsers carry the sentinel
     autospawn = env.pop(_AUTOSPAWN_SENTINEL, None)
     cloud_id = env.pop(_CLOUD_ID_SENTINEL, None)
+
+    # Native path (loopback live browser only): run the code in-process on the
+    # core CDP supervisor instead of the harness daemon subprocess -- no 5 s
+    # IPC hop, no separate daemon. The worker is woken before the code runs.
+    if _native_live_eligible(env, autospawn, cloud_id, local_sidecar, bot_desktop_browser):
+        from tools.browser_native_exec import execute_native
+        cdp = env.get("BU_CDP_WS") or env.get("BU_CDP_URL") or ""
+        return execute_native(
+            code, task_id=task_id, session_id=session_id, turn_id=turn_id,
+            cdp_url=cdp, timeout_s=timeout_s, session_name=session,
+            route_key=route_key)
 
     # A tool call with session/turn identity creates its own target and pins the
     # harness to it. Named-session own-tab preamble stays only for direct callers

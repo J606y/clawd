@@ -245,7 +245,7 @@ let
   # inside uv2nix.loadWorkspace. hermes-agent.nix passes it to python.nix as
   # panelResourceRoot. python.nix sets CLAWD_PANEL_RESOURCE_ROOT only on the
   # wheel-build derivation. The runtime wrapper must not receive that path.
-  # nix/panel-resources.nix remains the frozen dist/sidecar/plugin producer.
+  # nix/panel-resources.nix remains the frozen dist/plugin producer.
   # Its installPhase does not copy vendor/novnc. This attribute is what
   # hermes-agent.nix passes as panelResourceRoot; it copies that output and
   # the pinned tree. Do not splice the result into pythonSrc.
@@ -305,7 +305,6 @@ let
         test -d "$out/vendor/novnc"
         test ! -L "$out/vendor/novnc"
         test -f "$out/dist/index.html"
-        test -f "$out/sidecar/hermes_panel_sidecar.py"
         test -f "$out/plugins/browser-window-guard/plugin.yaml"
         test -f "$out/vendor/novnc/core/rfb.js"
         test -f "$out/vendor/novnc/LICENSE.txt"

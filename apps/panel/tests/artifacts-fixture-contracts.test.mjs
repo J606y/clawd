@@ -30,7 +30,7 @@ test('missing run and unknown panel routes fail closed', () => {
   assert.equal(missing.body.error.param, null);
   assert.deepEqual(Object.keys(missing.body), ['error']);
 
-  for (const pathname of ['/panel-api/api/settings', '/panel-sidecar/settings', '/panel-unknown/v1/runs']) {
+  for (const pathname of ['/panel-api/api/settings', '/panel-core/settings', '/panel-unknown/v1/runs']) {
     const unknown = artifactsJsonDecision('GET', pathname, new URLSearchParams(), { run: null, messages: [] });
     assert.equal(unknown.status, 404, pathname);
     assert.equal(unknown.body.error.code, 'route_not_found', pathname);
@@ -121,12 +121,12 @@ test('known capability routes are modeled and do not invent a profile', () => {
   assert.equal(effort.body.source, 'unset');
   noProfile(effort.body);
 
-  const wait = artifactsJsonDecision('GET', '/panel-sidecar/run-wait', new URLSearchParams('session=artifacts-test'), state);
+  const wait = artifactsJsonDecision('GET', '/panel-core/run-wait', new URLSearchParams('session=artifacts-test'), state);
   assert.equal(wait.body.state, 'unknown');
   assert.equal(wait.body.available, false);
   assert.equal(wait.body.data, undefined);
 
-  const artifact = artifactsJsonDecision('GET', '/panel-sidecar/files/artifact', new URLSearchParams('path=/tmp/x'), state);
+  const artifact = artifactsJsonDecision('GET', '/panel-core/files/artifact', new URLSearchParams('path=/tmp/x'), state);
   assert.equal(artifact.proxy, true);
 });
 

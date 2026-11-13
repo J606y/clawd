@@ -396,6 +396,19 @@ def _accept_endpoint(endpoint: str, browser_id: str) -> tuple[str, str]:
             raise RegistryError("browser_id_missing", "daemon connection receipt has no process id")
         valid_id(browser_id[7:])
         return endpoint, browser_id
+    if isinstance(endpoint, str) and endpoint.startswith("ws://"):
+        # A loopback CDP websocket is the same browser as its http://
+        # discovery root (the supervisor's cdp_url after /json/version
+        # resolution). Normalize it instead of treating it as an unsigned
+        # cloud endpoint. Anything non-loopback (or with userinfo / no
+        # port) fails http_base and falls through to validate_cloud_ws
+        # below, which refuses ws:// (not a signed wss://).
+        from tools.browser_task_cdp import CdpError as _CdpError
+        from tools.browser_task_cdp import http_base as _http_base
+        try:
+            endpoint = _http_base(endpoint)
+        except _CdpError:
+            pass
     if isinstance(endpoint, str) and endpoint.startswith(("http://127.0.0.1:", "http://localhost:",
                                                            "https://127.0.0.1:", "https://localhost:")):
         if not isinstance(browser_id, str) or not browser_id.startswith("/devtools/browser/"):

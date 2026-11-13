@@ -1,4 +1,4 @@
-"""Panel and sidecar resource locations for checkout and installed layouts.
+"""Panel resource locations for checkout and installed layouts.
 
 Checkout (and editable installs, whose ``__file__`` still lives in the tree)
 read ``apps/panel`` next to ``pyproject.toml``. A wheel install reads the copy
@@ -6,7 +6,7 @@ staged under ``clawd_server/bundled/`` by ``scripts/build_clawd_resources.py``.
 The staged panel includes the pinned noVNC tree at ``vendor/novnc``.
 
 ``code_root()`` is the directory that contains importable ``hermes_cli`` /
-``clawd_server``. The sidecar settings helper runs ``python -I`` and inserts
+``clawd_server``. The panel-core settings helper runs ``python -I`` and inserts
 that path; it must not be replaced with the panel resource root.
 
 This module never downloads, never builds the frontend, and never falls back
@@ -56,22 +56,12 @@ RESOURCE_ARCHIVE_ROOT = "clawd_server/bundled"
 _WHEEL_DATA_SCHEMES = frozenset({"purelib", "platlib", "data", "scripts", "headers"})
 DIST_BUILD_BASE_ENV = "CLAWD_DIST_BUILD_BASE"
 _STAGE_PREFIX = ".clawd-dist.stage-"
-SIDECAR_FILES = (
-    "hermes_panel_sidecar.py",
-    "image_studio.py",
-    "live_task_store.py",
-)
 PLUGIN_NAME = "browser-window-guard"
 PLUGIN_FILES = (
     "__init__.py",
     "live_task_store.py",
     "plugin.yaml",
     "README.md",
-)
-OMITTED_SIDECAR = (
-    "test_*.py",
-    "*.service",
-    "requirements.txt",
 )
 _OWNED_MARKERS = (".stage-", ".rejected-")
 
@@ -214,7 +204,7 @@ def detect_layout(package_dir: Path | None = None) -> str:
     """Return ``checkout`` or ``installed``. Never selects a production tree."""
     package_dir = _pkg(package_dir)
     parent = package_dir.parent
-    marker = parent / "apps" / "panel" / "sidecar" / "hermes_panel_sidecar.py"
+    marker = parent / "apps" / "panel" / "package.json"
     project = parent / "pyproject.toml"
     if (
         project.is_file()
@@ -250,7 +240,7 @@ def bundled_root(package_dir: Path | None = None) -> Path:
 
 
 def panel_root(package_dir: Path | None = None) -> Path:
-    """Directory that contains ``dist/``, ``sidecar/``, ``plugins/``, and ``vendor/novnc``."""
+    """Directory that contains ``dist/``, ``plugins/``, and ``vendor/novnc``."""
     package_dir = _pkg(package_dir)
     if detect_layout(package_dir) == LAYOUT_CHECKOUT:
         path = package_dir.parent / "apps" / "panel"
@@ -290,20 +280,6 @@ def panel_static_dir(package_dir: Path | None = None, *, require_built: bool | N
     return path
 
 
-def sidecar_dir(package_dir: Path | None = None) -> Path:
-    package_dir = _pkg(package_dir)
-    if detect_layout(package_dir) == LAYOUT_INSTALLED and not bundled_is_complete(bundled_root(package_dir)):
-        raise ResourceError(_installed_incomplete_message())
-    path = panel_root(package_dir) / "sidecar"
-    marker = path / "hermes_panel_sidecar.py"
-    if not marker.is_file() or marker.is_symlink():
-        raise ResourceError(
-            f"sidecar Python 资源缺失: {marker}。"
-            "检出需要 apps/panel/sidecar；安装包需要先暂存再打包。"
-        )
-    return path
-
-
 def plugin_dir(name: str = PLUGIN_NAME, package_dir: Path | None = None) -> Path:
     package_dir = _pkg(package_dir)
     if detect_layout(package_dir) == LAYOUT_INSTALLED and not bundled_is_complete(bundled_root(package_dir)):
@@ -329,7 +305,7 @@ def license_file(package_dir: Path | None = None) -> Path:
 
 
 def python_path_entries(package_dir: Path | None = None) -> tuple[Path, ...]:
-    """Paths to prepend so ``import sidecar...`` works. Code root only in checkout."""
+    """Paths to prepend so panel imports work. Code root only in checkout."""
     package_dir = _pkg(package_dir)
     entries: list[Path] = []
     if detect_layout(package_dir) == LAYOUT_CHECKOUT:
@@ -389,11 +365,6 @@ def _panel_tree_problems(panel: Path) -> list[str]:
     ] if assets.is_dir() and not assets.is_symlink() else []
     if not js_files:
         problems.append("面板静态资源不完整：apps/panel/dist/assets 下没有 *.js。不会自动构建。")
-    sidecar = panel / "sidecar"
-    for name in SIDECAR_FILES:
-        path = sidecar / name
-        if not path.is_file() or path.is_symlink():
-            problems.append(f"sidecar 模块缺失: apps/panel/sidecar/{name}")
     plugin = panel / "plugins" / PLUGIN_NAME
     for name in PLUGIN_FILES:
         path = plugin / name
@@ -543,7 +514,6 @@ def _iter_dist_files(dist: Path) -> list[Path]:
 
 def _required_bundle_paths() -> tuple[str, ...]:
     names = ["LICENSES/LICENSE", "apps/panel/dist/index.html"]
-    names.extend(f"apps/panel/sidecar/{name}" for name in SIDECAR_FILES)
     names.extend(f"apps/panel/plugins/{PLUGIN_NAME}/{name}" for name in PLUGIN_FILES)
     names.extend(f"{NOVNC_BUNDLE_PREFIX}/{name}" for name in NOVNC_PINNED_SHA256)
     names.extend(f"{NOVNC_BUNDLE_PREFIX}/{name}" for name in NOVNC_CLOSURE)
@@ -969,9 +939,6 @@ def _fill_staging(checkout: Path, panel: Path, staging: Path) -> list[dict[str, 
         relative = Path("apps") / "panel" / "dist" / src.relative_to(dist)
         entry = _copy_file(src, staging / relative, panel, staging)
         copied.append(entry)
-    for name in SIDECAR_FILES:
-        rel = Path("apps") / "panel" / "sidecar" / name
-        copied.append(_copy_file(panel / "sidecar" / name, staging / rel, panel, staging))
     for name in PLUGIN_FILES:
         rel = Path("apps") / "panel" / "plugins" / PLUGIN_NAME / name
         copied.append(_copy_file(panel / "plugins" / PLUGIN_NAME / name, staging / rel, panel, staging))
@@ -989,7 +956,7 @@ def _write_contract(staging: Path, copied: list[dict[str, object]]) -> None:
         "version": CONTRACT_VERSION,
         "layout": LAYOUT_INSTALLED,
         "panel_static": "apps/panel/dist",
-        "sidecar": "apps/panel/sidecar",
+        "panel_core": "clawd_server/panel_core.py",
         "plugins": [PLUGIN_NAME],
         "license": "LICENSES/LICENSE",
         "novnc": NOVNC_BUNDLE_PREFIX,
@@ -997,7 +964,6 @@ def _write_contract(staging: Path, copied: list[dict[str, object]]) -> None:
         "novnc_path_list_sha256": NOVNC_PATH_LIST_SHA256,
         "novnc_tree_sha256": NOVNC_TREE_SHA256,
         "hash": "sha256",
-        "omitted_sidecar": list(OMITTED_SIDECAR),
         "excluded_parts": sorted(DIST_SKIP_PARTS),
         "excluded_prefixes": list(SOURCE_PREFIXES),
         "files": files,
@@ -1028,7 +994,7 @@ def stage_distribution(
     resource_root: Path | None = None,
     _before_publish=None,
 ) -> Path:
-    """Copy built panel assets, the pinned noVNC tree, and sidecar/plugin modules into ``dest``.
+    """Copy built panel assets, the pinned noVNC tree, and plugin modules into ``dest``.
 
     The canonical slot ``checkout/clawd_server/bundled`` may replace a previous
     bundle that already passes this module's integrity check. That replacement

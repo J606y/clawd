@@ -2334,7 +2334,13 @@ def handle_max_iterations(agent, messages: list, api_call_count: int) -> str:
 def cleanup_task_resources(agent, task_id: str) -> None:
     """Per-turn VM + browser cleanup for a task. Skips ``cleanup_vm`` for persistent
     terminal envs (``_cleanup_inactive_envs`` reaps them after ``terminal.lifetime_seconds``)
-    and ``cleanup_browser`` in headed mode (the inactivity reaper handles idle sessions)."""
+    and ``cleanup_browser`` in headed mode (the inactivity reaper handles idle sessions).
+    Either way the task's CDP supervisor is stopped on a delay
+    (``schedule_supervisor_stop``): in headed mode the pages stay open for
+    the user, and in non-headed mode a held manual lease can make
+    ``cleanup_browser`` return after closing the pages without stopping the
+    supervisor -- the agent-side socket must not hold the live browser
+    awake forever."""
     def _headed() -> bool:
         from tools.browser_session_cloud import is_headed_mode
         return is_headed_mode()
@@ -2352,6 +2358,28 @@ def cleanup_task_resources(agent, task_id: str) -> None:
         except Exception as e:
             if agent.verbose_logging:
                 logger.warning("Failed to cleanup %s for task %s: %s", label, task_id, e)
+
+    # The turn is over, so the task's CDP supervisor has no work left --
+    # but do not stop it outright: in headed mode the pages stay open for
+    # the user, and in non-headed mode a held manual lease can make
+    # ``cleanup_browser`` return after closing the pages without stopping
+    # the supervisor (that is how a supervisor got stranded for hours on
+    # the live browser). Arm the deferred stop instead: after 10 s idle it
+    # drops its 39234 socket, and the runtime reaper can then idle-close
+    # the browser if nobody is watching. The fire-time checks (same object,
+    # idle, exec gate free) keep it from interrupting a live call, and
+    # scheduling is a no-op when no supervisor exists. Never breaks turn
+    # finalization.
+    try:
+        from tools.browser_supervisor import schedule_supervisor_stop
+
+        schedule_supervisor_stop(task_id)
+    except Exception as exc:
+        logger.debug(
+            "deferred CDP supervisor stop not scheduled for task=%s: %s",
+            task_id,
+            type(exc).__name__,
+        )
 
 
 def _build_partial_stream_stub(role, full_content, full_reasoning, model_name, usage_obj, *,

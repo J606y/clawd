@@ -1,7 +1,7 @@
 import { createServer } from 'vite';
 import { spawn } from 'node:child_process';
 import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises';
-import { realpathSync } from 'node:fs';
+import { existsSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 import assert from 'node:assert/strict';
 import { request as httpRequest } from 'node:http';
@@ -27,7 +27,7 @@ export function fixtureError(code, message) {
 
 export function stripPanel(pathname) {
   if (pathname.startsWith('/panel-api/')) return { channel: 'api', path: pathname.slice('/panel-api'.length) };
-  if (pathname.startsWith('/panel-sidecar/')) return { channel: 'sidecar', path: pathname.slice('/panel-sidecar'.length) };
+  if (pathname.startsWith('/panel-core/')) return { channel: 'panel-core', path: pathname.slice('/panel-core'.length) };
   if (pathname.startsWith('/panel-')) return { channel: 'unknown', path: pathname };
   return null;
 }
@@ -137,8 +137,8 @@ export function artifactsJsonDecision(method, pathname, query, state = { run: nu
   }
   const route = stripped.path;
   const params = query instanceof URLSearchParams ? query : new URLSearchParams(query || '');
-  if (stripped.channel === 'sidecar' && method === 'GET' && route === '/files/artifact') return { proxy: true };
-  if (stripped.channel === 'sidecar' && method === 'GET' && route === '/run-wait') {
+  if (stripped.channel === 'panel-core' && method === 'GET' && route === '/files/artifact') return { proxy: true };
+  if (stripped.channel === 'panel-core' && method === 'GET' && route === '/run-wait') {
     return { status: 200, body: { state: 'unknown', source: 'durable', available: false, observedAtMs: Date.now() } };
   }
   if (method === 'POST' && route === '/v1/runs') return { create: true };
@@ -230,7 +230,7 @@ if (runningAsMain()) {
 
 async function runArtifactsBrowser() {
 const profile=await mkdtemp(path.join('/root/hermes-workspace','panel-artifacts-browser-'));
-let sidecar,sidecarPort;
+let panelCore,panelCorePort;
 const stopProcess=async proc=>{if(proc && proc.exitCode===null){proc.kill('SIGTERM');await new Promise(resolve=>proc.once('exit',resolve));}};
 const png=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=','base64');
 const workspace=path.join(profile,'workspace');
@@ -273,7 +273,7 @@ const backend={name:'synthetic-artifact-backend',configureServer(server){const h
  }
  if(req.method!=='GET' && req.method!=='HEAD') state.posts.push(req.url);
  if(decision.proxy){
-  const upstream=httpRequest({hostname:'127.0.0.1',port:sidecarPort,path:'/files/artifact'+url.search,headers:{'X-Panel-Key':'browser-fixture-only'}},response=>{res.writeHead(response.statusCode,response.headers);response.pipe(res);});
+  const upstream=httpRequest({hostname:'127.0.0.1',port:panelCorePort,path:'/panel-core/files/artifact'+url.search,headers:{'X-Panel-Key':'browser-fixture-only'}},response=>{res.writeHead(response.statusCode,response.headers);response.pipe(res);});
   upstream.on('error',error=>{if(!res.headersSent)json(res,{error:error.message},502);else res.destroy(error);});
   res.on('close',()=>upstream.destroy());
   upstream.end();return;
@@ -298,9 +298,11 @@ const server=await createServer({
 let browser,socket,failure;
 try{
  await Promise.all([mkdir(path.join(profile,'uploads'),{recursive:true}),mkdir(workspace,{recursive:true}),mkdir(path.join(profile,'images'),{recursive:true}),mkdir(path.join(profile,'cron','output'),{recursive:true}),writeFile(image,png),writeFile(file,fileBytes),writeFile(archive,fileBytes)]);
- const python=`import sys\nfrom pathlib import Path\nfrom sidecar.hermes_panel_sidecar import Handler, ThreadingHTTPServer, FILE_ROOTS\nFILE_ROOTS.clear()\nhome=Path(sys.argv[1])\nFILE_ROOTS['uploads']={'path':home/'uploads','label':'上传','writable':True,'create':True}\nFILE_ROOTS['workspace']={'path':home/'workspace','label':'工作区','writable':False,'create':True}\nFILE_ROOTS['images']={'path':home/'images','label':'图片','writable':False,'create':True}\nFILE_ROOTS['cron']={'path':home/'cron'/'output','label':'定时任务输出','writable':False,'create':True}\nHandler.key='browser-fixture-only'\nserver=ThreadingHTTPServer(('127.0.0.1',0),Handler)\nserver.daemon_threads=True\nprint(server.server_address[1],flush=True)\nserver.serve_forever()\n`;
- sidecar=spawn('python3',['-u','-c',python,profile],{stdio:['ignore','pipe','pipe'],env:{...process.env,CLAWD_HOME:profile,HERMES_HOME:path.join(profile,'hermes-home')}});
- sidecarPort=await new Promise((resolve,reject)=>{let output='';const timer=setTimeout(()=>reject(new Error('Sidecar startup timeout')),10000);sidecar.stdout.on('data',chunk=>{output+=chunk;const match=output.match(/^([0-9]+)\n/);if(match){clearTimeout(timer);resolve(Number(match[1]));}});sidecar.once('error',error=>{clearTimeout(timer);reject(error);});sidecar.once('exit',code=>{clearTimeout(timer);reject(new Error(`Sidecar exited ${code}`));});});
+ const python=`import sys\nfrom pathlib import Path\nsys.path.insert(0, sys.argv[2])\nfrom clawd_server import panel_core\nfrom clawd_server.panel_core import register_panel_core_routes\nfrom aiohttp import web\npanel_core.FILE_ROOTS.clear()\nhome = Path(sys.argv[1])\npanel_core.FILE_ROOTS['uploads'] = {'path': home / 'uploads', 'label': '上传', 'writable': True, 'create': True}\npanel_core.FILE_ROOTS['workspace'] = {'path': home / 'workspace', 'label': '工作区', 'writable': False, 'create': True}\npanel_core.FILE_ROOTS['images'] = {'path': home / 'images', 'label': '图片', 'writable': False, 'create': True}\npanel_core.FILE_ROOTS['cron'] = {'path': home / 'cron' / 'output', 'label': '定时任务输出', 'writable': False, 'create': True}\nclass Stub:\n    def __init__(self): self.panel_core = panel_core\n    def _authed(self, request):\n        if request.headers.get('X-Panel-Key') != 'browser-fixture-only':\n            return web.json_response({'error': {'code': 'unauthorized', 'message': 'unauthorized'}}, status=401, headers={'Cache-Control': 'no-store'})\n        return None\nimport asyncio\napp = web.Application()\nregister_panel_core_routes(app, Stub())\nloop = asyncio.new_event_loop()\nrunner = web.AppRunner(app)\nloop.run_until_complete(runner.setup())\nsite = web.TCPSite(runner, '127.0.0.1', 0)\nloop.run_until_complete(site.start())\nprint(site._server.sockets[0].getsockname()[1], flush=True)\nloop.run_forever()\n`;
+ const venvPython=path.join(rootDir,'..','..','.venv','bin','python');
+ const panelCorePython=existsSync(venvPython)?venvPython:'python3';
+ panelCore=spawn(panelCorePython,['-u','-c',python,profile,path.resolve(rootDir,'..','..')],{stdio:['ignore','pipe','pipe'],env:{...process.env,CLAWD_HOME:profile,HERMES_HOME:path.join(profile,'hermes-home')}});
+ panelCorePort=await new Promise((resolve,reject)=>{let output='';const timer=setTimeout(()=>reject(new Error('Panel core startup timeout')),10000);panelCore.stdout.on('data',chunk=>{output+=chunk;const match=output.match(/^([0-9]+)\n/);if(match){clearTimeout(timer);resolve(Number(match[1]));}});panelCore.once('error',error=>{clearTimeout(timer);reject(error);});panelCore.once('exit',code=>{clearTimeout(timer);reject(new Error(`Panel core exited ${code}`));});});
  await server.listen(); const port=server.httpServer.address().port;
  browser=spawn('/usr/bin/chromium',['--headless','--no-sandbox','--disable-dev-shm-usage','--remote-debugging-port=0',`--user-data-dir=${profile}`,'about:blank'],{stdio:['ignore','ignore','pipe']});
  const wsUrl=await new Promise((resolve,reject)=>{let output='';const timer=setTimeout(()=>reject(new Error('CDP startup timeout')),15000);browser.stderr.on('data',chunk=>{output+=chunk;const match=output.match(/DevTools listening on (ws:\/\/\S+)/);if(match){clearTimeout(timer);resolve(match[1]);}});browser.on('error',reject);});
@@ -350,7 +352,7 @@ try{
  assert.ok(await desktop.evaluate('artifactRoots().some(r=>r.textContent.includes("报告 结果.txt") && r.textContent.includes("下载文件"))'));
  await desktop.wait('artifactRoots().some(r=>[...r.querySelectorAll("code")].some(c=>c.textContent.includes("fenced.png")))','fenced media stays inside code');
  assert.equal(state.requests.some(r=>r.query?.includes('inline.png')||r.query?.includes('fenced.png')),false);
- const download=await desktop.evaluate(`(async()=>{const name=${JSON.stringify(file)}.split('/').at(-1);const url='/panel-sidecar/files/artifact?path='+encodeURIComponent(${JSON.stringify(file)});const r=await fetch(url);return {status:r.status,bytes:[...new Uint8Array(await r.arrayBuffer())],disposition:r.headers.get('Content-Disposition'),button:!!saveButton(name)};})()`);
+ const download=await desktop.evaluate(`(async()=>{const name=${JSON.stringify(file)}.split('/').at(-1);const url='/panel-core/files/artifact?path='+encodeURIComponent(${JSON.stringify(file)});const r=await fetch(url);return {status:r.status,bytes:[...new Uint8Array(await r.arrayBuffer())],disposition:r.headers.get('Content-Disposition'),button:!!saveButton(name)};})()`);
  assert.equal(download.status,200);assert.deepEqual(Buffer.from(download.bytes),fileBytes);assert.match(download.disposition,/attachment/);
  const downloads=path.join(profile,'downloads');await mkdir(downloads);
  await call('Browser.setDownloadBehavior',{behavior:'allow',downloadPath:downloads,browserContextId:desktop.browserContextId,eventsEnabled:true});
@@ -393,7 +395,7 @@ try{
  console.log('PASS refreshed history/commentary, desktop + 390px fit, keyboard enlarge, no extra model submission');
 }catch(error){failure=error;}finally{
  for(const res of state.run?.followers??[])res.end();
- socket?.close();if(browser){browser.kill('SIGTERM');await new Promise(resolve=>browser.exitCode!==null?resolve():browser.once('exit',resolve));}await server.close();await stopProcess(sidecar);await rm(profile,{recursive:true,force:true,maxRetries:5,retryDelay:200});
+ socket?.close();if(browser){browser.kill('SIGTERM');await new Promise(resolve=>browser.exitCode!==null?resolve():browser.once('exit',resolve));}await server.close();await stopProcess(panelCore);await rm(profile,{recursive:true,force:true,maxRetries:5,retryDelay:200});
 }
 if(failure)throw failure;
 }

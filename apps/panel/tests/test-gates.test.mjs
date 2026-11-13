@@ -57,7 +57,7 @@ describe('test-gates runner contract', () => {
     const res = await runProcess(process.execPath, ['scripts/test-gates.mjs', '--target=verify', '--list']);
     assert.equal(res.code, 0, res.stderr);
     const names = JSON.parse(res.stdout).map(gate => gate.name);
-    for (const name of ['typecheck', 'node', 'python-tests', 'python-sidecar',
+    for (const name of ['typecheck', 'node', 'python-tests',
       'delegated-sidebar-browser', 'scroll-layout-phase3-browser',
       ...admittedBrowserGates,
       ...addedBrowserGates,
@@ -82,7 +82,7 @@ describe('test-gates runner contract', () => {
     assert.equal(gates[0].cmd, 'npm');
     assert.deepEqual(gates[0].args, ['run', 'typecheck']);
     assert.equal(names.includes('build'), false);
-    for (const name of ['node', 'python-tests', 'python-sidecar', ...admittedBrowserGates, ...addedBrowserGates]) {
+    for (const name of ['node', 'python-tests', ...admittedBrowserGates, ...addedBrowserGates]) {
       assert.ok(names.includes(name), `all omits ${name}`);
     }
     for (const name of excludedBrowserGates) {

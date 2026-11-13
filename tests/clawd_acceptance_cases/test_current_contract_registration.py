@@ -34,7 +34,6 @@ VENDOR_LINES = (
 )
 PANEL_DEPTH = (
     "recursive-include clawd_server/bundled/apps/panel/dist *",
-    "recursive-include clawd_server/bundled/apps/panel/sidecar *.py",
     "recursive-include clawd_server/bundled/apps/panel/plugins *",
 )
 

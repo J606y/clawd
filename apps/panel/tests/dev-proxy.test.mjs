@@ -27,12 +27,12 @@ test('development proxy forwards API, sidecar and same-origin renewal cookies to
     vite = await createServer({ root: path.resolve(import.meta.dirname, '..'), cacheDir,
       server: { host: '127.0.0.1', port: 0, watch: null, hmr: false }, logLevel: 'silent' });
     const config = vite.config.server.proxy;
-    for (const prefix of ['/panel-api', '/panel-sidecar', '/panel-auth']) {
+    for (const prefix of ['/panel-api', '/panel-core', '/panel-auth']) {
       assert.equal(config[prefix]?.target, process.env.PANEL_DEV_UPSTREAM, `missing configurable route ${prefix}`);
     }
     await vite.listen();
     const base = `http://127.0.0.1:${vite.httpServer.address().port}`;
-    for (const [route, method] of [['/panel-api/health', 'GET'], ['/panel-sidecar/health', 'GET'], ['/panel-auth/renew', 'POST']]) {
+    for (const [route, method] of [['/panel-api/health', 'GET'], ['/panel-core/health', 'GET'], ['/panel-auth/renew', 'POST']]) {
       const response = await fetch(base + route, { method, headers: { Cookie: 'panel_session=synthetic-original' } });
       assert.equal(response.status, 200);
       assert.deepEqual(await response.json(), { path: '/__fixture' + route });
@@ -58,7 +58,7 @@ test('unset PANEL_DEV_UPSTREAM does not proxy to production', async () => {
     vite = await createServer({ root: path.resolve(import.meta.dirname, '..'), cacheDir,
       server: { host: '127.0.0.1', port: 0, watch: null, hmr: false }, logLevel: 'silent' });
     const config = vite.config.server.proxy;
-    for (const prefix of ['/panel-api', '/panel-sidecar', '/panel-auth']) {
+    for (const prefix of ['/panel-api', '/panel-core', '/panel-auth']) {
       const target = config[prefix]?.target;
       assert.equal(target, 'http://127.0.0.1:9', `${prefix} must fail closed on loopback`);
       assert.equal(String(target).includes('hermes.20051212.xyz'), false);

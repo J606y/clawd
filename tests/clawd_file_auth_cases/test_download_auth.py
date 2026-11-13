@@ -1,4 +1,4 @@
-"""Download requires panel cookie auth before sidecar bytes, then the sidecar key."""
+"""Download requires panel cookie auth before panel-core bytes, then the panel key."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from pathlib import Path
 
 from tests.clawd_file_auth_cases.helpers import (
     dispatch,
-    isolated_sidecar,
+    isolated_panel_core,
     panel_request,
     require_server,
 )
@@ -23,34 +23,33 @@ def _auth(home: Path):
 
 
 def test_panel_download_without_cookie_is_401_and_does_not_call_upstream(tmp_path: Path):
-    home = tmp_path / "home"
-    home.mkdir()
-    PanelServer = require_server()
-    server = PanelServer(home, None)
-
-    class Tripwire:
-        async def request(self, *_args, **_kwargs):
-            raise AssertionError("upstream called without panel auth")
-
-    server.client = Tripwire()
-    request = panel_request(
-        "GET",
-        "/panel-sidecar/files/download?root=uploads&path=secret.txt",
-        {"Host": "127.0.0.1:9", "Origin": "http://127.0.0.1:9"},
-        match_info={"tail": "files/download"},
-        peer="127.0.0.1",
-    )
-
-    async def call():
-        return await server._proxy_sidecar(request)
-
     import asyncio
 
-    response = asyncio.run(call())
-    assert response.status == 401
-    body = json.loads(response.body)
-    assert body["error"]["code"] == "unauthorized"
-    assert PAYLOAD not in response.body
+    from aiohttp import web
+    from aiohttp.test_utils import TestClient, TestServer
+
+    from clawd_server.panel_core import register_panel_core_routes
+
+    async def fetch():
+        with isolated_panel_core(tmp_path) as (home, mod):
+            (home / "uploads" / "secret.txt").write_bytes(PAYLOAD)
+            PanelServer = require_server()
+            server = PanelServer(home, None)
+            server.panel_core = mod
+            app = web.Application()
+            register_panel_core_routes(app, server)
+            client = TestClient(TestServer(app))
+            await client.start_server()
+            try:
+                resp = await client.get("/panel-core/files/download?root=uploads&path=secret.txt")
+                return resp.status, await resp.read()
+            finally:
+                await client.close()
+
+    status, body = asyncio.run(fetch())
+    assert status == 401
+    assert json.loads(body)["error"]["code"] == "unauthorized"
+    assert PAYLOAD not in body
 
 
 def test_panel_download_bad_origin_is_403_not_401(tmp_path: Path):
@@ -61,7 +60,7 @@ def test_panel_download_bad_origin_is_403_not_401(tmp_path: Path):
     server = PanelServer(home, None)
     request = panel_request(
         "GET",
-        "/panel-sidecar/files/download?root=uploads&path=secret.txt",
+        "/panel-core/files/download?root=uploads&path=secret.txt",
         {
             "Host": "127.0.0.1:9",
             "Origin": "http://evil.example",
@@ -79,8 +78,8 @@ def test_panel_download_bad_origin_is_403_not_401(tmp_path: Path):
     assert json.loads(response.body)["error"]["code"] == "origin_rejected"
 
 
-def test_sidecar_download_requires_key_and_serves_in_root_bytes(tmp_path: Path):
-    with isolated_sidecar(tmp_path) as (home, mod):
+def test_panel_core_download_requires_key_and_serves_in_root_bytes(tmp_path: Path):
+    with isolated_panel_core(tmp_path) as (home, mod):
         (home / "uploads" / "secret.txt").write_bytes(PAYLOAD)
         missing, _headers, body = dispatch(
             mod, "GET", "/files/download?root=uploads&path=secret.txt", key=""
@@ -110,7 +109,7 @@ def test_sidecar_download_requires_key_and_serves_in_root_bytes(tmp_path: Path):
 
 
 def test_valid_key_does_not_bypass_read_only_or_deny(tmp_path: Path):
-    with isolated_sidecar(tmp_path) as (home, mod):
+    with isolated_panel_core(tmp_path) as (home, mod):
         (home / "uploads" / "id_rsa").write_bytes(PAYLOAD)
         status, _headers, body = dispatch(
             mod, "GET", "/files/download?root=uploads&path=id_rsa", key="k"

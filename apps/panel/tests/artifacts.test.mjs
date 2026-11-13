@@ -13,7 +13,7 @@ try {
   const result=parseAssistantContent(`完成\nMEDIA:"${p}"`);
   assert.equal(result.artifacts.length,1);
   assert.equal(result.artifacts[0].name,'测试 图片.png');
-  assert.equal(result.artifacts[0].download,`/panel-sidecar/files/artifact?path=${encodeURIComponent(p)}`);
+  assert.equal(result.artifacts[0].download,`/panel-core/files/artifact?path=${encodeURIComponent(p)}`);
   assert.equal(result.artifacts[0].preview,`${result.artifacts[0].download}&preview=1`);
   assert.equal(result.text,'完成\n');
   assert.equal(artifactReference('/root/hermes-workspace/report.pdf').image,false);

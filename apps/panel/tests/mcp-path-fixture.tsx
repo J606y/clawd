@@ -22,7 +22,7 @@ window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
   const method = String(init?.method || (input instanceof Request ? input.method : "GET")).toUpperCase();
   window.mcpTraffic?.push({ method, url });
   const path = new URL(url, location.href).pathname;
-  if (method === "GET" && path.endsWith("/panel-sidecar/mcp")) {
+  if (method === "GET" && path.endsWith("/panel-core/mcp")) {
     return Response.json(apiPayload());
   }
   return new Response(JSON.stringify({ error: "blocked by mcp-path fixture" }), {

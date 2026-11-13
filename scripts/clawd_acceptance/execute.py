@@ -1203,7 +1203,7 @@ def _authorized_turn(repo: Path, layout: Layout) -> tuple[dict, dict | None, str
             return identity, None, "run response was not json"
         payload = _poll_run(url, run_id, headers) or {"status": "unknown"}
         payload["_requested_model"] = REQUESTED_MODEL
-        mcp_status, mcp_body = _request(url + "/panel-sidecar/mcp", None, {"Cookie": headers["Cookie"], "Host": host})
+        mcp_status, mcp_body = _request(url + "/panel-core/mcp", None, {"Cookie": headers["Cookie"], "Host": host})
         payload["_mcp_status"] = classify_mcp(mcp_status, mcp_body)
         identity = classify_run_payload(payload)["identity"]
         identity["observed"] = _runtime(payload).get("model")

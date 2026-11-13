@@ -1,12 +1,22 @@
-"""Sidecar robustness tests for request body parsing and error handling."""
-import importlib
+"""Panel-core robustness tests for request body parsing and error handling."""
 import io
+import sys
 import unittest
+from pathlib import Path
+
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+_TESTS_DIR = Path(__file__).resolve().parent
+if str(_TESTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_TESTS_DIR))
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.append(str(_REPO_ROOT))
+
+from clawd_server import panel_core
 
 
-class SidecarRobustnessTests(unittest.TestCase):
+class PanelCoreRobustnessTests(unittest.TestCase):
     def setUp(self):
-        self.mod = importlib.import_module("sidecar.hermes_panel_sidecar")
+        self.mod = panel_core
 
     def _call_json_body(self, headers_dict, raw_body=b"{}"):
         class FakeHandler:

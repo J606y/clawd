@@ -1,9 +1,9 @@
-// 面板辅助服务（HK 127.0.0.1:8651，经 nginx panel-sidecar/）：主机状态、技能、配置、服务重启。
+// 面板辅助服务（HK 127.0.0.1:8651，经 nginx panel-core/）：主机状态、技能、配置、服务重启。
 
 import { ApiError, request, type SessionSummary } from "./api.js";
 import type { EditBoundary } from "./message-edit.js";
 
-const BASE = new URL("panel-sidecar/", document.baseURI);
+const BASE = new URL("panel-core/", document.baseURI);
 
 export interface ServiceState {
   name: string;

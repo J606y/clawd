@@ -1,13 +1,23 @@
 """Live lease contracts over local HTTP only; no native browser/agent access."""
 import http.client
-import importlib
 import json
 from pathlib import Path
 import subprocess
+import sys
 import threading
 from typing import Any
 import unittest
 from unittest.mock import patch
+
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+_TESTS_DIR = Path(__file__).resolve().parent
+if str(_TESTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_TESTS_DIR))
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.append(str(_REPO_ROOT))
+
+from clawd_server import panel_core
+from panel_core_http_fixture import start_panel_core_server, stop_panel_core_server
 
 
 class LiveControlTests(unittest.TestCase):
@@ -16,23 +26,14 @@ class LiveControlTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.module = importlib.import_module("sidecar.hermes_panel_sidecar")
-
-        class TestHandler(cls.module.Handler):
-            key = "fixture-live-control-key"
-
-        cls.key = TestHandler.key
-        cls.server = cls.module.ThreadingHTTPServer(("127.0.0.1", 0), TestHandler)
-        cls.server.daemon_threads = True
-        cls.thread = threading.Thread(target=cls.server.serve_forever,
-                                      kwargs={"poll_interval": 0.01}, daemon=True)
-        cls.thread.start()
+        cls.module = panel_core
+        cls.key = "fixture-live-control-key"
+        cls.loop, cls.runner, cls.thread, cls.port = start_panel_core_server(cls.module, cls.key)
+        cls.server_address = ("127.0.0.1", cls.port)
 
     @classmethod
     def tearDownClass(cls):
-        cls.server.shutdown()
-        cls.server.server_close()
-        cls.thread.join(timeout=5)
+        stop_panel_core_server(cls.loop, cls.runner, cls.thread)
         if cls.thread.is_alive():
             raise AssertionError("fixture HTTP server did not stop")
 
@@ -47,7 +48,7 @@ class LiveControlTests(unittest.TestCase):
         self.addCleanup(self.page_patch.stop)
 
     def request(self, method, path, body=None):
-        conn = http.client.HTTPConnection(*self.server.server_address, timeout=5)
+        conn = http.client.HTTPConnection(*self.server_address, timeout=5)
         try:
             conn.request(method, path, body=None if body is None else json.dumps(body),
                          headers={"X-Panel-Key": self.key, "Content-Type": "application/json"})

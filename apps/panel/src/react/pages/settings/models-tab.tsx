@@ -9,7 +9,7 @@ const MAX_MODELS = 100;
 const MAX_NAME = 128;
 const NAME_RE = /^[A-Za-z0-9][A-Za-z0-9._:/-]*$/;
 const ENDPOINT_ID_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
-const SIDECAR = new URL("panel-sidecar/", document.baseURI);
+const SIDECAR = new URL("panel-core/", document.baseURI);
 const SAVED_NOTE = "端点已保存。当前进程未热加载，新会话才会读取。";
 
 interface EndpointWrite {

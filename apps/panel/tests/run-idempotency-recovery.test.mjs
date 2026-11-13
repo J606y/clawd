@@ -6,10 +6,14 @@ import { once } from 'node:events';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { existsSync } from 'node:fs';
 import { createServer } from 'vite';
 
 const home = await mkdtemp(join(tmpdir(), 'hp-f01-exact-'));
-const python = spawn('python3', ['tests/fixtures/f01-admission-service.py', home], { stdio: ['ignore', 'pipe', 'pipe'] });
+const repoRoot = join(import.meta.dirname, '..', '..', '..');
+const venvPython = join(repoRoot, '.venv', 'bin', 'python');
+const pythonBin = existsSync(venvPython) ? venvPython : 'python3';
+const python = spawn(pythonBin, ['tests/fixtures/f01-admission-service.py', home], { stdio: ['ignore', 'pipe', 'pipe'] });
 let pythonError = '';
 python.stderr.on('data', x => { pythonError += x; });
 let vite, server, runs, api;
@@ -38,11 +42,11 @@ try {
   server = http.createServer(async (req, res) => {
     try {
       const url = new URL(req.url, 'http://fixture');
-      if (url.pathname.startsWith('/panel-sidecar/')) {
+      if (url.pathname.startsWith('/panel-core/')) {
         queries.push(url.pathname + url.search);
         if (heldResolution) await heldResolution;
         if (resolutionMode === 'error') { res.writeHead(503); res.end('{}'); return; }
-        const response = await fetch(fixtureUrl + url.pathname.replace('/panel-sidecar', '') + url.search,
+        const response = await fetch(fixtureUrl + url.pathname.replace('/panel-core', '') + url.search,
           { headers: { 'X-Panel-Key': 'synthetic-fixture-auth' } });
         let body = await response.json();
         if (resolutionMode === 'legacy') body = { busy: false, run: body.run };

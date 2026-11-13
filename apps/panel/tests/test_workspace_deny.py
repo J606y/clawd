@@ -3,6 +3,18 @@
 Exercises list_dir and the /files download entry. Does not touch the real
 workspace or the artifact dot-directory policy.
 """
+import sys as _sys
+from pathlib import Path as _Path
+_REPO_ROOT = _Path(__file__).resolve().parents[3]
+_TESTS_DIR = _Path(__file__).resolve().parent
+if str(_TESTS_DIR) not in _sys.path:
+    _sys.path.insert(0, str(_TESTS_DIR))
+if str(_REPO_ROOT) not in _sys.path:
+    _sys.path.append(str(_REPO_ROOT))
+
+from clawd_server import panel_core
+from panel_core_http_fixture import start_panel_core_server, stop_panel_core_server
+
 import http.client
 import importlib
 import json
@@ -50,7 +62,7 @@ class WorkspaceBrowseDenyTests(unittest.TestCase):
         (self.workspace / "link-notes").symlink_to(Path("notes.txt"))
         (self.uploads / "photo.txt").write_bytes(b"upload-ok")
 
-        self.mod = importlib.import_module("sidecar.hermes_panel_sidecar")
+        self.mod = panel_core
         roots = {
             "workspace": {"path": self.workspace, "label": "fixture", "writable": True, "create": False},
             "uploads": {"path": self.uploads, "label": "uploads", "writable": True, "create": False},
@@ -58,20 +70,17 @@ class WorkspaceBrowseDenyTests(unittest.TestCase):
         roots_patch = mock.patch.dict(self.mod.FILE_ROOTS, roots, clear=True)
         roots_patch.start()
         self.addCleanup(roots_patch.stop)
-        handler = type("FixtureHandler", (self.mod.Handler,), {"key": "deny-test-key"})
-        self.server = self.mod.ThreadingHTTPServer(("127.0.0.1", 0), handler)
-        self.server.daemon_threads = True
-        self.thread = threading.Thread(target=self.server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True)
-        self.thread.start()
+        self.loop, self.runner, self.thread, self.port = start_panel_core_server(
+            self.mod, "deny-test-key"
+        )
+        self.server_address = ("127.0.0.1", self.port)
         self.addCleanup(self.stop_server)
 
     def stop_server(self):
-        self.server.shutdown()
-        self.server.server_close()
-        self.thread.join(timeout=2)
+        stop_panel_core_server(self.loop, self.runner, self.thread)
 
     def request(self, path):
-        conn = http.client.HTTPConnection(*self.server.server_address, timeout=5)
+        conn = http.client.HTTPConnection(*self.server_address, timeout=5)
         try:
             conn.request("GET", path, headers={"X-Panel-Key": "deny-test-key"})
             response = conn.getresponse()
@@ -86,7 +95,7 @@ class WorkspaceBrowseDenyTests(unittest.TestCase):
         return self.request("/files/download?" + urlencode({"root": root, "path": rel}))
 
     def post(self, path, body=b"", headers=None):
-        conn = http.client.HTTPConnection(*self.server.server_address, timeout=5)
+        conn = http.client.HTTPConnection(*self.server_address, timeout=5)
         try:
             merged = {"X-Panel-Key": "deny-test-key"}
             if headers:

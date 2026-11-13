@@ -4,7 +4,7 @@
 import { ApiError, request } from "./api";
 import type { McpServer } from "./sidecar.js";
 
-const SIDECAR = new URL("panel-sidecar/", document.baseURI);
+const SIDECAR = new URL("panel-core/", document.baseURI);
 
 // GET /models 的 ProviderInfo.hasKey 写在 sidecar.ts，类型是 boolean | null。
 // 这里再合并一次同型字段，避免两份声明打架。旧源码锁是 hasKey?: boolean | null：

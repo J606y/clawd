@@ -139,7 +139,7 @@ export function StorageSection() {
         </div>
         <p className="sub">
           默认关闭。开启后对话上传的文件直接存入 S3，不再落本地盘。agent 读取 S3
-          文件尚未支持，开发板请保持关闭。
+          文件尚未支持，开发版请保持关闭。
         </p>
         <label htmlFor="s3-endpoint">Endpoint</label>
         <input

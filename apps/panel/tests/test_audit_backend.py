@@ -70,7 +70,7 @@ class AuditBackendSecurityTests(unittest.TestCase):
         clawd_root = Path(__file__).resolve().parents[3]
         if str(clawd_root) not in sys.path:
             sys.path.insert(0, str(clawd_root))
-        from sidecar import hermes_panel_sidecar as sidecar_mod
+        from clawd_server import panel_core as sidecar_mod
 
         url = "https://audit-user:synthetic-password@example.invalid/v1"
         fake_config = {
@@ -93,7 +93,7 @@ class AuditBackendSecurityTests(unittest.TestCase):
         clawd_root = Path(__file__).resolve().parents[3]
         if str(clawd_root) not in sys.path:
             sys.path.insert(0, str(clawd_root))
-        from sidecar import hermes_panel_sidecar as sidecar_mod
+        from clawd_server import panel_core as sidecar_mod
 
         if sidecar_mod.yaml is None:
             self.skipTest("PyYAML not installed in current interpreter; test in venv")
@@ -119,7 +119,7 @@ class AuditBackendSecurityTests(unittest.TestCase):
         clawd_root = Path(__file__).resolve().parents[3]
         if str(clawd_root) not in sys.path:
             sys.path.insert(0, str(clawd_root))
-        from sidecar import hermes_panel_sidecar as sidecar_mod
+        from clawd_server import panel_core as sidecar_mod
 
         if sidecar_mod.yaml is None:
             self.skipTest("PyYAML not installed in current interpreter; test in venv")
@@ -165,7 +165,7 @@ class AuditBackendSecurityTests(unittest.TestCase):
                 self.assertNotIn("leak_candidate_6789", str(cm_cfg.exception.message))
 
     def test_f05_quoted_comma_secret_is_never_partially_returned(self):
-        from sidecar import hermes_panel_sidecar as sidecar_mod
+        from clawd_server import panel_core as sidecar_mod
         if sidecar_mod.yaml is None:
             self.skipTest("PyYAML not installed in current interpreter; test in venv")
         source = 'env: {api_key: "opaque-first,opaque-rest-secret", normal: 123}\n'
@@ -179,7 +179,7 @@ class AuditBackendSecurityTests(unittest.TestCase):
             self.assertNotIn("opaque-rest-secret", result)
 
     def test_f05_plain_scalar_apostrophe_is_not_an_unclosed_quote(self):
-        from sidecar import hermes_panel_sidecar as sidecar_mod
+        from clawd_server import panel_core as sidecar_mod
         if sidecar_mod.yaml is None:
             self.skipTest("PyYAML not installed in current interpreter; test in venv")
         source = "display_title: user's panel\n"
@@ -195,7 +195,7 @@ class AuditBackendSecurityTests(unittest.TestCase):
         clawd_root = Path(__file__).resolve().parents[3]
         if str(clawd_root) not in sys.path:
             sys.path.insert(0, str(clawd_root))
-        from sidecar import hermes_panel_sidecar as sidecar_mod
+        from clawd_server import panel_core as sidecar_mod
 
         long_name = "文" * 80 + ".txt"
         with tempfile.TemporaryDirectory() as tmp_dir:
@@ -225,7 +225,7 @@ class AuditBackendSecurityTests(unittest.TestCase):
         clawd_root = Path(__file__).resolve().parents[3]
         if str(clawd_root) not in sys.path:
             sys.path.insert(0, str(clawd_root))
-        from sidecar import hermes_panel_sidecar as sidecar_mod
+        from clawd_server import panel_core as sidecar_mod
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             home = Path(tmp_dir)

@@ -1,4 +1,4 @@
-# PyYAML locked for safe YAML redaction in hermes-panel-sidecar.
+# PyYAML locked for safe YAML redaction in clawd_server.panel_core.
 # Verified against PyPI release 6.0.3 with full sha256 hashes.
 PyYAML==6.0.3 \
     --hash=sha256:02ea2dfa234451bbb8772601d7b8e426c2bfa197136796224e50e35a78777956 \

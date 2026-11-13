@@ -1,4 +1,4 @@
-"""Bind the panel sidecar to a clawd home and refuse production fallbacks."""
+"""Bind the panel core to a clawd home and refuse production fallbacks."""
 
 from __future__ import annotations
 
@@ -21,7 +21,7 @@ def _refuse(mod, status: int, code: str, message: str):
 
 
 def prepare_env(home: Path, api_base: str) -> None:
-    """Set isolation env before the sidecar module is imported."""
+    """Set isolation env before the panel-core module is imported."""
     os.environ["CLAWD_HOME"] = str(home)
     os.environ["HERMES_HOME"] = str(home)
     os.environ["HERMES_SRC"] = str(REPO_ROOT)
@@ -30,7 +30,7 @@ def prepare_env(home: Path, api_base: str) -> None:
     os.environ.pop("PANEL_LIVE_TASK_DB", None)
     from clawd_server.resources import panel_root
 
-    os.environ["PANEL_LIVE_STORE_MODULE"] = str(panel_root() / "sidecar" / "live_task_store.py")
+    os.environ["PANEL_LIVE_STORE_MODULE"] = str(REPO_ROOT / "clawd_server" / "live_task_store.py")
     from clawd_server.live_browser_routes import panel_live_cdp
 
     os.environ["PANEL_LIVE_CDP"] = panel_live_cdp(home)
@@ -61,15 +61,6 @@ def _sh(value: Path | str) -> str:
     return shlex.quote(str(value))
 
 
-def load_sidecar():
-    from clawd_server.resources import panel_root
-
-    panel = panel_root()
-    if str(panel) not in sys.path:
-        sys.path.insert(0, str(panel))
-    return importlib.import_module("sidecar.hermes_panel_sidecar")
-
-
 def bind(mod, home: Path, command: str) -> None:
     """Rebind paths and disable production restarts plus the legacy continue thread."""
     mod.HERMES_HOME = home
@@ -82,6 +73,7 @@ def bind(mod, home: Path, command: str) -> None:
     mod.LIVE_TASK_DB = home / "panel" / "live-tasks.sqlite3"
     mod.CONTINUE_KEY_FILE = home / "panel" / "api-server.key"
     mod.CONTINUE_API = os.environ.get("PANEL_API_SERVER", "http://127.0.0.1:9")
+    mod.LIVE_CDP = os.environ.get("PANEL_LIVE_CDP", getattr(mod, "LIVE_CDP", "127.0.0.1:9223"))
     mod.FILE_ROOTS.clear()
     mod.FILE_ROOTS.update({
         "uploads": {"path": home / "uploads", "label": "上传", "writable": True, "create": True},
@@ -149,19 +141,12 @@ def bind(mod, home: Path, command: str) -> None:
 
     mod._continue_watcher = _blocked
     mod._continue_tick = _blocked
-    original_main = mod.main
-
-    def _main_refused() -> None:
-        raise SystemExit("sidecar.main() is disabled under clawd; the auto-continue thread is not started")
-
-    mod.main = _main_refused
-    mod._clawd_original_main = original_main
     from clawd_server.native import file_roots_under_home, install
 
     install(mod)
     file_roots_under_home(mod, home)
     if Path(mod.HERMES_BIN).resolve() == _SYSTEM_HERMES or Path(mod.HERMES_SRC).resolve() == _SYSTEM_SRC:
-        raise RuntimeError("sidecar still points at a system Hermes install")
+        raise RuntimeError("panel core still points at a system Hermes install")
     log.info("legacy panel auto-continue watcher disabled; scheduling owned by gateway/clawd_continuation")
 
 

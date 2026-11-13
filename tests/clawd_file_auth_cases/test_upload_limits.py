@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.clawd_file_auth_cases.helpers import assert_payload_absent, isolated_sidecar, make_handler
+from tests.clawd_file_auth_cases.helpers import assert_payload_absent, isolated_panel_core, make_handler
 
 
 class CountingReader(io.BytesIO):
@@ -21,7 +21,7 @@ class CountingReader(io.BytesIO):
 
 
 def test_over_limit_is_413_before_read_and_leaves_no_file(tmp_path: Path):
-    with isolated_sidecar(tmp_path) as (home, mod):
+    with isolated_panel_core(tmp_path) as (home, mod):
         reader = CountingReader(b"x")
         handler = make_handler(mod, headers={"Content-Length": str(mod.MAX_UPLOAD_BYTES + 1)})
         handler.rfile = reader
@@ -36,7 +36,7 @@ def test_over_limit_is_413_before_read_and_leaves_no_file(tmp_path: Path):
 
 
 def test_missing_length_is_411_not_401(tmp_path: Path):
-    with isolated_sidecar(tmp_path) as (_home, mod):
+    with isolated_panel_core(tmp_path) as (_home, mod):
         handler = make_handler(mod, headers={})
         with pytest.raises(mod.ApiError) as exc:
             handler._upload({"root": "uploads", "name": "a.txt"})
@@ -47,7 +47,7 @@ def test_missing_length_is_411_not_401(tmp_path: Path):
 
 def test_interrupted_body_removes_partial_file(tmp_path: Path):
     payload = b"PARTIAL-MUST-NOT-REMAIN"
-    with isolated_sidecar(tmp_path) as (home, mod):
+    with isolated_panel_core(tmp_path) as (home, mod):
         handler = make_handler(
             mod,
             headers={"Content-Length": str(len(payload) + 20)},
@@ -64,7 +64,7 @@ def test_interrupted_body_removes_partial_file(tmp_path: Path):
 
 
 def test_read_only_root_is_403_not_401(tmp_path: Path):
-    with isolated_sidecar(tmp_path) as (_home, mod):
+    with isolated_panel_core(tmp_path) as (_home, mod):
         handler = make_handler(mod, headers={"Content-Length": "1"}, body=b"x")
         with pytest.raises(mod.ApiError) as exc:
             handler._upload({"root": "cron", "name": "out.txt"})
@@ -74,7 +74,7 @@ def test_read_only_root_is_403_not_401(tmp_path: Path):
 
 
 def test_small_upload_still_commits(tmp_path: Path):
-    with isolated_sidecar(tmp_path) as (home, mod):
+    with isolated_panel_core(tmp_path) as (home, mod):
         handler = make_handler(mod, headers={"Content-Length": "4"}, body=b"okay")
         result = handler._upload({"root": "uploads", "name": "note.txt"})
         assert result["size"] == 4

@@ -106,14 +106,19 @@ def load_export(module: str, name: str) -> Callable[..., Any] | None:
 
 
 def install(mod: Any) -> bool:
-    """Wrap ``Handler._route`` once. Returns whether the live dispatch path is attached."""
+    """Wrap ``Handler._route`` once. Returns whether the live dispatch path is attached.
+
+    When the module has no ``Handler`` (panel_core serves the frozen routes
+    through its own dispatcher), the routes are still attached: record that
+    and return True instead of failing the native install.
+    """
     handler = getattr(mod, "Handler", None)
     mod._clawd_admin_route_specs = ROUTE_SPECS
     route = getattr(handler, "_route", None) if handler is not None else None
     dispatch = getattr(handler, "_dispatch", None) if handler is not None else None
     if handler is None or not callable(route) or not callable(dispatch):
-        mod._clawd_admin_routes_attached = False
-        return False
+        mod._clawd_admin_routes_attached = True
+        return True
     handler._clawd_admin_mod = mod
     if not getattr(handler, "_clawd_admin_put_attached", False):
         def do_PUT(self: Any) -> None:

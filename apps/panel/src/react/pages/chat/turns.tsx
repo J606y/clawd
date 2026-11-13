@@ -22,7 +22,7 @@ function uploadRef(absPath: string): { download: string; preview: string } | nul
   if (!relative || relative.split("/").some((part) => !part || part === "." || part === "..") || /[\u0000-\u001f\u007f\\]/.test(relative)) return null;
   return {
     download: downloadUrl("uploads", relative),
-    preview: `/panel-sidecar/files/artifact?${new URLSearchParams({ path: absPath, preview: "1" })}`,
+    preview: `/panel-core/files/artifact?${new URLSearchParams({ path: absPath, preview: "1" })}`,
   };
 }
 

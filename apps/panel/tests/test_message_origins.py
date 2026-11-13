@@ -1,4 +1,15 @@
 """Bounded read-only API admission provenance; synthetic SQLite only."""
+import sys as _sys
+from pathlib import Path as _Path
+_REPO_ROOT = _Path(__file__).resolve().parents[3]
+_TESTS_DIR = _Path(__file__).resolve().parent
+if str(_TESTS_DIR) not in _sys.path:
+    _sys.path.insert(0, str(_TESTS_DIR))
+if str(_REPO_ROOT) not in _sys.path:
+    _sys.path.append(str(_REPO_ROOT))
+
+from clawd_server import panel_core
+
 import contextlib
 import importlib
 import json
@@ -13,7 +24,7 @@ class MessageOriginTests(unittest.TestCase):
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory(dir=os.environ.get('TMPDIR'));self.addCleanup(self.tmp.cleanup)
         self.home=Path(self.tmp.name);self.db=self.home/'state.db'
-        self.m=importlib.import_module('sidecar.hermes_panel_sidecar')
+        self.m=panel_core
         with contextlib.closing(sqlite3.connect(self.db)) as c:
             c.executescript('CREATE TABLE messages(id INTEGER PRIMARY KEY,session_id TEXT,role TEXT,platform_message_id TEXT); CREATE TABLE session_admissions(admission_id TEXT PRIMARY KEY,target_session_id TEXT,principal_id TEXT,intent TEXT,payload_json TEXT);')
             c.executemany('INSERT INTO messages VALUES(?,?,?,?)',[(1,'s','user','a'),(2,'s','user','b'),(3,'s','assistant','a'),(4,'other','user','a'),(5,'s','user','c'),(6,'s','user','d'),(7,'s','user','e')])

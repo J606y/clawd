@@ -1,4 +1,4 @@
-"""Static and fixture checks for panel/sidecar distribution resources.
+"""Static and fixture checks for panel distribution resources.
 
 These tests must not build a wheel, install a package, download dependencies,
 or invoke the panel frontend toolchain. Missing inputs fail closed.
@@ -28,15 +28,7 @@ def _fake_checkout(root: Path) -> Path:
     _write(root / "apps" / "panel" / "dist" / "assets" / "app.js", "console.log(1)\n")
     _write(root / "apps" / "panel" / "dist" / "node_modules" / "left.js", "nope")
     _write(root / "apps" / "panel" / "node_modules" / "pkg" / "index.js", "nope")
-    _write(root / "apps" / "panel" / "sidecar" / "hermes_panel_sidecar.py", "SIDECAR\n")
-    _write(root / "apps" / "panel" / "sidecar" / "image_studio.py", "IMAGE\n")
-    _write(root / "apps" / "panel" / "sidecar" / "live_task_store.py", "STORE\n")
-    _write(root / "apps" / "panel" / "sidecar" / "test_secret.py", "SECRET\n")
-    _write(root / "apps" / "panel" / "sidecar" / "requirements.txt", "PyYAML==6.0.3\n")
-    _write(
-        root / "apps" / "panel" / "sidecar" / "hermes-panel-sidecar.service",
-        "ExecStart=/usr/bin/python3 -I /opt/hermes-panel-sidecar/hermes_panel_sidecar.py\n",
-    )
+    _write(root / "apps" / "panel" / "package.json", '{"name": "clawd-panel"}\n')
     plugin = root / "apps" / "panel" / "plugins" / "browser-window-guard"
     _write(plugin / "__init__.py", "PLUGIN\n")
     _write(plugin / "live_task_store.py", "PLUGIN_STORE\n")
@@ -53,9 +45,6 @@ def _panel_resource_root(root: Path) -> Path:
     _write(root / "dist" / "assets" / "app.js", "console.log(2)\n")
     _write(root / "dist" / "node_modules" / "left.js", "nope")
     _write(root / "node_modules" / "pkg" / "index.js", "nope")
-    _write(root / "sidecar" / "hermes_panel_sidecar.py", "SIDECAR\n")
-    _write(root / "sidecar" / "image_studio.py", "IMAGE\n")
-    _write(root / "sidecar" / "live_task_store.py", "STORE\n")
     plugin = root / "plugins" / "browser-window-guard"
     _write(plugin / "__init__.py", "PLUGIN\n")
     _write(plugin / "live_task_store.py", "PLUGIN_STORE\n")
@@ -113,16 +102,17 @@ def test_stage_copies_contract_and_skips_forbidden(tmp_path: Path):
     names = [path.relative_to(dest).as_posix() for path in dest.rglob("*") if path.is_file()]
     assert "apps/panel/dist/index.html" in names
     assert "apps/panel/dist/assets/app.js" in names
-    assert "apps/panel/sidecar/hermes_panel_sidecar.py" in names
     assert "apps/panel/plugins/browser-window-guard/plugin.yaml" in names
     blob = "\n".join(names)
-    for marker in ("node_modules", "requirements.txt", "hermes-panel-sidecar.service", "test_secret.py", "apps/desktop", "venv/"):
+    for marker in ("node_modules", "apps/desktop", "venv/"):
         assert marker not in blob
     contract = json.loads((dest / "RESOURCE_CONTRACT.json").read_text(encoding="utf-8"))
     assert contract["version"] == CONTRACT_VERSION == 2
     assert contract["license"] == "LICENSES/LICENSE"
     assert contract["hash"] == "sha256"
     assert "browser-window-guard" in contract["plugins"]
+    assert contract["panel_core"] == "clawd_server/panel_core.py"
+    assert "sidecar" not in json.dumps(contract)
     license_entry = next(item for item in contract["files"] if item["path"] == "LICENSES/LICENSE")
     assert license_entry["type"] == "file"
     assert license_entry["sha256"] == hashlib.sha256(license_copy).hexdigest()
@@ -376,7 +366,7 @@ def test_nix_wires_panel_resource_root_at_wheel_build_only():
     assert 'relPath == "clawd_server/bundled"' in lib_nix
     assert "node_modules" in lib_nix
     assert "importNpmLock.importNpmLock" in panel_nix
-    assert "hermes_panel_sidecar.py" in panel_nix
+    assert "hermes_panel_sidecar.py" not in panel_nix
     assert "browser-window-guard/plugin.yaml" in panel_nix
     assert "clawd_server/bundled" not in panel_nix
     assert "npm_config_offline" in panel_nix

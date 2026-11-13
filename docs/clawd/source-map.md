@@ -8,7 +8,7 @@
 
 TUI 归属：clawd-tui-work 隔离 worktree，负责 ui-tui 用户可见品牌及必要 tui_gateway 显示字符串，保持行为和协议。内部 @hermes/ink、@hermes/shared 不机械改名。
 
-绑定归属：apps/panel 独立克隆和新增 clawd_server、tests/clawd_server、scripts/verify_clawd.py、docs/clawd/api-contract.md。保持 panel-api/、panel-sidecar/、panel-auth/ 兼容路由。核心入口调用 clawd_server.__main__.main(argv)。
+绑定归属：apps/panel 独立克隆和新增 clawd_server、tests/clawd_server、scripts/verify_clawd.py、docs/clawd/api-contract.md。保持 panel-api/、panel-core/、panel-auth/ 路由。核心入口调用 clawd_server.__main__.main(argv)。
 
 新增核心续跑归属：clawd-resume-work，负责 gateway/wake.py、gateway/platforms/api_server.py、api_server_runs.py 与新增 gateway/clawd_continuation.py 及同前缀模块和 tests/gateway/test_clawd_continuation*.py。用户已明确授权从面板迁移。面板旧自动续跑区域暂留只读，绑定代理不得启动它；退役/兼容清理由父代理整合时统一处理。
 

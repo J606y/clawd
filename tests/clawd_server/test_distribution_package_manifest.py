@@ -28,7 +28,6 @@ PACKAGE_DATA = [
     "bundled/apps/panel/dist/*",
     "bundled/apps/panel/dist/*/*",
     "bundled/apps/panel/dist/*/*/*",
-    "bundled/apps/panel/sidecar/*.py",
     "bundled/apps/panel/plugins/*/*",
 ]
 
@@ -41,7 +40,6 @@ MANIFEST_LINES = [
     "include clawd_server/bundled/RESOURCE_CONTRACT.json",
     "recursive-include clawd_server/bundled/LICENSES *",
     "recursive-include clawd_server/bundled/apps/panel/dist *",
-    "recursive-include clawd_server/bundled/apps/panel/sidecar *.py",
     "recursive-include clawd_server/bundled/apps/panel/plugins *",
     "recursive-include tools/vendor/browser_harness_0_1_13 *",
     "global-exclude */node_modules/*",
@@ -65,9 +63,6 @@ MANIFEST_LINES = [
 REQUIRED_RELATIVE = (
     "LICENSES/LICENSE",
     "apps/panel/dist/index.html",
-    "apps/panel/sidecar/hermes_panel_sidecar.py",
-    "apps/panel/sidecar/image_studio.py",
-    "apps/panel/sidecar/live_task_store.py",
     "apps/panel/plugins/browser-window-guard/__init__.py",
     "apps/panel/plugins/browser-window-guard/live_task_store.py",
     "apps/panel/plugins/browser-window-guard/plugin.yaml",
@@ -130,11 +125,6 @@ def forbidden_reason(member: str) -> str | None:
     # An inner /web/ is not the dashboard. Search paths are not an allowlist.
     if distribution_path_is_pruned(norm):
         return f"forbidden pruned tree: {norm}"
-    relative = bundled_relative(norm)
-    if relative and relative.startswith("apps/panel/sidecar/"):
-        name = Path(relative).name
-        if name == "requirements.txt" or name.endswith(".service") or name.startswith("test_"):
-            return f"forbidden sidecar file: {norm}"
     return None
 
 
@@ -274,9 +264,6 @@ def _fixture_tree() -> dict[str, bytes]:
         "apps/panel/dist/assets/app.js": b"console.log(1)\n",
         "apps/panel/dist/a/b/c/deep.txt": b"deep\n",
         "apps/panel/dist/assets/.keep": b"dot\n",
-        "apps/panel/sidecar/hermes_panel_sidecar.py": b"sidecar\n",
-        "apps/panel/sidecar/image_studio.py": b"image\n",
-        "apps/panel/sidecar/live_task_store.py": b"store\n",
         "apps/panel/plugins/browser-window-guard/__init__.py": b"plugin\n",
         "apps/panel/plugins/browser-window-guard/live_task_store.py": b"plugin-store\n",
         "apps/panel/plugins/browser-window-guard/plugin.yaml": b"name: browser-window-guard\n",
@@ -516,7 +503,6 @@ def test_search_providers_must_ship_and_official_ui_must_not(tmp_path: Path):
     assert "node_modules" in (forbidden_reason("plugins/web/brave_free/node_modules/pkg/index.js") or "")
     assert "cache" in (forbidden_reason("plugins/web/ddgs/provider.pyc") or "")
     assert forbidden_reason("plugins/web/ddgs/__pycache__/x.pyc")
-    assert forbidden_reason("clawd_server/bundled/apps/panel/sidecar/test_secret.py")
     assert forbidden_reason("plugins/web/brave_free/.DS_Store")
 
     wheel = tmp_path / "with-search.whl"

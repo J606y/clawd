@@ -1,5 +1,11 @@
-"""Synthetic durable admission service; only fixture-owned temporary databases are touched."""
-import contextlib
+"""Synthetic durable admission service; only fixture-owned temporary databases are touched.
+
+Serves panel-core routes at the root via aiohttp (the same dispatcher the
+panel serves at /panel-core), plus two unauthenticated fixture endpoints:
+GET /__fixture/queries and POST /__fixture/admit. The /sessions/run/resolve
+paths the driver issues are recorded for later assertion.
+"""
+import asyncio
 import json
 import os
 from pathlib import Path
@@ -8,12 +14,17 @@ import sys
 import time
 import uuid
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from sidecar import hermes_panel_sidecar as sidecar
+sys.path.insert(0, str(Path(__file__).resolve().parents[4]))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from aiohttp import web
+
+from clawd_server import panel_core
+from clawd_server.panel_core import register_panel_core_routes
 
 home = Path(sys.argv[1]).resolve()
 assert home.is_dir() and home.name.startswith("hp-f01-exact-")
-sidecar.HERMES_HOME = home
+panel_core.HERMES_HOME = home
 with sqlite3.connect(home / "state.db") as db:
     db.executescript("CREATE TABLE sessions(id TEXT PRIMARY KEY,source TEXT NOT NULL);"
                      "CREATE TABLE session_turn_leases(conversation_id TEXT PRIMARY KEY,holder TEXT,acquired_at REAL,expires_at REAL);")
@@ -27,42 +38,60 @@ with sqlite3.connect(home / "runs_idempotency.db") as db:
 queries = []
 
 
-class FixtureHandler(sidecar.Handler):
-    key = "synthetic-fixture-auth"
+class _Stub:
+    """Minimal server surface: panel_core module + key check."""
 
-    def do_GET(self):
-        if self.path == "/__fixture/queries":
-            self._send(200, {"queries": queries})
-            return
-        if self.path.startswith("/sessions/run/resolve?"):
-            queries.append(self.path)
-        super().do_GET()
+    def __init__(self):
+        self.panel_core = panel_core
 
-    def do_POST(self):
-        if self.path != "/__fixture/admit":
-            super().do_POST()
-            return
-        body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
-        sid, key = body["session_id"], body["key"]
-        now = time.time()
-        public = {"object": "hermes.run", "run_id": "run_" + uuid.uuid4().hex, "session_id": sid,
-                  "status": body.get("status", "running"), "created_at": now, "updated_at": now}
-        with sqlite3.connect(home / "state.db") as db:
-            db.execute("INSERT OR IGNORE INTO sessions VALUES (?, 'api_server')", (sid,))
-        started = int(Path(f"/proc/{os.getpid()}/stat").read_text().rsplit(")", 1)[1].split()[19])
-        with sqlite3.connect(home / "runs_idempotency.db") as db:
-            db.execute("INSERT INTO run_idempotency VALUES (?,?,?,?,?,?,?,?,?,?,?)",
-                       ("fixture", key, "fixture", public["run_id"], json.dumps(public), os.getpid(), started, 0, None, now, now))
-        self._send(200, public)
-
-    def log_message(self, *_args):
-        return  # Fixture request traffic is asserted explicitly by the Node driver.
+    def _authed(self, request):
+        if request.headers.get("X-Panel-Key") != "synthetic-fixture-auth":
+            return web.json_response(
+                {"error": {"code": "unauthorized", "message": "unauthorized"}},
+                status=401,
+                headers={"Cache-Control": "no-store"},
+            )
+        return None
 
 
-server = sidecar.ThreadingHTTPServer(("127.0.0.1", 0), FixtureHandler)
-server.daemon_threads = True
-print(json.dumps({"port": server.server_address[1]}), flush=True)
+@web.middleware
+async def _record_resolve(request, handler):
+    if request.path.startswith("/sessions/run/resolve"):
+        queries.append(request.path_qs)
+    return await handler(request)
+
+
+async def _queries(request):
+    return web.json_response({"queries": queries})
+
+
+async def _admit(request):
+    body = await request.json()
+    sid, key = body["session_id"], body["key"]
+    now = time.time()
+    public = {"object": "hermes.run", "run_id": "run_" + uuid.uuid4().hex, "session_id": sid,
+              "status": body.get("status", "running"), "created_at": now, "updated_at": now}
+    with sqlite3.connect(home / "state.db") as db:
+        db.execute("INSERT OR IGNORE INTO sessions VALUES (?, 'api_server')", (sid,))
+    started = int(Path(f"/proc/{os.getpid()}/stat").read_text().rsplit(")", 1)[1].split()[19])
+    with sqlite3.connect(home / "runs_idempotency.db") as db:
+        db.execute("INSERT INTO run_idempotency VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                   ("fixture", key, "fixture", public["run_id"], json.dumps(public), os.getpid(), started, 0, None, now, now))
+    return web.json_response(public)
+
+
+app = web.Application(middlewares=[_record_resolve])
+app.router.add_get("/__fixture/queries", _queries)
+app.router.add_post("/__fixture/admit", _admit)
+register_panel_core_routes(app, _Stub(), prefix="")
+
+loop = asyncio.new_event_loop()
+runner = web.AppRunner(app, access_log=None)
+loop.run_until_complete(runner.setup())
+site = web.TCPSite(runner, "127.0.0.1", 0)
+loop.run_until_complete(site.start())
+print(json.dumps({"port": site._server.sockets[0].getsockname()[1]}), flush=True)
 try:
-    server.serve_forever(poll_interval=0.01)
+    loop.run_forever()
 finally:
-    server.server_close()
+    loop.run_until_complete(runner.cleanup())

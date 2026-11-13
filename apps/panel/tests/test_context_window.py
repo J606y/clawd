@@ -1,9 +1,18 @@
 """grok-4.7 圆环只读该模型的覆盖；其他模型仍用日志里的窗口。"""
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
-from sidecar import hermes_panel_sidecar as s
+
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+_TESTS_DIR = Path(__file__).resolve().parent
+if str(_TESTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_TESTS_DIR))
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.append(str(_REPO_ROOT))
+
+from clawd_server import panel_core as s
 
 OVERRIDES = {
     "custom": {"grok-4.7": {"context_window": 500000}},

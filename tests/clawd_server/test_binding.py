@@ -66,10 +66,12 @@ def test_bind_disables_watcher_and_production_paths(monkeypatch):
     home = _home("bind")
     monkeypatch.setenv("CLAWD_HOME", str(home))
     monkeypatch.setenv("HERMES_HOME", str(home))
-    from clawd_server.bind import bind, clawd_command, load_sidecar, prepare_env
+    from clawd_server.bind import bind, clawd_command, prepare_env
 
     prepare_env(home, "http://127.0.0.1:9")
-    mod = load_sidecar()
+    from clawd_server import panel_core
+
+    mod = panel_core
     command = clawd_command(home)
     bind(mod, home, command)
     assert mod.HERMES_BIN != "/usr/local/bin/hermes"
@@ -86,7 +88,7 @@ def test_bind_disables_watcher_and_production_paths(monkeypatch):
     names = [thread.name for thread in threading.enumerate()]
     assert "auto-continue" not in names
     assert mod._clawd_native == ("config_set", "skills.disabled", "message_origins")
-    assert mod.update_session_folders.__module__.endswith("hermes_panel_sidecar")
+    assert mod.update_session_folders.__module__.endswith("panel_core")
     created = mod.update_session_folders({"action": "create", "name": "旧文件夹"})
     assert created["folders"][0]["name"] == "旧文件夹"
     assert "projects" not in created
@@ -173,9 +175,9 @@ def panel():
 def test_server_auth_session_files_and_errors(panel):
     base = panel["url"]
     cookie = {"Cookie": panel["cookie"], "Host": base.split("://", 1)[1]}
-    status, _, body = _request(base + "/panel-sidecar/health")
+    status, _, body = _request(base + "/panel-core/health")
     assert status == 401
-    status, _, body = _request(base + "/panel-sidecar/health", headers={**cookie, "Origin": "http://evil.example"})
+    status, _, body = _request(base + "/panel-core/health", headers={**cookie, "Origin": "http://evil.example"})
     assert status == 403
     status, headers, body = _request(base + "/panel-auth/renew", "POST", b"", cookie)
     assert status == 204
@@ -199,11 +201,11 @@ def test_server_auth_session_files_and_errors(panel):
     state = panel["home"] / "state.db"
     assert state.is_file()
     assert str(state.resolve()).startswith(str(panel["home"].resolve()))
-    status, _, body = _request(base + "/panel-sidecar/sessions/folders", headers=cookie)
+    status, _, body = _request(base + "/panel-core/sessions/folders", headers=cookie)
     assert status == 200
     assert "folders" in json.loads(body)
     status, _, body = _request(
-        base + "/panel-sidecar/files/upload?root=uploads&name=note.txt", "POST", b"hello",
+        base + "/panel-core/files/upload?root=uploads&name=note.txt", "POST", b"hello",
         {**cookie, "Content-Type": "application/octet-stream"},
     )
     assert status == 200, body
@@ -211,12 +213,12 @@ def test_server_auth_session_files_and_errors(panel):
     assert uploaded["absPath"].startswith(str(panel["home"]))
     assert "/root/.hermes" not in uploaded["absPath"]
     status, _, body = _request(
-        base + "/panel-sidecar/files/artifact?path=" + urllib.parse.quote("/etc/passwd"),
+        base + "/panel-core/files/artifact?path=" + urllib.parse.quote("/etc/passwd"),
         headers=cookie,
     )
     assert status in {400, 403}
     status, _, body = _request(
-        base + "/panel-sidecar/files/artifact?path=" + urllib.parse.quote("/root/.hermes/.env"),
+        base + "/panel-core/files/artifact?path=" + urllib.parse.quote("/root/.hermes/.env"),
         headers=cookie,
     )
     assert status in {400, 403}
@@ -229,7 +231,7 @@ def test_server_auth_session_files_and_errors(panel):
     assert b"request_id" not in body or status != 200
     status, _, body = _request(base + "/panel-api/v1/runs/missing-run/events?last_seq=0", headers={**cookie, "Accept": "text/event-stream"})
     assert status in {404, 400, 409}
-    status, _, body = _request(base + "/panel-sidecar/services/hermes-gateway/restart", "POST", b"{}", {**cookie, "Content-Type": "application/json"})
+    status, _, body = _request(base + "/panel-core/services/hermes-gateway/restart", "POST", b"{}", {**cookie, "Content-Type": "application/json"})
     assert status == 403
     names = subprocess.check_output(["ps", "-T", "-p", str(panel["proc"].pid), "-o", "comm="], text=True)
     assert "auto-continue" not in names

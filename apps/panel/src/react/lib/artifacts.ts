@@ -67,7 +67,7 @@ export function artifactReference(path: string): Artifact | null {
   if (relative.split("/").some((p) => p.startsWith(".") || SECRET.test(p))) return null;
   const name = parts.at(-1)!;
   if (!name) return null;
-  const url = `/panel-sidecar/files/artifact?path=${encodeURIComponent(path)}`;
+  const url = `/panel-core/files/artifact?path=${encodeURIComponent(path)}`;
   return { source: path, name, image: IMAGE.test(path), preview: `${url}&preview=1`, download: url };
 }
 

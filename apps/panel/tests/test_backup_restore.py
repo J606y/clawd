@@ -1,6 +1,15 @@
 """Tests for local update backup and restore (F03).
 Exercises synthetic git repository only; NEVER touches real Hermes install or update.
 """
+import sys as _sys
+from pathlib import Path as _Path
+_REPO_ROOT = _Path(__file__).resolve().parents[3]
+_TESTS_DIR = _Path(__file__).resolve().parent
+if str(_TESTS_DIR) not in _sys.path:
+    _sys.path.insert(0, str(_TESTS_DIR))
+if str(_REPO_ROOT) not in _sys.path:
+    _sys.path.append(str(_REPO_ROOT))
+
 from pathlib import Path
 import os
 import stat
@@ -14,7 +23,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from sidecar import hermes_panel_sidecar as sidecar_mod
+from clawd_server import panel_core as core_mod
 
 spec_restore = None
 try:
@@ -79,8 +88,8 @@ class TestBackupRestore(unittest.TestCase):
             (self.repo / f"untracked-{i:03d}.txt").write_text(f"untracked {i}\n")
 
         # Run _backup_local_changes
-        with patch.object(sidecar_mod, "HERMES_INSTALL", self.repo):
-            sidecar_mod._backup_local_changes(self.backup_dir)
+        with patch.object(core_mod, "HERMES_INSTALL", self.repo):
+            core_mod._backup_local_changes(self.backup_dir)
 
         # Assertions on backup files
         index_patch = self.backup_dir / "index.patch"
@@ -122,8 +131,8 @@ class TestBackupRestore(unittest.TestCase):
         newline_file.write_text("newline content\\n")
 
         # Backup
-        with patch.object(sidecar_mod, "HERMES_INSTALL", self.repo):
-            sidecar_mod._backup_local_changes(self.backup_dir)
+        with patch.object(core_mod, "HERMES_INSTALL", self.repo):
+            core_mod._backup_local_changes(self.backup_dir)
 
         # Verify archive contains symlinks and newline file
         import tarfile
@@ -187,8 +196,8 @@ class TestBackupRestore(unittest.TestCase):
         (self.repo / "untracked.txt").write_text("untracked content\n")
 
         # Backup
-        with patch.object(sidecar_mod, "HERMES_INSTALL", self.repo):
-            sidecar_mod._backup_local_changes(self.backup_dir)
+        with patch.object(core_mod, "HERMES_INSTALL", self.repo):
+            core_mod._backup_local_changes(self.backup_dir)
 
         # Reset repo to clean HEAD
         self.git_repo("reset", "--hard", "HEAD")

@@ -2,9 +2,9 @@
 import concurrent.futures
 import contextlib
 import http.client
-import importlib
 import json
 import os
+import sys
 from pathlib import Path
 import sqlite3
 import tempfile
@@ -12,24 +12,28 @@ import threading
 import unittest
 from unittest.mock import patch
 
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+_TESTS_DIR = Path(__file__).resolve().parent
+if str(_TESTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_TESTS_DIR))
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.append(str(_REPO_ROOT))
+
+from clawd_server import panel_core
+from panel_core_http_fixture import start_panel_core_server, stop_panel_core_server
+
 
 class SessionFoldersTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.module = importlib.import_module("sidecar.hermes_panel_sidecar")
-        class TestHandler(cls.module.Handler):
-            key = "folder-fixture-key"
-        cls.key = TestHandler.key
-        cls.server = cls.module.ThreadingHTTPServer(("127.0.0.1", 0), TestHandler)
-        cls.thread = threading.Thread(target=cls.server.serve_forever,
-                                     kwargs={"poll_interval": 0.01}, daemon=True)
-        cls.thread.start()
+        cls.module = panel_core
+        cls.key = "folder-fixture-key"
+        cls.loop, cls.runner, cls.thread, cls.port = start_panel_core_server(cls.module, cls.key)
+        cls.server_address = ("127.0.0.1", cls.port)
 
     @classmethod
     def tearDownClass(cls):
-        cls.server.shutdown()
-        cls.server.server_close()
-        cls.thread.join(5)
+        stop_panel_core_server(cls.loop, cls.runner, cls.thread)
         assert not cls.thread.is_alive()
 
     def setUp(self):
@@ -52,7 +56,7 @@ class SessionFoldersTests(unittest.TestCase):
         self.assertEqual((self.state.read_bytes(), self.state.stat().st_mtime_ns), self.state_before)
 
     def request(self, body=None, key=None, *, path="/sessions/folders"):
-        conn = http.client.HTTPConnection(*self.server.server_address, timeout=10)
+        conn = http.client.HTTPConnection(*self.server_address, timeout=10)
         try:
             conn.request("GET" if body is None else "POST", path,
                          body=None if body is None else json.dumps(body),
