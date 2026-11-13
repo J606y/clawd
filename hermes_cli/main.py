@@ -3475,6 +3475,15 @@ def _default_to_chat(args) -> None:
 
 def main():
     """Main entry point for hermes CLI."""
+    # Clawd product home first: a bare `hermes` invocation must resolve the
+    # same home as the `clawd` entrypoint. Without this, `get_hermes_home()`
+    # falls back to the platform default (~/.hermes) whenever neither
+    # CLAWD_HOME nor HERMES_HOME is set, and a gateway this process ensures
+    # boots there with no config.yaml -- so a model-less /v1/runs falls back
+    # to the deleted codex default gpt-6.1-sol. Mirrors clawd_cli.main.main().
+    from hermes_constants import isolate_inherited_hermes_env
+
+    isolate_inherited_hermes_env()
     _set_process_title()
     _warn_if_unsupervised_pid1()
     _advertise_agent_env()

@@ -61,7 +61,15 @@ except ImportError:
         yaml = None  # type: ignore[assignment]
 
 KEY_FILE = Path(os.environ.get("PANEL_SIDECAR_KEY_FILE", "/etc/hermes-panel/sidecar.key"))
-HERMES_HOME = Path(os.environ.get("HERMES_HOME", "/root/.hermes"))
+# Product home: the panel serves the clawd home, not the upstream Hermes
+# default. HERMES_HOME wins when set explicitly; otherwise CLAWD_HOME;
+# otherwise ~/.clawd -- the same precedence as get_process_hermes_home,
+# written stdlib-only per this module's no-Hermes-imports constraint.
+HERMES_HOME = Path(
+    os.environ.get("HERMES_HOME", "").strip()
+    or os.environ.get("CLAWD_HOME", "").strip()
+    or str(Path.home() / ".clawd")
+)
 HERMES_BIN = os.environ.get("HERMES_BIN", "/usr/local/bin/hermes")
 CLI_TIMEOUT_S = 30
 MAX_BODY_BYTES = 64 * 1024
