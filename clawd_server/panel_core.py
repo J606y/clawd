@@ -316,12 +316,36 @@ def _cpu_times() -> tuple[int, int]:
     return sum(parts), idle
 
 
+_CPU_LAST: tuple[float, int, int, float] | None = None  # (monotonic, total, idle, value)：上次采样
+_CPU_LAST_LOCK = threading.Lock()
+_CPU_MIN_INTERVAL_S = 2.0  # 短时时间的最短采样间隔：内直接调用直接返回上次的值
+
+
 def _cpu_percent(sample_s: float = 0.25) -> float:
-    t1, i1 = _cpu_times()
-    time.sleep(sample_s)
-    t2, i2 = _cpu_times()
-    dt = t2 - t1
-    return round(100.0 * (1 - (i2 - i1) / dt), 1) if dt > 0 else 0.0
+    """CPU 使用率：首次采样 sleep sample_s 秒，之后用上次读数算差值，不再 sleep。
+
+    /status 每 10 秒轮询一次；旧实现每次都 sleep 0.25 秒，等于给每个状态请求
+    加了 250ms 的硬下限（实测 /status 稳定 0.27 秒）。短间隔内连续调用
+    直接返回上次的值，避免短窗口算出的噪声值（如 0.0 或 50.0）。
+    """
+    global _CPU_LAST
+    now = time.monotonic()
+    with _CPU_LAST_LOCK:
+        total, idle = _cpu_times()
+        if _CPU_LAST is None:
+            time.sleep(sample_s)
+            total2, idle2 = _cpu_times()
+            dt = total2 - total
+            value = round(100.0 * (1 - (idle2 - idle) / dt), 1) if dt > 0 else 0.0
+            _CPU_LAST = (time.monotonic(), total2, idle2, value)
+            return value
+        last_at, last_total, last_idle, last_value = _CPU_LAST
+        if now - last_at < _CPU_MIN_INTERVAL_S:
+            return last_value
+        dt = total - last_total
+        value = round(100.0 * (1 - (idle - last_idle) / dt), 1) if dt > 0 else last_value
+        _CPU_LAST = (now, total, idle, value)
+        return value
 
 
 def _meminfo() -> dict[str, int]:
@@ -2856,8 +2880,15 @@ def get_activity(limit: int) -> dict[str, Any]:
         ids = [c["callId"] for c in calls if c["callId"]]
         results: dict[str, str] = {}
         if ids:
+            # 工具结果一定写在其调用之后：把扫描下界卡在本次窗口最早的调用 id，
+            # 让 SQLite 走主键范围扫描。否则 tool_call_id 上没有索引，全表扫
+            # 1.5GB 的 messages 要 10 秒以上（实测 8.6-16 秒）。
+            min_id = min(r["id"] for r in rows)
             marks = ",".join("?" * len(ids))
-            for r in conn.execute(f"SELECT tool_call_id, substr(content, 1, 600) AS c FROM messages WHERE role = 'tool' AND tool_call_id IN ({marks})", ids):
+            for r in conn.execute(
+                f"SELECT tool_call_id, substr(content, 1, 600) AS c FROM messages WHERE role = 'tool' AND id >= ? AND tool_call_id IN ({marks})",
+                [min_id, *ids],
+            ):
                 results[r["tool_call_id"]] = r["c"] or ""
     finally:
         conn.close()

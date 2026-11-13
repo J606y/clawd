@@ -179,7 +179,7 @@ export function useModelOptions(): UseQueryResult<ModelOptions> {
 }
 
 export function useJobs(): UseQueryResult<CronJob[]> {
-  return useQuery({ queryKey: queryKeys.jobs, queryFn: () => api.jobs() });
+  return useQuery({ queryKey: queryKeys.jobs, queryFn: () => api.jobs(), staleTime: 60_000 });
 }
 
 export function useHealth(visible = true): UseQueryResult<HealthResponse> {
@@ -197,6 +197,7 @@ export function useHealthDetailed(visible = true): UseQueryResult<HealthDetailed
     queryFn: () => api.healthDetailed(),
     enabled: visible,
     refetchInterval: visible ? 10_000 : false,
+    staleTime: 30_000,
   });
 }
 
@@ -206,6 +207,7 @@ export function useHostStatus(visible = true): UseQueryResult<HostStatus> {
     queryFn: () => sidecar.status(),
     enabled: visible,
     refetchInterval: visible ? 10_000 : false,
+    staleTime: 30_000,
   });
 }
 
@@ -215,6 +217,7 @@ export function useActivity(limit = 80, visible = true): UseQueryResult<Activity
     queryFn: () => sidecar.activity(limit),
     enabled: visible,
     refetchInterval: visible ? 10_000 : false,
+    staleTime: 30_000,
   });
 }
 
@@ -247,31 +250,31 @@ export function useSkillBackup(path: string, id: string, enabled = true): UseQue
 }
 
 export function useSettings(): UseQueryResult<SettingsView> {
-  return useQuery({ queryKey: queryKeys.settings, queryFn: () => sidecar.settings() });
+  return useQuery({ queryKey: queryKeys.settings, queryFn: () => sidecar.settings(), staleTime: 60_000 });
 }
 
 export function useConfigYaml(): UseQueryResult<ConfigView> {
-  return useQuery({ queryKey: queryKeys.config, queryFn: () => sidecar.config() });
+  return useQuery({ queryKey: queryKeys.config, queryFn: () => sidecar.config(), staleTime: 60_000 });
 }
 
 export function useModelsAdmin(): UseQueryResult<ModelsView> {
-  return useQuery({ queryKey: queryKeys.modelsAdmin, queryFn: () => sidecar.models() });
+  return useQuery({ queryKey: queryKeys.modelsAdmin, queryFn: () => sidecar.models(), staleTime: 60_000 });
 }
 
 export function useCronModel(): UseQueryResult<CronModelView> {
-  return useQuery({ queryKey: queryKeys.cronModel, queryFn: () => sidecar.cronModel() });
+  return useQuery({ queryKey: queryKeys.cronModel, queryFn: () => sidecar.cronModel(), staleTime: 60_000 });
 }
 
 export function useMcpServers(): UseQueryResult<McpServer[]> {
-  return useQuery({ queryKey: queryKeys.mcp, queryFn: () => sidecar.mcp() });
+  return useQuery({ queryKey: queryKeys.mcp, queryFn: () => sidecar.mcp(), staleTime: 60_000 });
 }
 
 export function usePlugins(): UseQueryResult<PluginInfo[]> {
-  return useQuery({ queryKey: queryKeys.plugins, queryFn: () => sidecar.plugins() });
+  return useQuery({ queryKey: queryKeys.plugins, queryFn: () => sidecar.plugins(), staleTime: 60_000 });
 }
 
 export function useProfiles(): UseQueryResult<ProfilesView> {
-  return useQuery({ queryKey: queryKeys.profiles, queryFn: () => sidecar.profiles() });
+  return useQuery({ queryKey: queryKeys.profiles, queryFn: () => sidecar.profiles(), staleTime: 60_000 });
 }
 
 export function useProfileDetail(name: string, enabled = true): UseQueryResult<{ name: string; text: string }> {
@@ -283,7 +286,7 @@ export function useProfileDetail(name: string, enabled = true): UseQueryResult<{
 }
 
 export function useWebhooks(): UseQueryResult<WebhooksView> {
-  return useQuery({ queryKey: queryKeys.webhooks, queryFn: () => sidecar.webhooks() });
+  return useQuery({ queryKey: queryKeys.webhooks, queryFn: () => sidecar.webhooks(), staleTime: 60_000 });
 }
 
 export function useWebhookDeliveries(route = "", limit = 30, visible = true): UseQueryResult<WebhookDelivery[]> {
@@ -305,7 +308,7 @@ export function useUsage(days: number, visible = true): UseQueryResult<Usage> {
 }
 
 export function useLogSources(): UseQueryResult<LogSources> {
-  return useQuery({ queryKey: queryKeys.logSources, queryFn: () => sidecar.logSources() });
+  return useQuery({ queryKey: queryKeys.logSources, queryFn: () => sidecar.logSources(), staleTime: 60_000 });
 }
 
 export function useLogs(q: LogQuery, follow: boolean): UseQueryResult<LogResult> {
@@ -320,6 +323,7 @@ export function useUpdateInfo(force = false, channel?: UpdateChannel): UseQueryR
   return useQuery({
     queryKey: [...queryKeys.updateInfo, { force, channel }] as const,
     queryFn: () => sidecar.updateCheck(force, channel),
+    staleTime: 300_000,
   });
 }
 
