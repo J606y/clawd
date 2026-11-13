@@ -17,7 +17,7 @@ try {
     });
   });
   await test('every Gemini family clamps legacy high efforts while other model identifiers remain untouched', () => {
-    for (const model of ['gemini-4-argon', 'gemini-3.8-flash-high', 'Gemini-3.8-flash', 'google/gemini-2.5-pro', 'models/gemini-test']) {
+    for (const model of ['gemini-4-argon', 'gemini-2.5-pro-high', 'Gemini-2.5-pro', 'google/gemini-2.5-pro', 'models/gemini-test']) {
       const provider = model === 'gemini-4-argon' ? 'sub2api-gemini' : 'other-provider';
       for (const effort of ['xhigh', 'max', 'ultra']) {
         assert.equal(modelEffortFields(model, provider, effort).model_options.reasoning_effort, 'high', model);

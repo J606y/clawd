@@ -45,18 +45,18 @@ const server = await createServer({
 try {
   const { PluginsTab } = await server.ssrLoadModule('/src/react/pages/settings/plugins-tab.tsx');
 
-  test('profile card hides the retired default model and keeps gateway state', () => {
+  test('profile card hides the model name and keeps gateway state', () => {
     const client = new QueryClient({
       defaultOptions: { queries: { retry: false, staleTime: Infinity, refetchOnMount: false } },
     });
     client.setQueryData(['profiles'], {
-      data: [{ name: 'default', active: true, model: 'gemini-3.8-flash', gateway: 'running', alias: 'coder' }],
+      data: [{ name: 'default', active: true, model: 'gemini-4-hydrogen', gateway: 'running', alias: 'coder' }],
       raw: null,
     });
     client.setQueryData(['plugins'], []);
     const html = renderToStaticMarkup(createElement(QueryClientProvider, { client }, createElement(PluginsTab)));
     assert.equal(html.includes('模型：'), false);
-    assert.equal(html.includes('gemini-3.8-flash'), false);
+    assert.equal(html.includes('gemini-4-hydrogen'), false);
     assert.equal(html.includes('网关：running'), true);
     assert.equal(html.includes('别名：coder'), true);
     assert.equal(html.includes('>default<'), true);

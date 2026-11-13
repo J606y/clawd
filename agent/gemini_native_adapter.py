@@ -118,8 +118,8 @@ def gemini_requires_tool_call_ids(model: str) -> bool:
 
 
 def _gemini_version(model: str) -> tuple[int, int]:
-    """(major, minor) of a Gemini model id: ``gemini-4-argon`` -> (4, 0), ``google/gemini-3.8-flash`` ->
-    (3, 8); (0, 0) for non-Gemini and unversioned ids (``gemini-flash-latest``, ``gemini-exp-1206``)."""
+    """(major, minor) of a Gemini model id: ``gemini-4-argon`` -> (4, 0), ``google/gemini-4-hydrogen`` ->
+    (4, 0); (0, 0) for non-Gemini and unversioned ids (``gemini-flash-latest``, ``gemini-exp-1206``)."""
     match = re.match(r"gemini-(\d+)(?:\.(\d+))?", bare_gemini_model_id(model).lower())
     return (int(match.group(1)), int(match.group(2) or 0)) if match else (0, 0)
 
