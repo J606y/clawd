@@ -137,6 +137,10 @@ class CDPSupervisor(DialogSupervisionMixin, FrameTrackingMixin):
         # Dialog auto-dismiss watchdog handles (per dialog id) + id generator.
         self._dialog_watchdogs: dict[str, asyncio.TimerHandle] = {}
         self._dialog_seq = 0
+        # Last outbound CDP traffic (monotonic clock). The idle-stop
+        # scheduler and the orphan sweep read this; every command funnels
+        # through ``_cdp``, so one touch there covers all call paths.
+        self._last_used_mono = time.monotonic()
 
     # ── Public sync API ──────────────────────────────────────────────────────
 
@@ -174,6 +178,10 @@ class CDPSupervisor(DialogSupervisionMixin, FrameTrackingMixin):
     def _set_active(self, value: bool) -> None:
         with self._state_lock:
             self._active = value
+
+    def idle_seconds(self) -> float:
+        """Seconds since this supervisor last sent a CDP command."""
+        return max(0.0, time.monotonic() - self._last_used_mono)
 
     def snapshot(self) -> SupervisorSnapshot:
         """Return an immutable snapshot of current state."""
@@ -658,6 +666,7 @@ class CDPSupervisor(DialogSupervisionMixin, FrameTrackingMixin):
         fut: asyncio.Future = asyncio.get_running_loop().create_future()
         self._pending_calls[call_id] = fut
         await self._ws.send(json.dumps(payload))
+        self._last_used_mono = time.monotonic()
         try:
             return await asyncio.wait_for(fut, timeout=timeout)
         finally:
@@ -714,6 +723,27 @@ class _SupervisorRegistry:
             self._home_by_task.pop(task_id, None)
             return self._by_task.pop(task_id, None)
 
+    def snapshot(self) -> list[tuple[str, CDPSupervisor]]:
+        """(task_id, supervisor) pairs, for the orphan sweep."""
+        with self._lock:
+            return list(self._by_task.items())
+
+    def stop_if_same(self, task_id: str, supervisor: CDPSupervisor) -> bool:
+        """Pop ``task_id`` only if ``supervisor`` is still the registered one.
+
+        The deferred-stop timer captures the supervisor at schedule time;
+        a new turn may have replaced it by fire time. Stopping by task_id
+        alone could kill the replacement mid-call, so the timer stops only
+        the exact object it scheduled. The caller stops the popped
+        supervisor outside the lock (``stop()`` joins its thread).
+        """
+        with self._lock:
+            if self._by_task.get(task_id) is not supervisor:
+                return False
+            self._home_by_task.pop(task_id, None)
+            self._by_task.pop(task_id, None)
+            return True
+
     def capture(self, task_id: str, *, timeout: float = 10.0) -> CapturedCDP:
         """Public CDP seam for trusted in-process plugins: a handle pinned to this task's
         current connection and default page session (``tools.browser_supervisor_capture``)."""
@@ -734,6 +764,7 @@ class _SupervisorRegistry:
         """
         if str(cdp_url or "").startswith("wss://"):
             raise RuntimeError("refusing a second websocket to a signed cloud endpoint")
+        _ensure_orphan_sweep()
         from hermes_constants import hermes_home_key
         home = hermes_home_key()
         owned_existing = None
@@ -811,6 +842,171 @@ class _SupervisorRegistry:
 
 
 SUPERVISOR_REGISTRY = _SupervisorRegistry()
+
+
+# ── Idle stop: task ends -> supervisor stops after a grace period ──────────
+# Point 3 of the live-browser native work (2026-11-13): when an AI task
+# ends, its CDP supervisor must not keep holding a websocket on the 39234
+# proxy forever -- that connection counts as a viewer (``active_cdp >= 1``)
+# so the runtime's 10 s idle reaper can never fire and the browser never
+# closes. ``cleanup_task_resources`` arms a deferred stop at turn end; the
+# timer only fires when the supervisor is provably idle, so it can never
+# interrupt a running call:
+#   * same supervisor object as at schedule time (a new turn that
+#     re-attached gets a new object and is left alone);
+#   * no CDP traffic for the whole grace period;
+#   * the browser exec gate is free (no browser_exec / manual takeover
+#     in flight).
+# Stopping the supervisor does NOT close the browser or its pages: it only
+# drops the agent-side socket. The runtime reaper still owns the actual
+# close and keeps the browser open while anyone watches the live screen
+# (``active_ws > 0``). The next browser call re-attaches on demand via
+# ``get_or_start``. A residual sub-millisecond race remains (a call could
+# start between the gate check and the stop); its only consequence is one
+# retryable browser_exec error, not data loss.
+SUPERVISOR_STOP_GRACE_S = 10.0
+SUPERVISOR_ORPHAN_IDLE_S = 120.0
+SUPERVISOR_SWEEP_INTERVAL_S = 30.0
+
+_STOP_TIMERS: dict[str, threading.Timer] = {}
+_STOP_TIMERS_LOCK = threading.Lock()
+_SWEEP_STARTED = False
+_SWEEP_LOCK = threading.Lock()
+
+
+def _exec_gate_held() -> bool:
+    """True when a browser_exec call (or manual takeover) holds the exec gate.
+
+    Fail-open (False) when the gate cannot be read: browser_exec needs the
+    same gate to run, so an unreadable gate means no call can be in flight.
+    """
+    try:
+        from tools.browser_task_registry import acquire_lease_gate
+
+        gate = acquire_lease_gate()
+    except Exception:
+        return False
+    if gate is None:
+        return True
+    try:
+        gate.close()
+    except Exception:
+        pass
+    return False
+
+
+def _stop_supervisor_if_idle(task_id: str, supervisor: CDPSupervisor,
+                             delay_s: float) -> bool:
+    """Stop ``supervisor`` if it is still registered, idle and uncontended.
+
+    Returns True only when the supervisor was actually stopped.
+    """
+    try:
+        current = SUPERVISOR_REGISTRY.get(task_id)
+        if current is not supervisor:
+            return False
+        if supervisor.idle_seconds() < delay_s:
+            return False
+        if _exec_gate_held():
+            return False
+        if not SUPERVISOR_REGISTRY.stop_if_same(task_id, supervisor):
+            return False
+    except Exception as exc:  # teardown must never break the caller
+        logger.debug("idle CDP supervisor check for task=%s failed: %s",
+                     task_id, type(exc).__name__)
+        return False
+    try:
+        supervisor.stop()
+    except Exception as exc:
+        logger.debug("idle CDP supervisor stop for task=%s failed: %s",
+                     task_id, type(exc).__name__)
+        return False
+    logger.info("stopped idle CDP supervisor for task=%s after %.0fs idle",
+                task_id, delay_s)
+    return True
+
+
+def schedule_supervisor_stop(
+    task_id: str, delay_s: float = SUPERVISOR_STOP_GRACE_S
+) -> bool:
+    """Arm "stop this task's CDP supervisor after ``delay_s`` idle seconds".
+
+    Called at turn/task end (see ``cleanup_task_resources``). Returns False
+    when there is no supervisor to stop; otherwise True. Re-arming replaces
+    any pending timer for the task, so repeated turn ends never stack timers.
+    """
+    if not task_id:
+        return False
+    try:
+        delay = float(delay_s)
+    except (TypeError, ValueError):
+        delay = SUPERVISOR_STOP_GRACE_S
+    if delay <= 0:
+        delay = SUPERVISOR_STOP_GRACE_S
+    supervisor = SUPERVISOR_REGISTRY.get(task_id)
+    if supervisor is None:
+        return False
+
+    def _fire() -> None:
+        with _STOP_TIMERS_LOCK:
+            if _STOP_TIMERS.get(task_id) is timer:
+                _STOP_TIMERS.pop(task_id, None)
+        _stop_supervisor_if_idle(task_id, supervisor, delay)
+
+    timer = threading.Timer(delay, _fire)
+    timer.daemon = True
+    timer.name = f"cdp-supervisor-stop-{task_id}"
+    with _STOP_TIMERS_LOCK:
+        previous = _STOP_TIMERS.pop(task_id, None)
+        _STOP_TIMERS[task_id] = timer
+    if previous is not None:
+        previous.cancel()
+    timer.start()
+    return True
+
+
+def _orphan_sweep_once() -> None:
+    """Stop supervisors idle for >= ``SUPERVISOR_ORPHAN_IDLE_S`` with no call running.
+
+    Backstop for supervisors no turn end ever arms a deferred stop for:
+    vault attaches under the "default" key (``_attach_vault_supervisor``
+    with no task) and runs whose finalization never ran. Same guards as
+    the deferred stop (same-object pop, idle, gate free). Never closes
+    pages or the browser -- only the agent-side socket.
+    """
+    if _exec_gate_held():
+        return
+    for task_id, supervisor in SUPERVISOR_REGISTRY.snapshot():
+        try:
+            if supervisor.idle_seconds() < SUPERVISOR_ORPHAN_IDLE_S:
+                continue
+        except Exception:
+            continue
+        _stop_supervisor_if_idle(task_id, supervisor, SUPERVISOR_ORPHAN_IDLE_S)
+
+
+def _orphan_sweep_loop() -> None:
+    while True:
+        try:
+            time.sleep(SUPERVISOR_SWEEP_INTERVAL_S)
+            _orphan_sweep_once()
+        except Exception as exc:  # sweep must never kill its thread
+            logger.debug("CDP supervisor orphan sweep failed: %s",
+                         type(exc).__name__)
+
+
+def _ensure_orphan_sweep() -> None:
+    global _SWEEP_STARTED
+    if _SWEEP_STARTED:
+        return
+    with _SWEEP_LOCK:
+        if _SWEEP_STARTED:
+            return
+        thread = threading.Thread(
+            target=_orphan_sweep_loop, name="cdp-supervisor-sweep", daemon=True
+        )
+        thread.start()
+        _SWEEP_STARTED = True
 
 
 def close_owned_target(task_id: str, target_id: str, browser_id: str, endpoint: str) -> str:
