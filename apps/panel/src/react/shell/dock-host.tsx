@@ -1,13 +1,26 @@
-import { useLayoutEffect, useRef } from "react";
-import { AgentDock, LiveDock, TaskDock } from "@/docks/docks";
+import { lazy, Suspense, useLayoutEffect, useRef } from "react";
+// docks 只在用户打开时加载：live/agent/task 三个 dock 合计 2600+ 行，
+// 不应进首屏 chunk。Suspense fallback 为空，容器（.side-dock / .agent-sheet）
+// 本身已提供布局，首开时只晚一帧本地加载。
+const AgentDock = lazy(() => import("@/docks/agent-dock").then((m) => ({ default: m.AgentDock })));
+const LiveDock = lazy(() => import("@/docks/live-dock").then((m) => ({ default: m.LiveDock })));
+const TaskDock = lazy(() => import("@/docks/task-dock").then((m) => ({ default: m.TaskDock })));
 import { NAV_EASE, POP_MS, reducedMotion } from "@/lib/route-motion";
 import type { DockState, DockView } from "./dock-state";
 import { originTransform, pickOrigin, sheetFromOrigin, type OriginRect } from "./origin-motion";
 
 function DockBody(props: { snap: DockView; onClose: () => void }) {
-  if (props.snap.kind === "live") return <LiveDock />;
-  if (props.snap.kind === "task") return <TaskDock key={props.snap.key} sessionId={props.snap.sessionId} />;
-  return <AgentDock sessionId={props.snap.sessionId} agentId={props.snap.agentId} onClose={props.onClose} />;
+  return (
+    <Suspense fallback={null}>
+      {props.snap.kind === "live" ? (
+        <LiveDock />
+      ) : props.snap.kind === "task" ? (
+        <TaskDock key={props.snap.key} sessionId={props.snap.sessionId} />
+      ) : (
+        <AgentDock sessionId={props.snap.sessionId} agentId={props.snap.agentId} onClose={props.onClose} />
+      )}
+    </Suspense>
+  );
 }
 
 function buttonRects(agentId: string): OriginRect[] {
@@ -134,7 +147,9 @@ export function DockHost(props: {
         }}
       >
         <div ref={sheetRef} className="agent-sheet">
-          <AgentDock sessionId={snap.sessionId} agentId={snap.agentId} onClose={props.onClose} />
+          <Suspense fallback={null}>
+            <AgentDock sessionId={snap.sessionId} agentId={snap.agentId} onClose={props.onClose} />
+          </Suspense>
         </div>
       </dialog>
     );

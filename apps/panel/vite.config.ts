@@ -1,4 +1,5 @@
-import { appendFileSync, mkdirSync } from "node:fs";
+import { appendFileSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { gzipSync } from "node:zlib";
 import path from "node:path";
 import { fileURLToPath, URL } from "node:url";
 import babel from "@rolldown/plugin-babel";
@@ -46,6 +47,35 @@ function reactCompilerPlugin(): PluginOption[] {
   return plugins;
 }
 
+
+// 构建产物预压缩：给 .js/.css/.html 等生成 .gz 兄弟文件。面板服务用
+// aiohttp FileResponse，客户端接受 gzip 时会自动改发 .gz，首屏在慢速
+// 网络下少传约 70%。小于 1KB 的文件不压（.gz 反而更大）。
+function gzipAssetsPlugin(): PluginOption {
+  return {
+    name: "clawd-gzip-assets",
+    closeBundle() {
+      const outDir = path.resolve("dist");
+      const exts = new Set([".js", ".css", ".html", ".json", ".svg", ".webmanifest"]);
+      const walk = (dir: string): string[] => {
+        const out: string[] = [];
+        for (const entry of readdirSync(dir, { withFileTypes: true })) {
+          const p = path.join(dir, entry.name);
+          if (entry.isDirectory()) out.push(...walk(p));
+          else if (entry.isFile()) out.push(p);
+        }
+        return out;
+      };
+      for (const file of walk(outDir)) {
+        if (!exts.has(path.extname(file)) || file.endsWith(".gz")) continue;
+        const data = readFileSync(file);
+        if (data.length < 1024) continue;
+        writeFileSync(file + ".gz", gzipSync(data, { level: 9 }));
+      }
+    },
+  };
+}
+
 // base "./"：同一份产物既能挂在开发路径 /__next/，也能挂在站点根 /。
 // 本地 dev 的三类同源接口共用上游；可用 PANEL_DEV_UPSTREAM 指向隔离测试服务。
 // 默认入口是 React。JSX 仍是 automatic runtime；编译器经 @vitejs/plugin-react 的 reactCompilerPreset 接入。
@@ -56,7 +86,7 @@ export default defineConfig(({ mode }) => {
   const target = env.PANEL_DEV_UPSTREAM || "http://127.0.0.1:9";
   return {
     base: "./",
-    plugins: [tailwindcss(), ...reactCompilerPlugin()],
+    plugins: [tailwindcss(), ...reactCompilerPlugin(), gzipAssetsPlugin()],
     resolve: {
       alias: {
         "@": fileURLToPath(new URL("./src/react", import.meta.url)),

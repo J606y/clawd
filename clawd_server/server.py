@@ -387,8 +387,20 @@ class PanelServer:
             inject = f'<script>window.__CLAWD_ARTIFACT_ROOTS__={roots};</script>'
             if needle in text and "__CLAWD_ARTIFACT_ROOTS__" not in text:
                 text = text.replace(needle, inject + needle, 1)
-            return web.Response(text=text, content_type="text/html", charset="utf-8")
-        return web.FileResponse(target)
+            return web.Response(
+                text=text,
+                content_type="text/html",
+                charset="utf-8",
+                headers={"Cache-Control": "no-cache"},
+            )
+        response = web.FileResponse(target)
+        # dist/assets 下是内容哈希文件名，内容不变；让浏览器长期缓存，
+        # 复访不再逐个 revalidate。其余静态文件（manifest、图标）短缓存。
+        if rel.startswith("assets/"):
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        else:
+            response.headers["Cache-Control"] = "public, max-age=3600"
+        return response
 
 
 async def serve(home: Path, host: str, port: int, static_dir: Path | None) -> None:
