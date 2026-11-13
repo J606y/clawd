@@ -10,15 +10,12 @@ from __future__ import annotations
 
 from typing import Any
 
+# browser_vault is one unified tool (action=list|fill|save_login|enter_code|unlock).
 _ALLOWED = frozenset({
     "browser_exec",
     "browser_cdp",
     "browser_dialog",
-    "browser_vault_list",
-    "browser_vault_fill",
-    "browser_vault_enter_code",
-    "browser_vault_save_login",
-    "browser_vault_unlock",
+    "browser_vault",
 })
 
 
@@ -26,7 +23,8 @@ def register(ctx: Any) -> None:
     def on_pre_tool_call(**kwargs: Any) -> dict[str, Any] | None:
         tool_name = str(kwargs.get("tool_name") or "")
         args = kwargs.get("args") or {}
-        if tool_name == "browser_vault" and isinstance(args, dict) and args.get("action") == "list":
+        # browser_vault is one unified tool; every action is allowed (see _ALLOWED).
+        if tool_name == "browser_vault" and isinstance(args, dict):
             return None
         untracked = (
             tool_name.startswith("mcp__chrome_devtools")
