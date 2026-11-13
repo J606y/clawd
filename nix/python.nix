@@ -9,7 +9,7 @@
   # Filtered Python source (see lib.nix pythonSrc) — keeps JS/docs/skills
   # edits from invalidating the venv derivation.
   pythonSrc,
-  # Built panel root (dist/, sidecar/, plugins/). Wheel-build input only.
+  # Built panel root (dist/, plugins/). Wheel-build input only.
   # Referencing the derivation adds a build dependency via string context.
   # It is not read during evaluation, and it must not be copied into the
   # installed runtime wrapper: stage_distribution copies file bytes into

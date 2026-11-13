@@ -13,7 +13,7 @@ try{
  const {api}=await server.ssrLoadModule('/src/lib/api.ts');
  await test('only scoped read-only provenance annotates generic notification input',async()=>{
   const calls=[];globalThis.fetch=async(url,init)=>{url=new URL(url);calls.push(url);assert.equal(init.body,undefined);assert.ok(!init.method||init.method==='GET');
-   if(url.pathname.endsWith('/message-origins')){assert.equal(url.pathname,'/__next/panel-sidecar/sessions/message-origins');assert.equal(url.searchParams.get('session_id'),'s/with space');assert.equal(url.searchParams.get('ids'),'3,4');return Response.json({items:{'3':'api_queue','4':'api_steer','2':'api_queue'}})}
+   if(url.pathname.endsWith('/message-origins')){assert.equal(url.pathname,'/__next/panel-core/sessions/message-origins');assert.equal(url.searchParams.get('session_id'),'s/with space');assert.equal(url.searchParams.get('ids'),'3,4');return Response.json({items:{'3':'api_queue','4':'api_steer','2':'api_queue'}})}
    return Response.json({data:[{id:2,role:'assistant',content:'saved',input_origin:'api_queue'},{id:3,role:'user',content:'input',display_kind:'internal_notification'},{id:4,role:'user',content:'steer',display_kind:'internal_notification'}],pagination:{returned:3}})};
   const page=await api.messages('s/with space',{limit:3,offset:0});assert.equal(page.hasMore,true);assert.equal(page.messages[0].input_origin,undefined);assert.equal(page.messages[1].input_origin,'api_queue');assert.equal(page.messages[2].input_origin,'api_steer');assert.equal(calls.length,2);
  });

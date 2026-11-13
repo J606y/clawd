@@ -159,7 +159,7 @@ def main() -> int:
             record("session-get", "pass" if status == 200 else "fail", f"HTTP {status}")
 
         status, _, body = request(
-            url + "/panel-sidecar/files/upload?root=uploads&name=verify.txt", "POST", b"ok",
+            url + "/panel-core/files/upload?root=uploads&name=verify.txt", "POST", b"ok",
             {**cookie, "Content-Type": "application/octet-stream"},
         )
         if status != 200:
@@ -167,29 +167,29 @@ def main() -> int:
         else:
             uploaded = json.loads(body)
             record("upload", "pass" if str(uploaded.get("absPath", "")).startswith(str(HOME)) else "fail", uploaded.get("absPath", ""))
-        denied, _, _ = request(url + "/panel-sidecar/files/artifact?path=" + urllib.parse.quote("/etc/passwd"), headers=cookie)
+        denied, _, _ = request(url + "/panel-core/files/artifact?path=" + urllib.parse.quote("/etc/passwd"), headers=cookie)
         record("path-reject", "pass" if denied in {400, 403} else "fail", f"HTTP {denied}")
-        status, _, _ = request(url + "/panel-sidecar/services/nginx/restart", "POST", b"{}", json_headers)
+        status, _, _ = request(url + "/panel-core/services/nginx/restart", "POST", b"{}", json_headers)
         record("no-system-restart", "pass" if status == 403 else "fail", f"HTTP {status}")
 
         status, _, body = request(url + "/panel-api/api/jobs", headers=cookie)
         record("jobs-list", "pass" if status == 200 else "fail", f"HTTP {status} {body[:160]!r}")
-        status, _, body = request(url + "/panel-sidecar/skills", headers=cookie, timeout=40)
+        status, _, body = request(url + "/panel-core/skills", headers=cookie, timeout=40)
         record("skills", "pass" if status == 200 else "fail", f"HTTP {status} {body[:160]!r}")
-        status, _, body = request(url + "/panel-sidecar/config", headers=cookie, timeout=20)
+        status, _, body = request(url + "/panel-core/config", headers=cookie, timeout=20)
         if status == 503 and b"yaml_parser_unavailable" in body:
             record("config-read", "blocked", "prepared venv has no PyYAML; redaction refuses to return raw config")
         else:
             record("config-read", "pass" if status == 200 else "fail", f"HTTP {status} {body[:160]!r}")
-        status, _, body = request(url + "/panel-sidecar/subagents?limit=5", headers=cookie)
+        status, _, body = request(url + "/panel-core/subagents?limit=5", headers=cookie)
         record("subagents", "pass" if status == 200 else "fail", f"HTTP {status}")
-        status, _, body = request(url + "/panel-sidecar/live/state", headers=cookie, timeout=8)
+        status, _, body = request(url + "/panel-core/live/state", headers=cookie, timeout=8)
         if status != 200:
             record("live-browser", "blocked", f"HTTP {status}; clawd has no browser daemon")
         else:
             state = json.loads(body)
             record("live-browser", "pass" if state.get("running") else "blocked", "no isolated browser daemon" if not state.get("running") else "running")
-        status, _, body = request(url + "/panel-sidecar/mcp", headers=cookie, timeout=40)
+        status, _, body = request(url + "/panel-core/mcp", headers=cookie, timeout=40)
         record("mcp", "blocked" if status != 200 or body == b'{"data": []}' else "pass", f"HTTP {status} {body[:180]!r}; no live MCP session")
 
         if session_id:

@@ -1,4 +1,4 @@
-"""Unified localhost server: panel-api, panel-sidecar, panel-auth, static files."""
+"""Unified localhost server: panel-api, panel-core, panel-auth, static files."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from typing import Any
 from aiohttp import ClientSession, ClientTimeout, web
 
 from clawd_server import auth as panel_auth
-from clawd_server.bind import bind, clawd_command, continuation_status, load_sidecar, prepare_env
+from clawd_server.bind import bind, clawd_command, continuation_status, prepare_env
 from clawd_server.live_browser_routes import register_live_routes
 from clawd_server.home import REPO_ROOT, assert_core_home, resolve_home
 
@@ -115,13 +115,10 @@ class PanelServer:
         self.home = home
         self.static_dir = static_dir
         self.api_key = ""
-        self.sidecar_key = ""
         self.adapter: Any = None
-        self.sidecar_httpd: Any = None
         self.live_supervisor: Any = None
-        self.sidecar_mod: Any = None
+        self.panel_core: Any = None
         self.api_base = ""
-        self.sidecar_base = ""
         self.client: ClientSession | None = None
         self.runner: web.AppRunner | None = None
         self.site: web.TCPSite | None = None
@@ -132,12 +129,9 @@ class PanelServer:
         self.home.joinpath("panel").mkdir(parents=True, mode=0o700, exist_ok=True)
         self.home.joinpath("logs").mkdir(parents=True, mode=0o700, exist_ok=True)
         self.api_key = secrets.token_hex(32)
-        self.sidecar_key = secrets.token_hex(32)
         key_path = self.home / "panel" / "api-server.key"
         key_path.write_text(self.api_key + "\n", encoding="utf-8")
         os.chmod(key_path, 0o600)
-        (self.home / "panel" / "sidecar.key").write_text(self.sidecar_key + "\n", encoding="utf-8")
-        os.chmod(self.home / "panel" / "sidecar.key", 0o600)
         config = self.home / "config.yaml"
         if not config.exists():
             config.write_text("# clawd isolated home; no secrets\nagent: {}\n", encoding="utf-8")
@@ -148,10 +142,11 @@ class PanelServer:
         prepare_env(self.home, self.api_base)
         command = clawd_command(self.home)
         os.environ["HERMES_BIN"] = command
-        self.sidecar_mod = load_sidecar()
-        bind(self.sidecar_mod, self.home, command)
-        self.sidecar_mod.CONTINUE_API = self.api_base
-        self._start_sidecar()
+        from clawd_server import panel_core
+
+        self.panel_core = panel_core
+        bind(panel_core, self.home, command)
+        panel_core.CONTINUE_API = self.api_base
         # Core owns the live browser controller: adopt it when the systemd
         # unit already runs it, else spawn it as a core child (Chromium stays
         # a subprocess of the controller, never of this process). Idle
@@ -176,8 +171,10 @@ class PanelServer:
         from clawd_server.account_routes import register_account_routes
 
         register_account_routes(app, self)
+        from clawd_server.panel_core import register_panel_core_routes
+
+        register_panel_core_routes(app, self)
         app.router.add_route("*", "/panel-api/{tail:.*}", self._proxy_api)
-        app.router.add_route("*", "/panel-sidecar/{tail:.*}", self._proxy_sidecar)
         register_live_routes(app, self)
         app.router.add_get("/", self._index)
         app.router.add_get("/{name:.*}", self._static)
@@ -243,16 +240,6 @@ class PanelServer:
         if adapter is not None:
             disarm_adapter(adapter)
 
-    def _start_sidecar(self) -> None:
-        mod = self.sidecar_mod
-        mod.Handler.key = self.sidecar_key
-        httpd = mod.ThreadingHTTPServer(("127.0.0.1", 0), mod.Handler)
-        httpd.daemon_threads = True
-        thread = threading.Thread(target=httpd.serve_forever, name="clawd-sidecar", daemon=True)
-        thread.start()
-        self.sidecar_httpd = httpd
-        self.sidecar_base = f"http://127.0.0.1:{httpd.server_address[1]}"
-
     async def close(self) -> None:
         if self.live_supervisor is not None:
             await self.live_supervisor.stop()
@@ -262,9 +249,6 @@ class PanelServer:
             await self.client.close()
         if self.runner is not None:
             await self.runner.cleanup()
-        if self.sidecar_httpd is not None:
-            self.sidecar_httpd.shutdown()
-            self.sidecar_httpd.server_close()
         if self.adapter is not None:
             await self.adapter.disconnect()
 
@@ -320,12 +304,6 @@ class PanelServer:
         if denied:
             return denied
         return await self._proxy(request, self.api_base, {"Authorization": f"Bearer {self.api_key}"})
-
-    async def _proxy_sidecar(self, request: web.Request) -> web.StreamResponse:
-        denied = self._authed(request)
-        if denied:
-            return denied
-        return await self._proxy(request, self.sidecar_base, {"X-Panel-Key": self.sidecar_key})
 
     async def _proxy(self, request: web.Request, base: str, inject: dict[str, str]) -> web.StreamResponse:
         tail = request.match_info.get("tail", "")

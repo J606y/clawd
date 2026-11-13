@@ -49,7 +49,7 @@ function reload(sid) {
 try {
   server = http.createServer(async (req, res) => {
     const url = new URL(req.url, 'http://fixture');
-    const path = url.pathname.replace(/^\/panel-api/, '').replace(/^\/panel-sidecar/, '');
+    const path = url.pathname.replace(/^\/panel-api/, '').replace(/^\/panel-core/, '');
     if (path === '/sessions/run/resolve') {
       const key = url.searchParams.get('idempotency_key');
       const sid = url.searchParams.get('session_id');

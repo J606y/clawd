@@ -29,7 +29,7 @@ DEFAULT_RELATIVE_INPUTS = (
     "package-lock.json",
     "apps/panel/package.json",
     "apps/panel/package-lock.json",
-    "apps/panel/sidecar/requirements.txt",
+    "apps/panel/requirements-panel-core.txt",
     "ui-tui/package.json",
     "ui-tui/packages/hermes-ink/package.json",
     "apps/shared/package.json",

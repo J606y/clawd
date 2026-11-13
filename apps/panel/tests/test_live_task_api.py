@@ -1,4 +1,13 @@
 """Task-only spectator API: synthetic registry/CDP, never production browsers."""
+import sys as _sys
+from pathlib import Path as _Path
+_REPO_ROOT = _Path(__file__).resolve().parents[3]
+_TESTS_DIR = _Path(__file__).resolve().parent
+if str(_TESTS_DIR) not in _sys.path:
+    _sys.path.insert(0, str(_TESTS_DIR))
+if str(_REPO_ROOT) not in _sys.path:
+    _sys.path.append(str(_REPO_ROOT))
+
 import base64
 import io
 import json
@@ -7,7 +16,7 @@ import os
 import unittest
 from unittest.mock import Mock, patch
 
-from sidecar import hermes_panel_sidecar as sc
+from clawd_server import panel_core as sc
 
 
 class TaskLiveApiTests(unittest.TestCase):
@@ -16,7 +25,7 @@ class TaskLiveApiTests(unittest.TestCase):
         import tempfile
         from pathlib import Path
         from native_browser_fixture import bind_profile, install_native
-        from sidecar.live_task_store import ShadowStoreRetired, Store
+        from clawd_server.live_task_store import ShadowStoreRetired, Store
 
         with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as temp:
             home = Path(temp) / "profile"

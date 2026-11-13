@@ -1,6 +1,6 @@
 import { request } from "./api.js";
 
-const BASE = new URL("panel-sidecar/", document.baseURI);
+const BASE = new URL("panel-core/", document.baseURI);
 
 export type TaskLiveStatus = "waiting" | "active" | "ended";
 
@@ -79,7 +79,7 @@ export interface TaskInputResult {
 /**
  * 任务单页画面。服务端只返回该会话已登记的 target。
  * 缺少会话身份时不发请求，避免被当成当前选中页或桌面画面。
- * 冻结接口：GET panel-sidecar/live/task?session_id=<sid>[&task_id=<id>][&client_id=<cid>]
+ * 冻结接口：GET panel-core/live/task?session_id=<sid>[&task_id=<id>][&client_id=<cid>]
  */
 export async function getTaskLiveFrame(
   sessionId: string,
@@ -105,7 +105,7 @@ export async function getTaskLiveFrame(
 
 /**
  * 任务单页控制租约（接管 / 交还）。
- * 冻结接口：POST panel-sidecar/live/task/control
+ * 冻结接口：POST panel-core/live/task/control
  */
 export async function controlTaskLive(
   body: {
@@ -133,7 +133,7 @@ export async function controlTaskLive(
 
 /**
  * 任务单页输入（仅作用在登记的 targetId 上）。
- * 冻结接口：POST panel-sidecar/live/task/input
+ * 冻结接口：POST panel-core/live/task/input
  */
 export async function sendTaskLiveInput(
   body: TaskInputPayload,

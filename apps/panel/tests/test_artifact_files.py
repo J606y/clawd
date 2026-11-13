@@ -1,4 +1,16 @@
-"""Artifact contract exercised through a real, isolated HTTP sidecar."""
+"""Artifact contract exercised through a real, isolated HTTP panel core."""
+import sys as _sys
+from pathlib import Path as _Path
+_REPO_ROOT = _Path(__file__).resolve().parents[3]
+_TESTS_DIR = _Path(__file__).resolve().parent
+if str(_TESTS_DIR) not in _sys.path:
+    _sys.path.insert(0, str(_TESTS_DIR))
+if str(_REPO_ROOT) not in _sys.path:
+    _sys.path.append(str(_REPO_ROOT))
+
+from clawd_server import panel_core
+from panel_core_http_fixture import start_panel_core_server, stop_panel_core_server
+
 import concurrent.futures
 import hashlib
 import http.client
@@ -25,22 +37,19 @@ class ArtifactFilesTests(unittest.TestCase):
         env = mock.patch.dict(os.environ, {"CLAWD_HOME": str(self.home)})
         env.start()
         self.addCleanup(env.stop)
-        self.mod = importlib.import_module("sidecar.hermes_panel_sidecar")
+        self.mod = panel_core
         self.roots = {"workspace": {"path": self.base, "label": "fixture", "create": False, "writable": True}}
         roots_patch = mock.patch.dict(self.mod.FILE_ROOTS, self.roots, clear=True)
         roots_patch.start()
         self.addCleanup(roots_patch.stop)
-        handler = type("FixtureHandler", (self.mod.Handler,), {"key": "artifact-test-key"})
-        self.server = self.mod.ThreadingHTTPServer(("127.0.0.1", 0), handler)
-        self.server.daemon_threads = True
-        self.thread = threading.Thread(target=self.server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True)
-        self.thread.start()
+        self.loop, self.runner, self.thread, self.port = start_panel_core_server(
+            self.mod, "artifact-test-key"
+        )
+        self.server_address = ("127.0.0.1", self.port)
         self.addCleanup(self.stop_server)
 
     def stop_server(self):
-        self.server.shutdown()
-        self.server.server_close()
-        self.thread.join(timeout=2)
+        stop_panel_core_server(self.loop, self.runner, self.thread)
 
     def request(self, path, *, preview=False, key: str | None = "artifact-test-key", endpoint="artifact", raw_query=None):
         params = {"path": str(path)}
@@ -48,7 +57,7 @@ class ArtifactFilesTests(unittest.TestCase):
             params["root"] = "workspace"
         if preview:
             params["preview"] = "1"
-        conn = http.client.HTTPConnection(*self.server.server_address, timeout=5)
+        conn = http.client.HTTPConnection(*self.server_address, timeout=5)
         try:
             conn.request("GET", f"/files/{endpoint}?{raw_query if raw_query is not None else urlencode(params)}",
                          headers={"X-Panel-Key": key} if key is not None else {})
@@ -267,7 +276,7 @@ class ArtifactFilesTests(unittest.TestCase):
 
     def test_unexpected_errors_do_not_log_query_credentials_or_authentication(self):
         raw = urlencode({"path": str(self.base / "file.txt"), "api_key": "query-credential-MUST-NOT-LOG"})
-        with mock.patch.object(self.mod.Handler, "_artifact", side_effect=RuntimeError("fixture failure")):
+        with mock.patch.object(self.mod, "_resolve_artifact", side_effect=RuntimeError("fixture failure")):
             with self.assertLogs(self.mod.log, level="ERROR") as captured:
                 response = self.request("ignored", raw_query=raw)
         self.assert_error(response, 500, "internal")
@@ -288,7 +297,7 @@ class ArtifactFilesTests(unittest.TestCase):
             return info
 
         with mock.patch.object(self.mod.os, "fstat", side_effect=grow_after_fstat):
-            with socket.create_connection(self.server.server_address, timeout=5) as client:
+            with socket.create_connection(self.server_address, timeout=5) as client:
                 url = "/files/artifact?" + urlencode({"path": str(path)})
                 client.sendall(f"GET {url} HTTP/1.0\r\nX-Panel-Key: artifact-test-key\r\n\r\n".encode("ascii"))
                 chunks = []
@@ -343,7 +352,7 @@ class ArtifactFilesTests(unittest.TestCase):
                 return self.stream.read(size)
 
         def consume(_):
-            conn = http.client.HTTPConnection(*self.server.server_address, timeout=10)
+            conn = http.client.HTTPConnection(*self.server_address, timeout=10)
             try:
                 conn.request("GET", "/files/artifact?" + urlencode({"path": str(path)}),
                              headers={"X-Panel-Key": "artifact-test-key"})
@@ -432,7 +441,7 @@ class ArtifactFilesTests(unittest.TestCase):
 
         with mock.patch.object(self.mod.os, "fdopen", side_effect=FailingReader):
             with mock.patch.object(self.mod.log, "exception") as logged:
-                with socket.create_connection(self.server.server_address, timeout=5) as client:
+                with socket.create_connection(self.server_address, timeout=5) as client:
                     url = "/files/artifact?" + urlencode({"path": str(path)})
                     client.sendall(f"GET {url} HTTP/1.0\r\nX-Panel-Key: artifact-test-key\r\n\r\n".encode("ascii"))
                     chunks = []

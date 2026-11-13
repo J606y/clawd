@@ -14,7 +14,7 @@
 | --- | --- |
 | `/panel-auth/renew` | POST。Cookie `hp_auth` 必须是已登记用户的 SHA-256(`hermes-panel:v2:` + 小写用户名 + `\n` + 密码)。成功 204，并下发 `HttpOnly; SameSite=Strict; Max-Age=2592000`。HTTP 不带 `Secure`，HTTPS 才带。 |
 | `/panel-api/` | 去掉前缀后转发到进程内 `APIServerAdapter`，注入 `Authorization: Bearer`。不把浏览器 Cookie 转给核心。会话、运行、事件、任务以该适配器为准。 |
-| `/panel-sidecar/` | 去掉前缀后转发到同进程 sidecar，注入 `X-Panel-Key`。文件根在 `CLAWD_HOME` 下，不是 `/root/hermes-uploads` 或 `/root/hermes-workspace`。 |
+| `/panel-core/` | 同进程面板核心路由（`clawd_server.panel_core`），面板 cookie + Origin 鉴权。文件根在 `CLAWD_HOME` 下，不是 `/root/hermes-uploads` 或 `/root/hermes-workspace`。 |
 | `/` | 已构建的 `apps/panel/dist`。未构建时 503 `panel_not_built`，接口仍可用。 |
 
 不安全方法要求 `Origin`/`Referer` 与 `Host` 一致。两者都缺时，只接受 loopback 对端。跨站 `Sec-Fetch-Site` 拒绝。
@@ -24,16 +24,16 @@
 - 审批 POST `/panel-api/v1/runs/{id}/approval` 原样转发 `request_id`、`execution_generation`、`choice`。缺身份或代次由核心拒绝，本层不补、不猜。
 - 事件流 `GET /panel-api/v1/runs/{id}/events?last_seq=` 流式转发，不断开成缓冲完成体。
 - 幂等键 `Idempotency-Key` 原样转发。
-- 附件 `absPath` 仍由 sidecar 复核。拒绝 `..`、点文件、密钥名、`/etc`、`/root/.ssh`、`/root/.hermes`、生产安装目录。
+- 附件 `absPath` 仍由面板核心复核。拒绝 `..`、点文件、密钥名、`/etc`、`/root/.ssh`、`/root/.hermes`、生产安装目录。
 - 401 只表示登录失效。业务拒绝保持 403/409，不能把面板踢回登录页。
 
 ## 自动续跑
 
-面板 `_continue_watcher` 源码保留，供旧测试使用。clawd 启动时替换该函数并不调用 `sidecar.main()`，因此不会启动名为 `auto-continue` 的线程，也不会向 `127.0.0.1:8642` 发续跑。状态展示契约（`/panel-sidecar/run-wait`、前端续跑标记）保留。调度归属 `gateway/clawd_continuation.py`。该模块尚未导出时，就绪接口报告 `continuation=missing`，不伪装成已接管。
+面板 `_continue_watcher` 源码保留，供旧测试使用。clawd 启动时替换该函数并不启动名为 `auto-continue` 的线程，也不会向 `127.0.0.1:8642` 发续跑。状态展示契约（`/panel-core/run-wait`、前端续跑标记）保留。调度归属 `gateway/clawd_continuation.py`。该模块尚未导出时，就绪接口报告 `continuation=missing`，不伪装成已接管。
 
 ## 文件夹
 
-`/panel-sidecar/sessions/folders` 保持现有 schema：`folders` 与 `assignments`，操作仍是 create/rename/collapse/delete/move。不迁移、不删除已有文件夹数据，不引入项目或专属记忆模型。项目契约由父代理另发后再改。
+`/panel-core/sessions/folders` 保持现有 schema：`folders` 与 `assignments`，操作仍是 create/rename/collapse/delete/move。不迁移、不删除已有文件夹数据，不引入项目或专属记忆模型。项目契约由父代理另发后再改。
 
 ## 已原生化（本进程直接调用核心，不经 hermes CLI，不自写 state.db 查询）
 

@@ -1,11 +1,20 @@
 """会话后台进程：只读 Hermes 的 processes.json，并用 /proc 核实进程仍是登记的那一个。"""
-import importlib
 import json
 import os
+import sys
 from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
+
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+_TESTS_DIR = Path(__file__).resolve().parent
+if str(_TESTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_TESTS_DIR))
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.append(str(_REPO_ROOT))
+
+from clawd_server import panel_core
 
 
 def _start_ticks(pid: int) -> int:
@@ -17,7 +26,7 @@ def _start_ticks(pid: int) -> int:
 class SessionBackgroundTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.m = importlib.import_module("sidecar.hermes_panel_sidecar")
+        cls.m = panel_core
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

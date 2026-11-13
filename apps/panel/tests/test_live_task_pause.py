@@ -12,7 +12,14 @@ import unittest
 import uuid
 from unittest.mock import patch, Mock
 
-from sidecar import hermes_panel_sidecar as sc
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+_TESTS_DIR = Path(__file__).resolve().parent
+if str(_TESTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_TESTS_DIR))
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.append(str(_REPO_ROOT))
+
+from clawd_server import panel_core as sc
 from native_browser_fixture import bind_profile, install_native, register_page
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -84,7 +91,7 @@ class PauseTests(unittest.TestCase):
             fcntl.flock(probe, fcntl.LOCK_EX | fcntl.LOCK_NB)
 
     def test_old_plugin_is_rejected_even_if_session_is_idle(self):
-        from sidecar.live_task_store import ShadowStoreRetired, Store
+        from clawd_server.live_task_store import ShadowStoreRetired, Store
         with self.assertRaises(ShadowStoreRetired):
             Store(self.root / 'tasks.sqlite3')
         idle = dict(self.body, taskId='old-plugin-task', targetId='UNREGISTERED')

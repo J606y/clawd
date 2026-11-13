@@ -171,7 +171,7 @@ def test_down_daemon_does_not_reload(monkeypatch):
 
 def test_leases_were_not_retuned():
     root = Path(__file__).resolve().parents[2]
-    sidecar = (root / "apps/panel/sidecar/hermes_panel_sidecar.py").read_text(encoding="utf-8")
+    sidecar = (root / "clawd_server/panel_core.py").read_text(encoding="utf-8")
     native = (root / "clawd_server/browser_native.py").read_text(encoding="utf-8")
     assert "LIVE_LEASE_S = 45" in sidecar
     assert "_HARD_LEASE_S = 300.0" in native

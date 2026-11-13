@@ -86,12 +86,6 @@ async function getStandardGates(target, repoRoot) {
       args: ['-B', '-m', 'unittest', 'discover', '-s', 'tests', '-p', 'test*.py'],
       timeoutMs: 300000,
     });
-    gates.push({
-      name: 'python-sidecar',
-      cmd: 'python3',
-      args: ['-B', '-m', 'unittest', 'discover', '-s', 'sidecar', '-p', 'test*.py'],
-      timeoutMs: 180000,
-    });
   }
 
   // Lit component browser gates were removed with the old framework.

@@ -9,7 +9,14 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from sidecar import image_studio as studio
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+_TESTS_DIR = Path(__file__).resolve().parent
+if str(_TESTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_TESTS_DIR))
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.append(str(_REPO_ROOT))
+
+from clawd_server import image_studio as studio
 
 
 PNG = b"\x89PNG\r\n\x1a\n" + b"\x00" * 16
@@ -268,13 +275,13 @@ class StoreTests(unittest.TestCase):
 
 
 class RouteTests(unittest.TestCase):
-    def test_sidecar_registers_image_routes(self) -> None:
-        source = Path(__file__).parents[1].joinpath("sidecar", "hermes_panel_sidecar.py").read_text(encoding="utf-8")
+    def test_panel_core_registers_image_routes(self) -> None:
+        source = Path(__file__).resolve().parents[3].joinpath("clawd_server", "panel_core.py").read_text(encoding="utf-8")
         for path in ("/image/models", "/image/history", "/image/generate", "/image/delete"):
             self.assertIn(path, source)
 
     def test_isolated_python_loads_sibling_image_studio(self) -> None:
-        sidecar = Path(__file__).parents[1].joinpath("sidecar", "hermes_panel_sidecar.py")
+        sidecar = Path(__file__).resolve().parents[3].joinpath("clawd_server", "panel_core.py")
         probe = r'''
 import ast, sys
 from pathlib import Path

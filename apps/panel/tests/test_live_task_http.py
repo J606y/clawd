@@ -1,4 +1,4 @@
-"""Real isolated sidecar HTTP + SQLite ownership + Chromium CDP.
+"""Real isolated panel-core HTTP + SQLite ownership + Chromium CDP.
 
 No production endpoints or model runs. Browser uses an ephemeral profile/port.
 """
@@ -8,19 +8,26 @@ import json
 import os
 import shutil
 import subprocess
+import sys
 import tempfile
-import threading
 import time
 import unittest
 import urllib.error
 import urllib.request
-from http.server import ThreadingHTTPServer
 from pathlib import Path
 from unittest.mock import patch
 from urllib.parse import urlsplit
 
-from sidecar import hermes_panel_sidecar as sc
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+_TESTS_DIR = Path(__file__).resolve().parent
+if str(_TESTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_TESTS_DIR))
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.append(str(_REPO_ROOT))
+
+from clawd_server import panel_core as sc
 from native_browser_fixture import bind_profile, install_native, register_page
+from panel_core_http_fixture import start_panel_core_server, stop_panel_core_server
 
 
 class TaskLiveHttpIntegrationTests(unittest.TestCase):
@@ -73,12 +80,9 @@ class TaskLiveHttpIntegrationTests(unittest.TestCase):
                 register_page(task_id="fixture-task", session_id="fixture-session", turn_id="fixture-turn",
                               target_id=own, browser_id=browser_id, endpoint="http://" + host)
                 self.assertFalse(db.exists(), "native spectator must not open the shadow task db")
-                class IsolatedHandler(sc.Handler):
-                    key = 'isolated-fixture-key'
-                server = ThreadingHTTPServer(('127.0.0.1', 0), IsolatedHandler)
-                thread = threading.Thread(target=server.serve_forever, daemon=True)
-                thread.start()
-                base = 'http://127.0.0.1:' + str(server.server_port)
+                loop, runner, thread, port = start_panel_core_server(sc, 'isolated-fixture-key')
+                server = (loop, runner, thread)
+                base = 'http://127.0.0.1:' + str(port)
                 url = base + '/live/task?session_id=fixture-session&task_id=fixture-task'
                 with patch.object(sc, 'LIVE_CDP', host), patch.object(sc, 'LIVE_TASK_DB', db):
                     with self.assertRaises(urllib.error.HTTPError) as error:
@@ -179,10 +183,7 @@ class TaskLiveHttpIntegrationTests(unittest.TestCase):
                     self.assertIn(other, remaining)
             finally:
                 if server:
-                    server.shutdown()
-                    server.server_close()
-                if thread:
-                    thread.join(timeout=3)
+                    stop_panel_core_server(*server)
                 if browser:
                     browser.close()
                 if proc.poll() is None:

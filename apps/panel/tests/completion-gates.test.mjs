@@ -10,7 +10,6 @@ const requiredVerifyGates = [
   'typecheck',
   'node',
   'python-tests',
-  'python-sidecar',
   'delegated-sidebar-browser',
   'scroll-layout-phase3-browser',
   'artifacts-browser',

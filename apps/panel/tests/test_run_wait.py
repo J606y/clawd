@@ -1,10 +1,19 @@
 """Read-only retry evidence using isolated synthetic logs; never touch agent logs."""
+import sys
 import tempfile
 import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
-from sidecar import hermes_panel_sidecar as s
+
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+_TESTS_DIR = Path(__file__).resolve().parent
+if str(_TESTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_TESTS_DIR))
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.append(str(_REPO_ROOT))
+
+from clawd_server import panel_core as s
 
 class RunWaitTests(unittest.TestCase):
     def setUp(self):

@@ -24,7 +24,7 @@ try {
   const nativeApi = { approve: api.approve, runStatus: api.runStatus };
   const { sidecar } = await server.ssrLoadModule('/src/lib/sidecar.ts');
 
-  await test('follow status 404 uses the same run completed result from sidecar', async () => {
+  await test('follow status 404 uses the same run completed result from panel-core', async () => {
     const sid = 'follow-missing-completed';
     const nativeSessionRun = sidecar.sessionRun;
     let reads = 0;

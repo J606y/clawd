@@ -10,7 +10,7 @@ from __future__ import annotations
 
 # Imported by tests so the contract cannot drift silently.
 ENTRY = "clawd_server.__main__.main"
-PREFIXES = ("/panel-api/", "/panel-sidecar/", "/panel-auth/", "/")
+PREFIXES = ("/panel-api/", "/panel-core/", "/panel-auth/", "/")
 COOKIE = "hp_auth"
 AUTH_SALT = "hermes-panel:v2:"
 APPROVAL_KEYS = ("request_id", "execution_generation", "choice")

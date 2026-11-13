@@ -4,7 +4,7 @@ import { request } from "@/lib/api";
 import { type WriteFacts } from "@/lib/admin-api";
 import { Empty, LoadError, Loading, Notice, Switch, errText } from "./bits";
 
-const SIDECAR = new URL("panel-sidecar/", document.baseURI);
+const SIDECAR = new URL("panel-core/", document.baseURI);
 const KEY = ["settings-section", "memory"] as const;
 
 interface ProviderField {

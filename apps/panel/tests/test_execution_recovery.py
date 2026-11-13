@@ -1,4 +1,16 @@
 """Synthetic databases and isolated CLI workers; never touches real sessions/services."""
+import sys as _sys
+from pathlib import Path as _Path
+_REPO_ROOT = _Path(__file__).resolve().parents[3]
+_TESTS_DIR = _Path(__file__).resolve().parent
+if str(_TESTS_DIR) not in _sys.path:
+    _sys.path.insert(0, str(_TESTS_DIR))
+if str(_REPO_ROOT) not in _sys.path:
+    _sys.path.append(str(_REPO_ROOT))
+
+from clawd_server import panel_core
+from panel_core_http_fixture import start_panel_core_server, stop_panel_core_server
+
 import contextlib
 import http.client
 import threading
@@ -17,7 +29,7 @@ from unittest.mock import patch
 
 class ExecutionRecoveryTests(unittest.TestCase):
     def setUp(self):
-        self.m = importlib.import_module('sidecar.hermes_panel_sidecar')
+        self.m = panel_core
         self.tmp = tempfile.TemporaryDirectory(dir=os.environ.get('TMPDIR'))
         self.addCleanup(self.tmp.cleanup)
         self.home = Path(self.tmp.name)
@@ -182,16 +194,12 @@ class ExecutionRecoveryTests(unittest.TestCase):
     def test_authenticated_http_control_stops_only_verified_fixture_worker(self):
         p = self.worker(stubborn=True)
         self.lease(p.pid)
-        class Handler(self.m.Handler):
-            key = 'fixture-execution-key'
-        server = self.m.ThreadingHTTPServer(('127.0.0.1', 0), Handler)
-        thread = threading.Thread(target=server.serve_forever, kwargs={'poll_interval': 0.01}, daemon=True)
-        thread.start()
+        loop, runner, thread, port = start_panel_core_server(self.m, 'fixture-execution-key')
         def request(method, path, body=None, auth=True):
-            with contextlib.closing(http.client.HTTPConnection(*server.server_address, timeout=5)) as conn:
+            with contextlib.closing(http.client.HTTPConnection("127.0.0.1", port, timeout=5)) as conn:
                 headers = {'Content-Type': 'application/json'}
                 if auth:
-                    headers['X-Panel-Key'] = Handler.key
+                    headers['X-Panel-Key'] = 'fixture-execution-key'
                 conn.request(method, path, json.dumps(body) if body is not None else None, headers)
                 response = conn.getresponse()
                 return response.status, json.loads(response.read())
@@ -207,8 +215,7 @@ class ExecutionRecoveryTests(unittest.TestCase):
             p.wait(timeout=3)
             self.assertEqual(request('GET', f'/sessions/execution?session_id={self.sid}'), (200, {'busy': False, 'execution': None}))
         finally:
-            server.shutdown(); server.server_close(); thread.join(timeout=3)
-            self.assertFalse(thread.is_alive())
+            stop_panel_core_server(loop, runner, thread)
 
 
 if __name__ == '__main__':

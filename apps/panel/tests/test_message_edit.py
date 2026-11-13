@@ -1,7 +1,7 @@
 """Real SQLite fixtures; never connects to a production database."""
 import contextlib
-import importlib
 import importlib.util
+import sys
 import json
 import os
 from pathlib import Path
@@ -9,6 +9,17 @@ import sqlite3
 import tempfile
 import unittest
 import uuid
+
+
+_REPO_ROOT = Path(__file__).resolve().parents[3]
+_TESTS_DIR = Path(__file__).resolve().parent
+if str(_TESTS_DIR) not in sys.path:
+    sys.path.insert(0, str(_TESTS_DIR))
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.append(str(_REPO_ROOT))
+
+from clawd_server import panel_core
+from panel_core_http_fixture import start_panel_core_server, stop_panel_core_server
 
 
 class MessageEditTests(unittest.TestCase):
@@ -92,7 +103,7 @@ class MessageEditTests(unittest.TestCase):
                          tuple(values.values()))
 
     def module(self):
-        module = importlib.import_module("sidecar.hermes_panel_sidecar")
+        module = panel_core
         self.assertTrue(hasattr(module, "create_edit_branch"), "edit branch feature is missing")
         return module
 
@@ -312,19 +323,14 @@ class MessageEditTests(unittest.TestCase):
         from unittest.mock import patch
         module = self.module()
 
-        class TestHandler(module.Handler):
-            key = "fixture-only-key"
-
-        server = module.ThreadingHTTPServer(("127.0.0.1", 0), TestHandler)
-        thread = threading.Thread(target=server.serve_forever, daemon=True)
-        thread.start()
+        loop, runner, thread, port = start_panel_core_server(module, "fixture-only-key")
         try:
             with patch.object(module, "HERMES_HOME", self.db.parent):
                 before = self.snapshot()
-                connection = http.client.HTTPConnection(*server.server_address, timeout=5)
+                connection = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
                 try:
                     connection.request("POST", "/sessions/edit-branch", json.dumps(self.payload),
-                                       {"X-Panel-Key": TestHandler.key, "Content-Type": "application/json"})
+                                       {"X-Panel-Key": "fixture-only-key", "Content-Type": "application/json"})
                     response = connection.getresponse()
                     body = json.loads(response.read())
                     self.assertEqual(response.status, 200, body)
@@ -334,11 +340,11 @@ class MessageEditTests(unittest.TestCase):
                 after = self.snapshot()
                 self.assertEqual(after["sessions"][0], before["sessions"][0])
                 for raw, headers, status, code in (
-                    (b"x" * (module.MAX_BODY_BYTES + 1), {"X-Panel-Key": TestHandler.key}, 413, "too_large"),
+                    (b"x" * (module.MAX_BODY_BYTES + 1), {"X-Panel-Key": "fixture-only-key"}, 413, "too_large"),
                     (b"{}", {}, 401, "unauthorized"),
-                    (b"not-json", {"X-Panel-Key": TestHandler.key}, 400, "invalid_json")):
+                    (b"not-json", {"X-Panel-Key": "fixture-only-key"}, 400, "invalid_json")):
                     with self.subTest(status=status):
-                        connection = http.client.HTTPConnection(*server.server_address, timeout=5)
+                        connection = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
                         try:
                             connection.request("POST", "/sessions/edit-branch", raw, headers)
                             response = connection.getresponse()
@@ -349,10 +355,7 @@ class MessageEditTests(unittest.TestCase):
                             connection.close()
                         self.assertEqual(self.snapshot(), after)
         finally:
-            server.shutdown()
-            server.server_close()
-            thread.join(timeout=5)
-            self.assertFalse(thread.is_alive())
+            stop_panel_core_server(loop, runner, thread)
 
     def test_new_session_flags_do_not_inherit_nonzero_defaults(self):
         with self.connect() as conn:

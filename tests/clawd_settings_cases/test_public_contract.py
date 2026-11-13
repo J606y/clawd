@@ -11,7 +11,7 @@ from types import SimpleNamespace
 
 ROOT = Path(__file__).resolve().parents[2]
 
-# Same panel heuristic the sidecar uses. Copied here so the test does not import the sidecar.
+# Same panel heuristic the panel core uses. Copied here so the test does not import panel core.
 _SECRET_NAME_RE = re.compile(
     r"(?:^|[_-])(?:api[_-]?keys?|keys?|secrets?|passw(?:or)?ds?|private[_-]?keys?|cookies?|authorization|token|hash(?:es)?|salts?|credentials?)$",
     re.I,

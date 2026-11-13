@@ -291,16 +291,18 @@ def assert_bound(mod, home: Path) -> None:
 
 
 @contextmanager
-def isolated_sidecar(tmp_path: Path, *, home: Path | None = None, bind_now: bool = True) -> Iterator[tuple[Path, Any]]:
+def isolated_panel_core(tmp_path: Path, *, home: Path | None = None, bind_now: bool = True) -> Iterator[tuple[Path, Any]]:
     chosen = home if home is not None else tmp_path / "clawd-home"
     if not chosen.exists():
         chosen.mkdir(mode=0o700)
     refuse_banned(chosen)
     saved_env = {key: os.environ.get(key) for key in _ENV_KEYS}
-    from clawd_server.bind import bind, clawd_command, load_sidecar, prepare_env
+    from clawd_server.bind import bind, clawd_command, prepare_env
 
     prepare_env(chosen, "http://127.0.0.1:9")
-    mod = load_sidecar()
+    from clawd_server import panel_core
+
+    mod = panel_core
     saved = _snapshot(mod)
     try:
         if bind_now:

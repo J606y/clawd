@@ -93,7 +93,7 @@ function releaseBodyScrollLock(): void {
 
 function isSafeImageArtifact(artifact: Artifact): boolean {
   if (!artifact.image) return false;
-  return artifact.preview.startsWith("data:image/") || artifact.preview.startsWith("/panel-sidecar/files/artifact?");
+  return artifact.preview.startsWith("data:image/") || artifact.preview.startsWith("/panel-core/files/artifact?");
 }
 
 function safeBlock(block: MarkdownBlock, cache: WeakMap<MarkdownBlock, string>): string {

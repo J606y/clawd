@@ -1,3 +1,14 @@
+import sys as _sys
+from pathlib import Path as _Path
+_REPO_ROOT = _Path(__file__).resolve().parents[3]
+_TESTS_DIR = _Path(__file__).resolve().parent
+if str(_TESTS_DIR) not in _sys.path:
+    _sys.path.insert(0, str(_TESTS_DIR))
+if str(_REPO_ROOT) not in _sys.path:
+    _sys.path.append(str(_REPO_ROOT))
+
+from clawd_server import panel_core
+
 import contextlib
 import importlib
 import json
@@ -31,7 +42,7 @@ CREATE INDEX idx_async_delegations_delivery ON async_delegations(delivery_state,
 class TestContinueHistoryOrder(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.m = importlib.import_module("sidecar.hermes_panel_sidecar")
+        cls.m = panel_core
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

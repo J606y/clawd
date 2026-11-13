@@ -1,4 +1,4 @@
-"""Tests for GET /sessions/active endpoint in hermes_panel_sidecar.
+"""Tests for GET /sessions/active endpoint in clawd_server.panel_core.
 
 RED-GREEN TDD suite:
 - Valid unexpired session_turn_leases joined with sessions
@@ -9,6 +9,18 @@ RED-GREEN TDD suite:
 - Checks authentication required (401/403)
 - Contract: id, source, title, model, started_at, last_active, message_count, preview, pinned, archived
 """
+import sys as _sys
+from pathlib import Path as _Path
+_REPO_ROOT = _Path(__file__).resolve().parents[3]
+_TESTS_DIR = _Path(__file__).resolve().parent
+if str(_TESTS_DIR) not in _sys.path:
+    _sys.path.insert(0, str(_TESTS_DIR))
+if str(_REPO_ROOT) not in _sys.path:
+    _sys.path.append(str(_REPO_ROOT))
+
+from clawd_server import panel_core
+from panel_core_http_fixture import start_panel_core_server, stop_panel_core_server
+
 import contextlib
 import http.client
 import importlib
@@ -26,26 +38,16 @@ from unittest.mock import patch
 class ActiveSessionsTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.module = importlib.import_module("sidecar.hermes_panel_sidecar")
-
-        class TestHandler(cls.module.Handler):
-            key = "fixture-active-sessions-key"
-
-        cls.key = TestHandler.key
-        cls.server = cls.module.ThreadingHTTPServer(("127.0.0.1", 0), TestHandler)
-        cls.server.daemon_threads = True
-        cls.thread = threading.Thread(
-            target=cls.server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True
+        cls.module = panel_core
+        cls.key = "fixture-active-sessions-key"
+        cls.loop, cls.runner, cls.thread, cls.port = start_panel_core_server(
+            cls.module, cls.key
         )
-        cls.thread.start()
+        cls.server_address = ("127.0.0.1", cls.port)
 
     @classmethod
     def tearDownClass(cls):
-        cls.server.shutdown()
-        cls.server.server_close()
-        cls.thread.join(timeout=5)
-        if cls.thread.is_alive():
-            raise AssertionError("fixture HTTP server did not stop")
+        stop_panel_core_server(cls.loop, cls.runner, cls.thread)
 
     def setUp(self):
         scratch_base = os.environ.get("PANEL_TEST_OUTPUT") or os.environ.get("TMPDIR") or "/root/hermes-workspace/p-tmp"
@@ -93,7 +95,7 @@ class ActiveSessionsTests(unittest.TestCase):
             """)
 
     def request(self, path="/sessions/active", method="GET", key=None):
-        conn = http.client.HTTPConnection(*self.server.server_address, timeout=3)
+        conn = http.client.HTTPConnection(*self.server_address, timeout=3)
         try:
             headers = {"X-Panel-Key": self.key if key is None else key}
             conn.request(method, path, headers=headers)

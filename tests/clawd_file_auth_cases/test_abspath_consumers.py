@@ -6,7 +6,7 @@ from pathlib import Path
 
 from tests.clawd_file_auth_cases.helpers import (
     assert_under,
-    isolated_sidecar,
+    isolated_panel_core,
     read_artifact,
     upload,
 )
@@ -20,7 +20,7 @@ def _roots(home: Path) -> list[str]:
 
 def test_upload_abspath_matches_consumer_shape_and_recheck(tmp_path: Path):
     payload = b"%PDF-hello"
-    with isolated_sidecar(tmp_path) as (home, mod):
+    with isolated_panel_core(tmp_path) as (home, mod):
         result = upload(mod, payload, "报告.txt")
         assert result["root"] == "uploads"
         assert isinstance(result["path"], str) and not result["path"].startswith("/")
@@ -40,7 +40,7 @@ def test_upload_abspath_matches_consumer_shape_and_recheck(tmp_path: Path):
 
 
 def test_cron_and_images_abspath_use_injected_roots(tmp_path: Path):
-    with isolated_sidecar(tmp_path) as (home, mod):
+    with isolated_panel_core(tmp_path) as (home, mod):
         roots = _roots(home)
         for relative in ("cron/output/job.txt", "images/pic.txt"):
             path = home / relative
@@ -57,7 +57,7 @@ def test_symlinked_home_abspath_stays_consumable(tmp_path: Path):
     real.mkdir()
     link = tmp_path / "link-home"
     link.symlink_to(real, target_is_directory=True)
-    with isolated_sidecar(tmp_path, home=link) as (home, mod):
+    with isolated_panel_core(tmp_path, home=link) as (home, mod):
         result = upload(mod, b"linked", "note.txt")
         abs_path = result["absPath"]
         roots = _roots(home)

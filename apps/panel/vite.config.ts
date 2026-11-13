@@ -65,7 +65,7 @@ export default defineConfig(({ mode }) => {
     },
     server: {
       proxy: Object.fromEntries(
-        ["/panel-api", "/panel-sidecar", "/panel-auth"].map((prefix) => [prefix, {
+        ["/panel-api", "/panel-core", "/panel-auth"].map((prefix) => [prefix, {
           target,
           changeOrigin: true,
         }]),

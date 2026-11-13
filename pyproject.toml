@@ -579,7 +579,7 @@ test = [
 ]
 
 [build-system]
-# Wrapper stages built panel/sidecar resources, then calls setuptools.
+# Wrapper stages built panel resources, then calls setuptools.
 # wheel stays in requires because setup.py's bdist_wheel guard imports it
 # during PEP 517 isolation (#96488). Direct setuptools.build_meta calls
 # (uv2nix and tests/clawd_packaging.py) skip this wrapper until setup.py
@@ -771,7 +771,7 @@ tools = [
   "vendor/browser_harness_0_1_13/src/browser_harness/SKILL.md",
   "vendor/browser_harness_0_1_13/src/browser_harness/video-template.html",
 ]
-# Built panel static files plus sidecar/plugin modules staged by
+# Built panel static files plus plugin modules staged by
 # scripts/build_clawd_resources.py. apps/panel and apps/desktop are not
 # packages; do not add them to packages.find. A missing build fails the
 # stage step instead of shipping an empty glob.
@@ -781,7 +781,6 @@ clawd_server = [
   "bundled/apps/panel/dist/*",
   "bundled/apps/panel/dist/*/*",
   "bundled/apps/panel/dist/*/*/*",
-  "bundled/apps/panel/sidecar/*.py",
   "bundled/apps/panel/plugins/*/*",
 ]
 # fnmatch, not stdlib glob: `*` crosses separators. This drops only the

@@ -1,4 +1,15 @@
 """服务端自动续跑：临时 state.db + 本地假 Hermes API。不连真实数据库、不读真实密钥、不发模型请求。"""
+import sys as _sys
+from pathlib import Path as _Path
+_REPO_ROOT = _Path(__file__).resolve().parents[3]
+_TESTS_DIR = _Path(__file__).resolve().parent
+if str(_TESTS_DIR) not in _sys.path:
+    _sys.path.insert(0, str(_TESTS_DIR))
+if str(_REPO_ROOT) not in _sys.path:
+    _sys.path.append(str(_REPO_ROOT))
+
+from clawd_server import panel_core
+
 import contextlib
 import importlib
 import json
@@ -62,7 +73,7 @@ class FakeHermes(BaseHTTPRequestHandler):
 class AutoContinueTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.m = importlib.import_module("sidecar.hermes_panel_sidecar")
+        cls.m = panel_core
         cls.server = ThreadingHTTPServer(("127.0.0.1", 0), FakeHermes)
         cls.thread = threading.Thread(target=cls.server.serve_forever, kwargs={"poll_interval": 0.01}, daemon=True)
         cls.thread.start()
@@ -471,7 +482,7 @@ from pathlib import Path
 from unittest.mock import patch
 sys.dont_write_bytecode = True
 sys.path.insert(0, sys.argv[1])
-from sidecar import hermes_panel_sidecar as m
+from clawd_server import panel_core as m
 m.HERMES_HOME = Path(sys.argv[2])
 posts, errors = [], []
 def api(method, path, key, body=None, headers=None):
@@ -1128,7 +1139,7 @@ print(json.dumps({'posts': posts, 'errors': errors, 'receipts': receipts, 'pendi
                      "VALUES ('sub_4', 'subagent', 'gpt-6.1-sol', ?, ?, ?)", (sid, time.time() - 20, time.time() - 100))
         conn.commit()
         conn.close()
-        # A reply timestamp is not proof of delivery. The sidecar-owned receipt
+        # A reply timestamp is not proof of delivery. The panel-core-owned receipt
         # records the exact batch previously admitted (see _continue_receipts).
         self.m._continue_receipts(time.time(), [f"hp-continue-batch-{sid}-deleg_answered"])
         # 助手在已交付的子任务结束后已回复

@@ -89,9 +89,3 @@ def panel_static_dir() -> Path:
     from clawd_server.resources import panel_static_dir as _static
 
     return _static()
-
-
-def sidecar_resource_dir() -> Path:
-    from clawd_server.resources import sidecar_dir
-
-    return sidecar_dir()

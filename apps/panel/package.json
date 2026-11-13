@@ -8,7 +8,7 @@
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
     "test:node": "node --test --test-concurrency=1 tests/*.test.mjs",
-    "test:python": "python3 -B -m unittest discover -s tests -p 'test*.py' && python3 -B -m unittest discover -s sidecar -p 'test*.py'",
+    "test:python": "python3 -B -m unittest discover -s tests -p 'test*.py'",
     "test:browser": "node scripts/test-gates.mjs --target=browser",
     "test": "node scripts/test-gates.mjs --target=all",
     "verify": "node scripts/test-gates.mjs --target=verify",

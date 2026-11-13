@@ -107,9 +107,9 @@ def test_sources_keep_auth_boundary_and_delivery_failure():
     assert "Handler._dispatch =" not in routes
     assert "getattr(mod, \"delete_profile\"" not in routes
     assert "body.get(\"name\"))" not in routes or "preview_delete_profile" in routes
-    sidecar = (ROOT / "apps/panel/sidecar/hermes_panel_sidecar.py").read_text(encoding="utf-8")
-    assert '"/profiles/delete": lambda: delete_profile(body.get("name"))' in sidecar
-    assert "delete-preview" not in sidecar
+    core = (ROOT / "clawd_server/panel_core.py").read_text(encoding="utf-8")
+    assert '"/profiles/delete": lambda: delete_profile(body.get("name"))' in core
+    assert "delete-preview" not in core
     webhooks = (ROOT / "clawd_server" / "admin_webhooks.py").read_text(encoding="utf-8")
     assert "webhook_deliveries_unavailable" in webhooks
     assert '{"data": []}' not in webhooks

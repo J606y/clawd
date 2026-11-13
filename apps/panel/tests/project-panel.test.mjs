@@ -20,7 +20,7 @@ globalThis.window = {
 globalThis.fetch = async (input, init) => {
   const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url);
   calls.push({ href: url.href, method: (init?.method || "GET").toUpperCase(), body: init?.body ?? null });
-  if (url.pathname.includes("panel-sidecar")) {
+  if (url.pathname.includes("panel-core")) {
     return new Response(JSON.stringify({ folders: [{ id: "old", name: "旧夹" }], assignments: {} }), { status: 200, headers: { "Content-Type": "application/json" } });
   }
   return new Response(JSON.stringify({ error: "unmocked", message: url.pathname }), { status: 500, headers: { "Content-Type": "application/json" } });
@@ -118,7 +118,7 @@ try {
     globalThis.fetch = async (input, init) => {
       const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url);
       seen.push({ path: url.pathname, search: url.search, method: (init?.method || "GET").toUpperCase(), body: init?.body ?? null });
-      if (url.pathname.includes("panel-sidecar")) {
+      if (url.pathname.includes("panel-core")) {
         return new Response(JSON.stringify({ folders: [{ id: "old", name: "旧夹" }] }), { status: 200, headers: { "Content-Type": "application/json" } });
       }
       if (url.pathname.endsWith("/api/projects") && (init?.method || "GET") === "GET") {
@@ -144,7 +144,7 @@ try {
     assert.ok(index.sessionErrors["p-bad"]);
     assert.equal(index.sessions.some((item) => index.assignments[item.id] === "p-bad"), false);
     assert.ok(seen.every((item) => item.path.includes("/panel-api/api/projects")));
-    assert.equal(seen.some((item) => item.path.includes("panel-sidecar")), false);
+    assert.equal(seen.some((item) => item.path.includes("panel-core")), false);
     assert.match(seen[0].search, /include_archived=true/);
 
     globalThis.fetch = async () => new Response(JSON.stringify({ error: "down" }), { status: 503, headers: { "Content-Type": "application/json" } });
@@ -175,9 +175,9 @@ try {
     assert.equal(seen[0].path.includes("/panel-api/api/projects"), true);
     assert.deepEqual(seen[1].body, { archived: true });
     assert.equal(seen[1].method, "PATCH");
-    assert.equal(seen.some((item) => item.path.includes("panel-sidecar")), false);
+    assert.equal(seen.some((item) => item.path.includes("panel-core")), false);
     await assert.rejects(() => sidecar.sidecar.updateSessionFolders({ action: "create", name: "不许" }), /不能写入侧车/);
-    assert.equal(seen.some((item) => item.path.includes("panel-sidecar")), false);
+    assert.equal(seen.some((item) => item.path.includes("panel-core")), false);
   });
 
   await test("selected project must bind before a run, and bind failure is not normal mode", async () => {

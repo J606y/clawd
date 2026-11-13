@@ -1,4 +1,4 @@
-"""Symlink escape and replacement races through the bound sidecar path entry."""
+"""Symlink escape and replacement races through the bound panel-core path entry."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ import pytest
 from tests.clawd_file_auth_cases.helpers import (
     assert_payload_absent,
     assert_under,
-    isolated_sidecar,
+    isolated_panel_core,
     make_handler,
     upload,
 )
@@ -22,7 +22,7 @@ def test_bind_refuses_symlinked_upload_root(tmp_path: Path):
     outside = tmp_path / "outside-root"
     outside.mkdir()
     (outside / "secret.txt").write_bytes(OUTSIDE)
-    with isolated_sidecar(tmp_path, bind_now=False) as (home, mod):
+    with isolated_panel_core(tmp_path, bind_now=False) as (home, mod):
         (home / "uploads").symlink_to(outside, target_is_directory=True)
         from clawd_server.bind import bind, clawd_command
 
@@ -35,7 +35,7 @@ def test_bind_refuses_symlinked_upload_root(tmp_path: Path):
 def test_preexisting_symlink_cannot_escape_or_open(tmp_path: Path):
     outside = tmp_path / "outside.txt"
     outside.write_bytes(OUTSIDE)
-    with isolated_sidecar(tmp_path) as (home, mod):
+    with isolated_panel_core(tmp_path) as (home, mod):
         (home / "uploads" / "escape.txt").symlink_to(outside)
         with pytest.raises(mod.ApiError) as escaped:
             mod._safe_path("uploads", "escape.txt")
@@ -51,7 +51,7 @@ def test_preexisting_symlink_cannot_escape_or_open(tmp_path: Path):
 
 
 def test_in_root_symlink_is_not_opened(tmp_path: Path):
-    with isolated_sidecar(tmp_path) as (home, mod):
+    with isolated_panel_core(tmp_path) as (home, mod):
         target = home / "uploads" / "report.txt"
         target.write_bytes(b"safe")
         (home / "uploads" / "alias.txt").symlink_to(target)
@@ -63,7 +63,7 @@ def test_in_root_symlink_is_not_opened(tmp_path: Path):
 
 
 def test_symlink_loop_fails_closed(tmp_path: Path):
-    with isolated_sidecar(tmp_path) as (home, mod):
+    with isolated_panel_core(tmp_path) as (home, mod):
         loop = home / "uploads" / "loop.txt"
         loop.symlink_to(loop)
         with pytest.raises(mod.ApiError) as exc:
@@ -75,7 +75,7 @@ def test_symlink_loop_fails_closed(tmp_path: Path):
 def test_file_swap_after_validation_does_not_return_outside_bytes(tmp_path: Path):
     outside = tmp_path / "outside-secret.txt"
     outside.write_bytes(OUTSIDE)
-    with isolated_sidecar(tmp_path) as (home, mod):
+    with isolated_panel_core(tmp_path) as (home, mod):
         path = home / "uploads" / "report.txt"
         path.write_bytes(b"safe")
         real = mod._safe_path
@@ -99,7 +99,7 @@ def test_directory_swap_after_validation_does_not_return_outside_bytes(tmp_path:
     outside = tmp_path / "outside-dir"
     outside.mkdir()
     (outside / "report.txt").write_bytes(OUTSIDE)
-    with isolated_sidecar(tmp_path) as (home, mod):
+    with isolated_panel_core(tmp_path) as (home, mod):
         folder = home / "uploads" / "nested"
         folder.mkdir()
         (folder / "report.txt").write_bytes(b"safe")
@@ -123,7 +123,7 @@ def test_upload_directory_swap_does_not_write_outside(tmp_path: Path):
     payload = b"UPLOAD-MUST-NOT-ESCAPE"
     outside = tmp_path / "outside-upload"
     outside.mkdir()
-    with isolated_sidecar(tmp_path) as (home, mod):
+    with isolated_panel_core(tmp_path) as (home, mod):
         folder = home / "uploads" / "inbox"
         folder.mkdir()
         real = mod._safe_path
@@ -152,7 +152,7 @@ def test_root_swap_after_bind_does_not_list_or_write_outside(tmp_path: Path):
     outside = tmp_path / "outside-after-bind"
     outside.mkdir()
     (outside / "secret.txt").write_bytes(OUTSIDE)
-    with isolated_sidecar(tmp_path) as (home, mod):
+    with isolated_panel_core(tmp_path) as (home, mod):
         uploads = home / "uploads"
         uploads.rename(home / "uploads-real")
         uploads.symlink_to(outside, target_is_directory=True)

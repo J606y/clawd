@@ -5,7 +5,7 @@
 # hashes already recorded there). There is no second hash, no registry
 # fallback, and no read of the gitignored clawd_server/bundled tree.
 #
-# $out is a panel root: dist/, sidecar/, plugins/browser-window-guard/.
+# $out is a panel root: dist/, plugins/browser-window-guard/.
 # node_modules is a build input only. It is not installed into $out.
 # LICENSE is not emitted here; the Python stage copies the repo LICENSE.
 # This derivation is not spliced into pythonSrc (that would be
@@ -91,7 +91,7 @@ buildNpmPackage {
       echo "clawd panel resources: refusing symlinked dist output" >&2
       exit 1
     fi
-    mkdir -p "$out/dist" "$out/sidecar" "$out/plugins/browser-window-guard"
+    mkdir -p "$out/dist" "$out/plugins/browser-window-guard"
     find dist -type d -name node_modules -prune -o -type f -print > "$TMPDIR/clawd-panel-dist-files"
     while IFS= read -r file; do
       case "$file" in
@@ -112,9 +112,6 @@ buildNpmPackage {
       mkdir -p "$(dirname -- "$dest")"
       cp -p -- "$src" "$dest"
     }
-    install_regular sidecar/hermes_panel_sidecar.py "$out/sidecar/hermes_panel_sidecar.py"
-    install_regular sidecar/image_studio.py "$out/sidecar/image_studio.py"
-    install_regular sidecar/live_task_store.py "$out/sidecar/live_task_store.py"
     install_regular plugins/browser-window-guard/__init__.py "$out/plugins/browser-window-guard/__init__.py"
     install_regular plugins/browser-window-guard/live_task_store.py "$out/plugins/browser-window-guard/live_task_store.py"
     install_regular plugins/browser-window-guard/plugin.yaml "$out/plugins/browser-window-guard/plugin.yaml"
@@ -124,13 +121,12 @@ buildNpmPackage {
       exit 1
     fi
     test -f "$out/dist/index.html"
-    test -f "$out/sidecar/hermes_panel_sidecar.py"
     test -f "$out/plugins/browser-window-guard/plugin.yaml"
     runHook postInstall
   '';
 
   doCheck = false;
   meta = {
-    description = "Built clawd panel dist plus sidecar and browser-window-guard files";
+    description = "Built clawd panel dist plus browser-window-guard files";
   };
 }
