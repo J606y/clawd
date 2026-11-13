@@ -124,6 +124,7 @@ class LiveController {
   private lastTap = 0;
   private readonly mql = window.matchMedia(MOBILE);
   private readonly resize = new ResizeObserver(() => this.layout());
+  private viewportFrame = 0;
   private els: LiveEls | null = null;
   private mounted = false;
   private silent = false;
@@ -329,19 +330,31 @@ class LiveController {
   };
 
   private readonly onViewport = (): void => {
-    const root = this.els?.root() ?? null;
-    const viewport = window.visualViewport;
-    if (!root) return;
-    if (!viewport || !this.mobile) {
-      root.style.removeProperty("top");
-      root.style.removeProperty("height");
-      root.style.removeProperty("bottom");
-      return;
-    }
-    root.style.top = `${viewport.offsetTop}px`;
-    root.style.height = `${viewport.height}px`;
-    root.style.bottom = "auto";
-    this.keepTapVisible();
+    // visualViewport resize/scroll 高频触发：合并到下一帧，先集中读布局再写样式。
+    if (this.viewportFrame) return;
+    this.viewportFrame = requestAnimationFrame(() => {
+      this.viewportFrame = 0;
+      const root = this.els?.root() ?? null;
+      const viewport = window.visualViewport;
+      if (!root) return;
+      if (!viewport || !this.mobile) {
+        root.style.removeProperty("top");
+        root.style.removeProperty("height");
+        root.style.removeProperty("bottom");
+        return;
+      }
+      // 读：先集中读（visualViewport + stage 尺寸），再写样式，避免读写交错强制同步布局。
+      const top = viewport.offsetTop;
+      const height = viewport.height;
+      const stage = this.stage();
+      const stageW = stage?.clientWidth ?? 0;
+      const stageH = stage?.clientHeight ?? 0;
+      if (stage && this.mobile && this.control && this.kbd) this.zoom.y = stageH * 0.4 - this.tapY;
+      root.style.top = `${top}px`;
+      root.style.height = `${height}px`;
+      root.style.bottom = "auto";
+      this.applyZoom({ w: stageW, h: stageH });
+    });
   };
 
   attach(): void {
@@ -376,6 +389,8 @@ class LiveController {
     window.removeEventListener("online", this.onRecovery);
     window.visualViewport?.removeEventListener("resize", this.onViewport);
     window.visualViewport?.removeEventListener("scroll", this.onViewport);
+    if (this.viewportFrame) cancelAnimationFrame(this.viewportFrame);
+    this.viewportFrame = 0;
     this.resize.disconnect();
     const scope = this.scope();
     const owner = this.revoke();
@@ -933,7 +948,7 @@ class LiveController {
     this.applyZoom();
   }
 
-  private applyZoom(): void {
+  private applyZoom(stageSize?: { w: number; h: number }): void {
     const screen = this.screen();
     const stage = this.stage();
     if (!screen || !stage) return;
@@ -944,8 +959,11 @@ class LiveController {
     const { s } = this.zoom;
     const w = this.base.w * s;
     const h = this.base.h * s;
-    this.zoom.x = Math.min(0, Math.max(stage.clientWidth - w, this.zoom.x));
-    this.zoom.y = Math.min(0, Math.max(stage.clientHeight - h, this.zoom.y));
+    // 调用方已在写样式前读过尺寸时直接用，免得写完样式再读 clientWidth/Height 强制同步布局。
+    const stageW = stageSize?.w ?? stage.clientWidth;
+    const stageH = stageSize?.h ?? stage.clientHeight;
+    this.zoom.x = Math.min(0, Math.max(stageW - w, this.zoom.x));
+    this.zoom.y = Math.min(0, Math.max(stageH - h, this.zoom.y));
     screen.style.cssText = `left:${this.zoom.x}px;top:${this.zoom.y}px;width:${w}px;height:${h}px`;
   }
 

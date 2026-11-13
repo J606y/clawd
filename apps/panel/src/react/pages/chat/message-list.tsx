@@ -38,6 +38,11 @@ export function MessageList({
   const adjusting = useRef<number | null>(null);
   const stickRef = useRef(stick);
   stickRef.current = stick;
+  // RO 量到的尺寸缓存：内容 border-box 高 + 列表 content 高（.scroll 无 padding/border，
+  // 故后者即 clientHeight）。滚动吸附只读缓存，不读 scrollHeight/clientHeight。
+  const contentH = useRef(0);
+  const clientH = useRef(0);
+  const pinFrame = useRef(0);
   const adjustScroll = useCallback((el: HTMLDivElement, requested: number) => {
     const target = Math.max(0, Math.min(requested, el.scrollHeight - el.clientHeight));
     if (target === el.scrollTop) return;
@@ -46,6 +51,26 @@ export function MessageList({
     adjusting.current = el.scrollTop;
     lastTop.current = el.scrollTop;
   }, []);
+
+  // 滚动吸附（rAF 合并 + 缓存高度）：一帧内多次触发只算一次；目标没变不写 scrollTop；
+  // 高度优先用 RO 缓存，RO 还没量到时才回退读 scrollHeight/clientHeight（仅首帧）。
+  const pinBottom = useCallback((el: HTMLDivElement) => {
+    const target = Math.max(0, (contentH.current || el.scrollHeight) - (clientH.current || el.clientHeight));
+    if (Math.abs(target - el.scrollTop) <= 1) return;
+    el.scrollTop = target;
+    adjusting.current = el.scrollTop;
+    lastTop.current = el.scrollTop;
+  }, []);
+
+  const requestPin = useCallback(() => {
+    if (pinFrame.current) return;
+    pinFrame.current = requestAnimationFrame(() => {
+      pinFrame.current = 0;
+      const el = parentRef.current;
+      if (!el || !stickRef.current) return;
+      pinBottom(el);
+    });
+  }, [pinBottom]);
 
   useImperativeHandle(listRef, () => ({
     capture() {
@@ -115,17 +140,29 @@ export function MessageList({
   useEffect(() => {
     const el = parentRef.current;
     if (!el) return;
-    const pin = () => {
-      if (!stickRef.current) return;
-      adjustScroll(el, el.scrollHeight - el.clientHeight);
-    };
-    pin();
+    requestPin();
     const content = el.firstElementChild;
     if (!(content instanceof HTMLElement)) return;
-    const observer = new ResizeObserver(pin);
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.target === el) {
+          clientH.current = entry.contentRect.height;
+        } else {
+          // 内容 border-box 高 = 列表 scrollHeight（.col 是唯一子元素，在无 padding 的 .scroll 内从顶开始）。
+          const border = entry.borderBoxSize?.[0]?.blockSize;
+          contentH.current = border ?? entry.contentRect.height;
+        }
+      }
+      requestPin();
+    });
+    observer.observe(el);
     observer.observe(content);
-    return () => observer.disconnect();
-  }, [stick, keys, children, adjustScroll]);
+    return () => {
+      cancelAnimationFrame(pinFrame.current);
+      pinFrame.current = 0;
+      observer.disconnect();
+    };
+  }, [stick, keys, children, requestPin]);
 
   useEffect(() => {
     if (!hold) return;
@@ -150,14 +187,16 @@ export function MessageList({
       return;
     }
     onUserScroll();
-    const gap = el.scrollHeight - el.scrollTop - el.clientHeight;
+    const scrollH = contentH.current || el.scrollHeight;
+    const viewH = clientH.current || el.clientHeight;
+    const gap = scrollH - el.scrollTop - viewH;
     const up = el.scrollTop < lastTop.current;
     let nextStick = stick;
     if (up && gap > 2) nextStick = false;
     else if (gap < STICK_PX && el.scrollTop > lastTop.current) nextStick = true;
     lastTop.current = el.scrollTop;
     onStick(nextStick, nextStick && gap < STICK_PX);
-    if (up && el.scrollTop < 180 && el.scrollHeight > el.clientHeight) onNearTop();
+    if (up && el.scrollTop < 180 && scrollH > viewH) onNearTop();
   };
 
   return (

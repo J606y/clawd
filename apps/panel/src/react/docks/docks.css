@@ -930,6 +930,10 @@ dialog.live-confirm .dialog button.primary {
 .dock-agent hp-steps .fold[data-open] {
   grid-template-rows: 1fr;
 }
+@media (max-width: 768px), (pointer: coarse) {
+  /* 窄屏/触屏：折叠直接开合，不跑 grid-template-rows 布局过渡。 */
+  .dock-agent hp-steps .fold { transition: none; }
+}
 
 @starting-style {
   .dock-agent hp-steps .fold[data-open] { grid-template-rows: 0fr; }
