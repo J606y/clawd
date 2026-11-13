@@ -155,6 +155,9 @@ def install(mod: Any) -> None:
     from clawd_server import update_native
 
     update_native.install_update(mod)
+    from clawd_server import kanban_native
+
+    kanban_native.install_kanban(mod)
     from clawd_server.admin_routes import install as install_routes
 
     install_routes(mod)

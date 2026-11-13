@@ -63,6 +63,17 @@ const NAV: { to: string; label: string; end: boolean; icon: ReactNode }[] = [
       </NavGlyph>
     ),
   },
+  {
+    to: "/kanban",
+    label: "看板",
+    end: false,
+    icon: (
+      <NavGlyph>
+        <rect x="2" y="2.5" width="4.5" height="11" rx="1" />
+        <rect x="9.5" y="2.5" width="4.5" height="7" rx="1" />
+      </NavGlyph>
+    ),
+  },
   { to: "/status", label: "状态", end: false, icon: <NavGlyph><path d="M2 9h2.5l1.5-4 2.5 7 1.5-4.5 1 1.5H14" /></NavGlyph> },
   {
     to: "/settings",
@@ -87,6 +98,7 @@ function pageTitle(pathname: string): string {
   if (pathname.startsWith("/image")) return "生图";
   if (pathname.startsWith("/files")) return "文件";
   if (pathname.startsWith("/activity")) return "活动";
+  if (pathname.startsWith("/kanban")) return "看板";
   if (pathname.startsWith("/status")) return "状态";
   if (pathname.startsWith("/settings")) return "设置";
   return "clawd";

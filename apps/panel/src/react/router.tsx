@@ -8,6 +8,7 @@ const FilesPage = lazy(() => import("@/pages/files/files-page").then((m) => ({ d
 const ActivityPage = lazy(() => import("@/pages/activity/activity-page").then((m) => ({ default: m.ActivityPage })));
 const StatusPage = lazy(() => import("@/pages/status/status-page").then((m) => ({ default: m.StatusPage })));
 const SettingsPage = lazy(() => import("@/pages/settings/settings-page").then((m) => ({ default: m.SettingsPage })));
+const KanbanPage = lazy(() => import("@/pages/kanban/kanban-page").then((m) => ({ default: m.KanbanPage })));
 
 function Loading() {
   return <p className="page">加载中</p>;
@@ -44,6 +45,8 @@ export const router = createHashRouter([
       { path: "files/*", element: <Lazy><FilesPage /></Lazy> },
       { path: "activity", element: <Lazy><ActivityPage /></Lazy> },
       { path: "activity/*", element: <Lazy><ActivityPage /></Lazy> },
+      { path: "kanban", element: <Lazy><KanbanPage /></Lazy> },
+      { path: "kanban/*", element: <Lazy><KanbanPage /></Lazy> },
       { path: "status", element: <Lazy><StatusPage /></Lazy> },
       { path: "status/*", element: <Lazy><StatusPage /></Lazy> },
       { path: "settings", element: <Lazy><SettingsPage /></Lazy> },
