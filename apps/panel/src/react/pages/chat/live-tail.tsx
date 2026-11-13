@@ -45,6 +45,8 @@ export const LiveTail = memo(function LiveTail({
 }) {
   const active = run.status === "starting" || run.status === "running";
   const unconfirmed = Boolean(run.unverified && !run.runId);
+  /** The run finished with settled server usage: keep showing its real total. */
+  const settled = !active && run.status === "completed" && run.tokenReal === true && Boolean(run.tokenLabel);
   const timeline = splitSteerTimeline(run);
   const skipSteers = [...skipSteerTexts];
   const tail = timeline[timeline.length - 1];
@@ -82,6 +84,28 @@ export const LiveTail = memo(function LiveTail({
       </div>
     );
   };
+  // History already holds this turn: only the settled usage line is left to show.
+  if (settled && userInHistory) {
+    return (
+      <div className="turn assistant">
+        <div className="run-status-slot">
+          <RunStatusLine
+            sessionId={run.sessionId}
+            runId={run.runId}
+            startedAt={run.startedAt}
+            endedAt={run.endedAt}
+            lastEventAt={Math.floor(run.lastEventAt / 1000) * 1000}
+            stopping={false}
+            streaming={false}
+            busy={false}
+            tokenLabel={run.streamGone || run.replayTruncated ? "" : run.tokenLabel ?? ""}
+            settled
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <>
       {run.remote || userInHistory ? null : isLiveContinuation(run) ? (
@@ -109,17 +133,19 @@ export const LiveTail = memo(function LiveTail({
           releaseHeld={ended}
           ownerKey={`${run.sessionId}:${run.runId}:${run.startedAt}:${timeline.length}`}
         />
-        {active && !unconfirmed && !run.approval && !run.clarify ? (
+        {(active && !unconfirmed && !run.approval && !run.clarify) || settled ? (
           <div className="run-status-slot">
             <RunStatusLine
               sessionId={run.sessionId}
               runId={run.runId}
               startedAt={run.startedAt}
+              endedAt={run.endedAt}
               lastEventAt={Math.floor(run.lastEventAt / 1000) * 1000}
               stopping={run.stopping}
               streaming={streaming}
               busy={toolRunning}
               tokenLabel={run.streamGone || run.replayTruncated ? "" : run.tokenLabel ?? ""}
+              settled={settled}
             />
           </div>
         ) : null}

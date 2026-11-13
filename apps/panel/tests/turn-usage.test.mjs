@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {createTurnUsage,applyTurnUsage,formatTurnTokens} from '../src/lib/turn-usage.ts';
+import {createTurnUsage,applyTurnUsage,formatTurnTokens,formatRealTokens,parseServerUsage,settleTurnUsage,turnOutputTokens} from '../src/lib/turn-usage.ts';
 
 test('observable output accumulates without counting echoed commentary or repeated thinking snapshots',()=>{
  const u=createTurnUsage();
@@ -33,12 +33,12 @@ test('one turn keeps thinking and skill calls until a new usage object starts',(
  assert.equal(formatTurnTokens(next),'');
  assert.equal(next.settledThinkingChars,0);
 });
-test('Chinese thinking is counted near one token per character, not one per four',()=>{
+test('Chinese thinking is counted near 0.6 tokens per character, not one per character',()=>{
  const u=createTurnUsage();
  applyTurnUsage(u,'tool.progress',{tool_name:'_thinking',delta:'思'.repeat(40)});
- assert.equal(formatTurnTokens(u),'~40 tokens');
+ assert.equal(formatTurnTokens(u),'~24 tokens');
  applyTurnUsage(u,'assistant.delta',{delta:'okay'});
- assert.equal(formatTurnTokens(u),'~41 tokens');
+ assert.equal(formatTurnTokens(u),'~25 tokens');
 });
 test('unavailable data and invalid numbers never render fabricated zero',()=>{
  const u=createTurnUsage();assert.equal(formatTurnTokens(u),'');
@@ -46,4 +46,37 @@ test('unavailable data and invalid numbers never render fabricated zero',()=>{
  u.available=false;assert.equal(formatTurnTokens(u),'');
  for(const n of [NaN,Infinity,-1]){const invalid=createTurnUsage();invalid.outputChars=n;assert.equal(formatTurnTokens(invalid),'');}
  assert.equal(formatTurnTokens(createTurnUsage()),'');
+});
+test('server usage parses the run.completed payload and rejects bad shapes',()=>{
+ assert.deepEqual(parseServerUsage({input_tokens:1000,output_tokens:500,total_tokens:1500,cache_read_tokens:800,cache_write_tokens:0}),{inputTokens:1000,outputTokens:500,totalTokens:1500,cacheReadTokens:800,cacheWriteTokens:0});
+ assert.deepEqual(parseServerUsage({input_tokens:1,output_tokens:0}),{inputTokens:1,outputTokens:0,totalTokens:0,cacheReadTokens:0,cacheWriteTokens:0});
+ assert.equal(parseServerUsage({input_tokens:1}),null);
+ assert.equal(parseServerUsage({input_tokens:1,output_tokens:1.5}),null);
+ assert.equal(parseServerUsage({input_tokens:1,output_tokens:-1}),null);
+ assert.equal(parseServerUsage({input_tokens:1,output_tokens:'500'}),null);
+ assert.equal(parseServerUsage({input_tokens:1,output_tokens:500,cache_read_tokens:'x'}),null);
+ assert.equal(parseServerUsage(null),null);
+ assert.equal(parseServerUsage('nope'),null);
+});
+test('turn output is the delta of session-cumulative counters',()=>{
+ const first={inputTokens:1000,outputTokens:500,totalTokens:1500,cacheReadTokens:0,cacheWriteTokens:0};
+ const second={inputTokens:2000,outputTokens:1200,totalTokens:3200,cacheReadTokens:1000,cacheWriteTokens:0};
+ assert.equal(turnOutputTokens(first,second),700);
+ assert.equal(turnOutputTokens(null,second),null);
+ assert.equal(turnOutputTokens(second,first),null);
+ assert.equal(turnOutputTokens(first,first),0);
+});
+test('settled real usage replaces the estimate and formats without an approximation mark',()=>{
+ const u=createTurnUsage();
+ applyTurnUsage(u,'assistant.delta',{delta:'a'.repeat(40)});
+ assert.equal(formatTurnTokens(u),'~10 tokens');
+ settleTurnUsage(u,1234);
+ assert.equal(formatTurnTokens(u),'1.2k tokens');
+ assert.equal(formatRealTokens(1234),'1.2k tokens');
+ assert.equal(formatRealTokens(42),'42 tokens');
+ assert.equal(formatRealTokens(0),'');
+ assert.equal(formatRealTokens(NaN),'');
+ // Real usage wins even when the stream marked the estimate unavailable.
+ u.available=false;
+ assert.equal(formatTurnTokens(u),'1.2k tokens');
 });
