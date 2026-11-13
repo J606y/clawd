@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ModelChoice, ModelOptions } from "@/lib/api";
 import { contextRingLevel, contextRingStroke } from "@/lib/context-ring";
-import { EFFORT_LEVELS, GROK_EFFORT_LEVELS, type EffortLevel } from "@/lib/effort";
-import { canonicalModel, isGeminiModel, isGrokModel } from "@/lib/model-effort";
+import { EFFORT_LEVELS, GROK_EFFORT_LEVELS, HYDROGEN_EFFORT_LEVELS, type EffortLevel } from "@/lib/effort";
+import { canonicalModel, isGeminiModel, isGrokModel, isHydrogenModel } from "@/lib/model-effort";
 import { menuOffset, menuRightOffset } from "@/lib/popover";
 import { UltraCrab, UltraNotes } from "./ultra-crab";
 import type { ContextUsage } from "@/lib/sidecar";
@@ -12,6 +12,7 @@ const RING_C = 2 * Math.PI * RING_R;
 const EFFORT_MENU = 264;
 
 export function levelsFor(model: string): EffortLevel[] {
+  if (isHydrogenModel(model)) return HYDROGEN_EFFORT_LEVELS;
   if (isGeminiModel(model)) return EFFORT_LEVELS.slice(0, 3);
   if (isGrokModel(model)) return GROK_EFFORT_LEVELS;
   return EFFORT_LEVELS;
@@ -20,7 +21,7 @@ export function levelsFor(model: string): EffortLevel[] {
 export function sliderEffort(model: string, stored: string): string {
   const levels = levelsFor(model);
   if (levels.some((level) => level.id === stored)) return stored;
-  if (isGrokModel(model) && (stored === "xhigh" || stored === "max" || stored === "ultra")) return "ultra";
+  if ((isGrokModel(model) || isHydrogenModel(model)) && (stored === "xhigh" || stored === "max" || stored === "ultra")) return "ultra";
   return levels[levels.length - 1]?.id ?? "medium";
 }
 

@@ -4,7 +4,7 @@ import { createServer } from 'vite';
 const server = await createServer({ configFile: false, server: { middlewareMode: true }, appType: 'custom' });
 try {
   const { modelEffortFields, canonicalModel } = await server.ssrLoadModule('/src/lib/model-effort.ts');
-  const { GROK_EFFORT_LEVELS, EFFORT_LEVELS } = await server.ssrLoadModule('/src/lib/effort.ts');
+  const { GROK_EFFORT_LEVELS, HYDROGEN_EFFORT_LEVELS, EFFORT_LEVELS } = await server.ssrLoadModule('/src/lib/effort.ts');
   const choice = (model, provider = 'sub2api-gemini') => ({ model, provider, providerName: provider });
   const choices = [choice('gemini-4-argon')];
   for (const [model, provider, gemini] of [
@@ -41,11 +41,24 @@ try {
     assert.deepEqual(GROK_EFFORT_LEVELS.map((l) => l.id), ['low', 'medium', 'high', 'ultra']);
     assert.equal(EFFORT_LEVELS.length, 6);
   });
+  test('Hydrogen slider ceiling is xhigh, and max or ultra is not sent', () => {
+    for (const effort of ['low', 'medium', 'high']) {
+      assert.equal(modelEffortFields('gemini-4-hydrogen', 'sub2api-gemini', effort).model_options.reasoning_effort, effort);
+    }
+    for (const effort of ['xhigh', 'max', 'ultra']) {
+      assert.deepEqual(modelEffortFields('gemini-4-hydrogen', 'sub2api-gemini', effort), {
+        model: 'gemini-4-hydrogen-xhigh', provider: 'sub2api-gemini', require_model_lock: true,
+        model_options: { reasoning_effort: 'xhigh' },
+      });
+    }
+    assert.deepEqual(HYDROGEN_EFFORT_LEVELS.map((l) => l.label), ['低', '中', '高', 'Ultra']);
+    assert.deepEqual(HYDROGEN_EFFORT_LEVELS.map((l) => l.id), ['low', 'medium', 'high', 'ultra']);
+  });
   test('only recognized dynamic Argon variants normalize to an available bare model', () => {
     for (const tier of ['low', 'medium', 'high']) assert.equal(canonicalModel(`gemini-4-argon-${tier}`, choices), 'gemini-4-argon');
     assert.equal(canonicalModel('gemini-4-argon-high', []), 'gemini-4-argon-high');
     assert.equal(canonicalModel('gemini-4-argon-high', [choice('gemini-4-argon', 'other')]), 'gemini-4-argon-high');
-    assert.equal(canonicalModel('gemini-3.8-flash-high', [choice('gemini-3.8-flash')]), 'gemini-3.8-flash');
+    assert.equal(canonicalModel('gemini-4-hydrogen-high', [choice('gemini-4-hydrogen')]), 'gemini-4-hydrogen');
     assert.equal(canonicalModel('gemini-4-argon-high', choices, 'other'), 'gemini-4-argon-high');
   });
 } finally { await server.close(); }

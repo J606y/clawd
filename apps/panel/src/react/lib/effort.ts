@@ -1,7 +1,7 @@
 // 思考强度：每个对话各记各的。改当前对话时，之后新建的对话从这一档开始，更早的对话不变。
 // 已有会话的档位以服务器为准；这里的 localStorage 只缓存显示，并记住还没有会话 id 时的默认档。
 // 随每次发送作为 model_options.reasoning_effort 传给 Hermes。取值与 Hermes 的 VALID_REASONING_EFFORTS 一致。
-// 非 Gemini、非 Grok 保持六档。Gemini 只显示低/中/高。Grok 显示低/中/高/Ultra，第四档发出 xhigh。
+// 非 Gemini、非 Grok 保持六档。Gemini（除 Hydrogen 外）只显示低/中/高。Grok 与 Hydrogen 显示低/中/高/Ultra，第四档发出 xhigh。
 // 旧的更高偏好仅在该模型下按有效档执行，不改写存储。
 // 每次发送都带明确的值。新对话沿用最近一次选定的档；改某一条只改它和之后新建的对话。
 // ultra 是 Hermes 内部的最高档：没有任何上游通道接受它，Hermes 会自动降到该通道支持的最近一档（目前即 max）。
@@ -27,6 +27,14 @@ export const EFFORT_LEVELS: EffortLevel[] = [
 
 /** Grok 第四档 id 必须是 ultra，动画按这个 id 挂。请求仍由 modelEffort 收成 xhigh。 */
 export const GROK_EFFORT_LEVELS: EffortLevel[] = [
+  { id: "low", label: "低", hint: "简单问题，最快" },
+  { id: "medium", label: "中", hint: "日常使用 · 推荐" },
+  { id: "high", label: "高", hint: "复杂任务" },
+  { id: "ultra", label: "Ultra", hint: "官方最高档" },
+];
+
+/** Hydrogen 第四档 id 必须是 ultra，动画按这个 id 挂。请求仍由 modelEffort 收成 xhigh。 */
+export const HYDROGEN_EFFORT_LEVELS: EffortLevel[] = [
   { id: "low", label: "低", hint: "简单问题，最快" },
   { id: "medium", label: "中", hint: "日常使用 · 推荐" },
   { id: "high", label: "高", hint: "复杂任务" },

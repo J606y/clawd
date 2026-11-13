@@ -43,40 +43,61 @@ try {
   const { setEffort } = await server.ssrLoadModule('/src/lib/effort.ts');
   const locks = [];
   const readModelOptions = api.modelOptions;
-  await test('Flash model options deduplicate configured tiers and normalize the default', async () => {
-    globalThis.fetch = async () => new Response(JSON.stringify({ provider: 'sub2api-gemini', model: 'gemini-3.8-flash-high', providers: [
-      { slug: 'sub2api-gemini', name: 'Gemini', authenticated: true, models: ['gemini-3.8-flash-high', 'gemini-3.8-flash-low', 'gemini-3.8-flash', 'gemini-4-argon'] },
-      { slug: 'other', name: 'Other', authenticated: true, models: ['gemini-3.8-flash-high'] },
+  await test('Hydrogen model options deduplicate configured tiers and normalize the default', async () => {
+    globalThis.fetch = async () => new Response(JSON.stringify({ provider: 'sub2api-gemini', model: 'gemini-4-hydrogen-xhigh', providers: [
+      { slug: 'sub2api-gemini', name: 'Gemini', authenticated: true, models: ['gemini-4-hydrogen-xhigh', 'gemini-4-hydrogen-low', 'gemini-4-hydrogen', 'gemini-4-argon'] },
+      { slug: 'other', name: 'Other', authenticated: true, models: ['gemini-4-hydrogen-xhigh'] },
     ] }), { status: 200, headers: { 'Content-Type': 'application/json' } });
     const options = await readModelOptions();
-    assert.deepEqual(options.current, { provider: 'sub2api-gemini', model: 'gemini-3.8-flash' });
+    assert.deepEqual(options.current, { provider: 'sub2api-gemini', model: 'gemini-4-hydrogen' });
     assert.deepEqual(options.choices.map(c => [c.model, c.provider]), [
-      ['gemini-3.8-flash', 'sub2api-gemini'], ['gemini-4-argon', 'sub2api-gemini'], ['gemini-3.8-flash-high', 'other'],
+      ['gemini-4-hydrogen', 'sub2api-gemini'], ['gemini-4-argon', 'sub2api-gemini'], ['gemini-4-hydrogen-xhigh', 'other'],
     ]);
   });
-  await test('default Flash configured as high obeys all three effort settings', async () => {
-    api.modelOptions = async () => ({ current: { model: 'gemini-3.8-flash-high', provider: 'sub2api-gemini' }, choices: [
-      { model: 'gemini-3.8-flash-high', provider: 'sub2api-gemini', providerName: 'Gemini' },
+  await test('Hydrogen four suffixed variants collapse to a single model entry', async () => {
+    globalThis.fetch = async () => new Response(JSON.stringify({ provider: 'sub2api-gemini', model: 'gemini-4-hydrogen-high', providers: [
+      { slug: 'sub2api-gemini', name: 'Gemini', authenticated: true, models: ['gemini-4-hydrogen-low', 'gemini-4-hydrogen-medium', 'gemini-4-hydrogen-high', 'gemini-4-hydrogen-xhigh', 'gemini-4-argon'] },
+    ] }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    const options = await readModelOptions();
+    assert.deepEqual(options.current, { provider: 'sub2api-gemini', model: 'gemini-4-hydrogen' });
+    assert.deepEqual(options.choices.map(c => [c.model, c.provider]), [
+      ['gemini-4-hydrogen', 'sub2api-gemini'], ['gemini-4-argon', 'sub2api-gemini'],
+    ]);
+  });
+  await test('default Hydrogen configured as high obeys all four effort settings', async () => {
+    api.modelOptions = async () => ({ current: { model: 'gemini-4-hydrogen-xhigh', provider: 'sub2api-gemini' }, choices: [
+      { model: 'gemini-4-hydrogen-xhigh', provider: 'sub2api-gemini', providerName: 'Gemini' },
     ] });
-    for (const effort of ['low', 'medium', 'high']) {
+    for (const [effort, expected, expectedModel] of [['low', 'low', 'gemini-4-hydrogen-low'], ['medium', 'medium', 'gemini-4-hydrogen-medium'], ['high', 'high', 'gemini-4-hydrogen-high'], ['ultra', 'xhigh', 'gemini-4-hydrogen-xhigh']]) {
       const fields = await api.runModelFields('', '', effort);
-      assert.equal(fields.model, `gemini-3.8-flash-${effort}`);
-      assert.equal(fields.model_options.reasoning_effort, effort);
+      assert.equal(fields.model, expectedModel);
+      assert.equal(fields.model_options.reasoning_effort, expected);
       assert.equal(fields.require_model_lock, true);
     }
   });
-  await test('Flash restored low resolves through its configured high entry without guessing providers', async () => {
+  await test('Hydrogen restored xhigh variant switches effort like Argon', async () => {
+    api.modelOptions = async () => ({ current: { model: 'gemini-4-hydrogen', provider: 'sub2api-gemini' }, choices: [
+      { model: 'gemini-4-hydrogen', provider: 'sub2api-gemini', providerName: 'Gemini' },
+    ] });
+    for (const [effort, expected] of [['low', 'low'], ['medium', 'medium'], ['high', 'high'], ['ultra', 'xhigh'], ['xhigh', 'xhigh']]) {
+      const fields = await api.runModelFields('gemini-4-hydrogen-xhigh', 'sub2api-gemini', effort);
+      assert.equal(fields.model, `gemini-4-hydrogen-${expected}`);
+      assert.equal(fields.model_options.reasoning_effort, expected);
+      assert.equal(fields.require_model_lock, true);
+    }
+  });
+  await test('Hydrogen restored low resolves through its configured high entry without guessing providers', async () => {
     expireProviderCache();
     api.modelOptions = async () => ({ current: { model: '', provider: '' }, choices: [
-      { model: 'gemini-3.8-flash-high', provider: 'sub2api-gemini', providerName: 'Gemini' },
+      { model: 'gemini-4-hydrogen-xhigh', provider: 'sub2api-gemini', providerName: 'Gemini' },
     ] });
-    assert.equal(await api.providerOf('gemini-3.8-flash-low'), 'sub2api-gemini');
+    assert.equal(await api.providerOf('gemini-4-hydrogen-low'), 'sub2api-gemini');
     expireProviderCache();
     api.modelOptions = async () => ({ current: { model: '', provider: '' }, choices: [
-      { model: 'gemini-3.8-flash-high', provider: 'sub2api-gemini', providerName: 'Gemini' },
-      { model: 'gemini-3.8-flash-low', provider: 'other', providerName: 'Other' },
+      { model: 'gemini-4-hydrogen-xhigh', provider: 'sub2api-gemini', providerName: 'Gemini' },
+      { model: 'gemini-4-hydrogen-low', provider: 'other', providerName: 'Other' },
     ] });
-    assert.equal(await api.providerOf('gemini-3.8-flash-low'), '', 'ambiguous routes must remain blocked');
+    assert.equal(await api.providerOf('gemini-4-hydrogen-low'), '', 'ambiguous routes must remain blocked');
   });
   await test('other Gemini defaults clamp effort without overriding the global route', async () => {
     api.modelOptions = async () => ({ current: { model: 'Gemini-next', provider: 'other' }, choices: [] });

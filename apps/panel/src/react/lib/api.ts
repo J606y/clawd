@@ -354,7 +354,7 @@ export const api = {
       return { current: { provider, model: canonicalModel(r.model ?? "", choices, provider) }, choices };
     }),
   /**
-   * 模型名 → provider slug。请求显式携带 model+provider，动态 Argon 另带 require_model_lock；
+   * 模型名 → provider slug。请求显式携带 model+provider，动态 Argon/Hydrogen 另带 require_model_lock；
    * 刷新页面或切到旧会话后面板只知道会话的模型名，靠这里反查。同名模型出现在多个提供方时
    * 无法判定，返回 ""（调用方据此拒绝发送，而不是猜一个或退回全局默认）。
    */
@@ -376,7 +376,7 @@ export const api = {
   /** 普通发送与编辑重发共用；模型清单不可用时拒绝猜测动态变体。 */
   runModelFields: async (model: string, provider: string, effort: string) => {
     let choices: ModelChoice[] = [];
-    if (!model || /^gemini-4-argon-(low|medium|high)$/.test(model)) {
+    if (!model || /^gemini-4-argon-(low|medium|high)$/.test(model) || /^gemini-4-hydrogen-(low|medium|high|xhigh)$/.test(model)) {
       const options = await api.modelOptions();
       choices = options.choices;
       if (!model) {
