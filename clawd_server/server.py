@@ -118,6 +118,7 @@ class PanelServer:
         self.sidecar_key = ""
         self.adapter: Any = None
         self.sidecar_httpd: Any = None
+        self.live_supervisor: Any = None
         self.sidecar_mod: Any = None
         self.api_base = ""
         self.sidecar_base = ""
@@ -151,6 +152,19 @@ class PanelServer:
         bind(self.sidecar_mod, self.home, command)
         self.sidecar_mod.CONTINUE_API = self.api_base
         self._start_sidecar()
+        # Core owns the live browser controller: adopt it when the systemd
+        # unit already runs it, else spawn it as a core child (Chromium stays
+        # a subprocess of the controller, never of this process). Idle
+        # shutdown (10s) stays inside the runtime. Fail-open: a down live
+        # browser must not stop the panel from starting.
+        try:
+            from clawd_server.live_browser_supervisor import LiveBrowserSupervisor
+            self.live_supervisor = LiveBrowserSupervisor(self.home, REPO_ROOT)
+            mode = await self.live_supervisor.start()
+            log.info("live browser supervisor: %s", mode)
+        except Exception as exc:
+            log.warning("live browser supervisor unavailable: %s", exc)
+            self.live_supervisor = None
         timeout = ClientTimeout(total=None, sock_connect=5, sock_read=None)
         self.client = ClientSession(timeout=timeout)
         # 502 MB admits 500 MB uploads with headroom; the gateway enforces
@@ -240,6 +254,9 @@ class PanelServer:
         self.sidecar_base = f"http://127.0.0.1:{httpd.server_address[1]}"
 
     async def close(self) -> None:
+        if self.live_supervisor is not None:
+            await self.live_supervisor.stop()
+            self.live_supervisor = None
         await self._stop_continuation()
         if self.client is not None:
             await self.client.close()

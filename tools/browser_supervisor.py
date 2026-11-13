@@ -485,13 +485,37 @@ class CDPSupervisor(DialogSupervisionMixin, FrameTrackingMixin):
         register_created(task_id=task, session_id=session, turn_id=turn, target_id=target_id,
                          browser_id=self.browser_id, endpoint=self.cdp_url)
 
+    # Cold-start budget for Page.getFrameTree: a worker woken from the 10 s
+    # idle stop on a 2-core box can take tens of seconds before a fresh
+    # renderer answers (wake + new tabs racing cold renderer processes).
+    # Retry with widening timeouts instead of failing the attach on the
+    # first 10 s default. Only timeouts are retried: a CDP error (e.g. the
+    # target went away) still fails immediately.
+    _FRAME_TREE_ATTEMPTS: tuple[float, ...] = (20.0, 30.0, 30.0)
+    _FRAME_TREE_RETRY_DELAY_S = 1.5
+
+    async def _get_frame_tree_with_retry(self, session_id: str) -> dict[str, Any]:
+        last_exc: TimeoutError | None = None
+        for attempt, timeout in enumerate(self._FRAME_TREE_ATTEMPTS, start=1):
+            try:
+                return await self._cdp("Page.getFrameTree", session_id=session_id, timeout=timeout)
+            except TimeoutError as exc:
+                last_exc = exc
+                logger.warning(
+                    "CDP supervisor %s: Page.getFrameTree attempt %s/%s timed out (%.0fs)",
+                    self.task_id, attempt, len(self._FRAME_TREE_ATTEMPTS), timeout)
+                if attempt < len(self._FRAME_TREE_ATTEMPTS):
+                    await asyncio.sleep(self._FRAME_TREE_RETRY_DELAY_S)
+        assert last_exc is not None
+        raise last_exc
+
     async def _remember_created_async(self, target_id: str) -> None:
         """Attach the target this process created and record its top frame. Does not list pages."""
         attach = await self._cdp("Target.attachToTarget", {"targetId": target_id, "flatten": True})
         sid = attach["result"]["sessionId"]
         await self._enable_page_domains(sid, timeout=10.0)
         await self._install_dialog_bridge(sid)
-        tree = await self._cdp("Page.getFrameTree", session_id=sid)
+        tree = await self._get_frame_tree_with_retry(sid)
         top = ((tree.get("result") or {}).get("frameTree") or {}).get("frame") or {}
         top_id = top.get("id")
         if not isinstance(top_id, str) or not top_id:
@@ -520,7 +544,7 @@ class CDPSupervisor(DialogSupervisionMixin, FrameTrackingMixin):
         loop = self._loop
         if loop is None or not loop.is_running():
             raise RuntimeError("supervisor loop is not running")
-        _schedule(self._remember_created_async(target_id), loop, timeout=15.0)
+        _schedule(self._remember_created_async(target_id), loop, timeout=120.0)
 
     def dialog_is_owned(self, dialog: PendingDialog, session_id: str, task_id: str) -> bool:
         from tools.browser_supervisor_frames import dialog_target_ids
@@ -698,7 +722,7 @@ class _SupervisorRegistry:
         return capture(self, task_id, timeout=timeout)
 
     def get_or_start(self, task_id: str, cdp_url: str, *, dialog_policy: str = DEFAULT_DIALOG_POLICY,
-                     dialog_timeout_s: float = DEFAULT_DIALOG_TIMEOUT_S, start_timeout: float = 15.0,
+                     dialog_timeout_s: float = DEFAULT_DIALOG_TIMEOUT_S, start_timeout: float = 120.0,
                      owner: Optional[tuple[str, str, str]] = None, browser_id: Optional[str] = None,
                      attach_target: Optional[str] = None) -> CDPSupervisor:
         """Idempotently ensure a supervisor runs for ``(task_id, cdp_url)``; one bound to a
