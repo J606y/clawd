@@ -1,16 +1,15 @@
-"""Gateway typed ``/model <name>`` must route through the expensive-model
+"""Gateway typed ``/model <name>`` must route through the guarded-model
 confirmation gate.
 
 The pickers (Telegram/Discord inline keyboards, TUI, dashboard) confirm
-expensive models via their own UI affordances; the typed text command
+guarded models via their own UI affordances; the typed text command
 previously bypassed the guard entirely — a user typing
-``/model openai/gpt-5.5-pro`` switched silently while the picker warned.
+``/model muse-spark-1.2-contributor`` switched silently while the picker warned.
 These tests pin the typed path:
 
 - warning fires → handler returns the slash-confirm prompt, switch NOT applied
 - confirm ("once") → switch applies (session override set)
-- cancel → switch not applied, current model unchanged
-- no warning (cheap model) → switch applies immediately, no prompt
+- failed in-place swap aborts the commit (regression #50163)
 """
 
 from types import SimpleNamespace
@@ -41,12 +40,12 @@ def _make_event(text):
     )
 
 
-def _fake_switch_result():
+def _fake_switch_result(new_model="openai/gpt-5.5-pro"):
     from hermes_cli.model_switch import ModelSwitchResult
 
     return ModelSwitchResult(
         success=True,
-        new_model="openai/gpt-5.5-pro",
+        new_model=new_model,
         target_provider="openrouter",
         provider_changed=False,
         api_key="sk-test",
@@ -56,17 +55,9 @@ def _fake_switch_result():
     )
 
 
-def _fake_warning():
-    return SimpleNamespace(
-        message=(
-            "!!! EXPENSIVE MODEL WARNING !!!\n"
-            "openai/gpt-5.5-pro has known pricing above Hermes' safety threshold.\n"
-            "did you mean to select openai/gpt-5.5?"
-        ),
-    )
 
 
-def _setup_isolated_home(tmp_path, monkeypatch, *, warn):
+def _setup_isolated_home(tmp_path, monkeypatch, *, new_model="openai/gpt-5.5-pro"):
     import gateway.run as gateway_run
 
     hermes_home = tmp_path / ".hermes"
@@ -81,21 +72,17 @@ def _setup_isolated_home(tmp_path, monkeypatch, *, warn):
     monkeypatch.setattr("agent.models_dev.fetch_models_dev", dict)
     monkeypatch.setattr(
         "hermes_cli.model_switch.switch_model",
-        lambda **kw: _fake_switch_result(),
+        lambda **kw: _fake_switch_result(new_model),
     )
     monkeypatch.setattr("hermes_constants.get_hermes_home", lambda: hermes_home)
     monkeypatch.setattr("hermes_cli.config.get_hermes_home", lambda: hermes_home)
-    monkeypatch.setattr(
-        "hermes_cli.model_cost_guard.expensive_model_warning",
-        (lambda *a, **kw: _fake_warning()) if warn else (lambda *a, **kw: None),
-    )
     return cfg_path
 
 
 @pytest.mark.asyncio
-async def test_typed_model_expensive_confirm_once_applies_switch(tmp_path, monkeypatch):
+async def test_typed_model_guarded_confirm_once_applies_switch(tmp_path, monkeypatch):
     """Resolving the confirm with "once" applies the switch."""
-    _setup_isolated_home(tmp_path, monkeypatch, warn=True)
+    _setup_isolated_home(tmp_path, monkeypatch, new_model="muse-spark-1.2-contributor")
     runner = _make_runner()
     runner._evict_cached_agent = lambda session_key: None
 
@@ -106,15 +93,15 @@ async def test_typed_model_expensive_confirm_once_applies_switch(tmp_path, monke
 
     runner._request_slash_confirm = _fake_request_slash_confirm
 
-    await runner._handle_model_command(_make_event("/model openai/gpt-5.5-pro"))
+    await runner._handle_model_command(_make_event("/model muse-spark-1.2-contributor"))
     assert runner._session_model_overrides == {}
 
     reply = await captured["handler"]("once")
 
-    assert "gpt-5.5-pro" in reply
+    assert "muse-spark-1.2-contributor" in reply
     overrides = list(runner._session_model_overrides.values())
     assert len(overrides) == 1
-    assert overrides[0]["model"] == "openai/gpt-5.5-pro"
+    assert overrides[0]["model"] == "muse-spark-1.2-contributor"
 
 
 @pytest.mark.asyncio
@@ -128,7 +115,7 @@ async def test_failed_inplace_swap_aborts_commit(tmp_path, monkeypatch):
     the working cached agent — otherwise the next message rebuilds a dead agent
     and the conversation is lost.
     """
-    _setup_isolated_home(tmp_path, monkeypatch, warn=False)
+    _setup_isolated_home(tmp_path, monkeypatch)
     runner = _make_runner()
 
     # Working cached agent whose in-place swap fails (and rolls itself back).

@@ -1,18 +1,11 @@
 """OpenAI Ultrafast (``service_tier: "ultrafast"``): one tier word table, a per-model request gate,
-and pricing from the tier the response was SERVED at. Relationship tests, no catalog snapshots."""
+and the tier the response was SERVED at. Relationship tests, no catalog snapshots."""
 
-from decimal import Decimal
 from types import SimpleNamespace
 
 import pytest
 
 from agent.fast_mode import SERVICE_TIER_WORDS, STATIC_TIERS, parse_service_tier
-from agent.usage_pricing import (
-    _OPENAI_ULTRAFAST_PRICING,
-    CanonicalUsage,
-    estimate_usage_cost,
-    with_served_service_tier,
-)
 from hermes_cli.models import model_supports_ultrafast, resolve_fast_mode_overrides
 
 ASTRA_SPELLINGS = ("gpt-6-astra", "openai/gpt-6-astra", "gpt-6-astra-900k", "openai/gpt-6-astra-900k")
@@ -107,51 +100,8 @@ def test_cli_refuses_ultrafast_on_a_model_without_it(monkeypatch):
     assert stub.service_tier == "ultrafast"
 
 
-def _usage(prompt_uncached: int, served_tier=None) -> CanonicalUsage:
-    usage = CanonicalUsage(input_tokens=prompt_uncached, output_tokens=10_000, cache_read_tokens=20_000,
-                           cache_write_tokens=5_000)
-    return with_served_service_tier(usage, SimpleNamespace(service_tier=served_tier))
-
-
-@pytest.mark.parametrize("prompt_uncached", [50_000, 400_000])  # below / above the 272K whole-request tier
-@pytest.mark.parametrize("model", [*ASTRA_SPELLINGS, *SOL_SPELLINGS])
-def test_served_ultrafast_bills_at_the_ultrafast_row_and_requested_only_does_not(prompt_uncached, model):
-    standard = estimate_usage_cost(model, _usage(prompt_uncached), provider="openai-api")
-    served_default = estimate_usage_cost(model, _usage(prompt_uncached, "default"), provider="openai-api")
-    ultra = estimate_usage_cost(model, _usage(prompt_uncached, "ultrafast"), provider="openai-api")
-    assert served_default.amount_usd == standard.amount_usd  # asked for Ultrafast, served at Standard
-    assert ultra.status == "estimated"
-    wire_model = model.removeprefix("openai/").removesuffix("-900k")
-    assert ultra.pricing_version == _OPENAI_ULTRAFAST_PRICING[wire_model].pricing_version
-    assert ultra.amount_usd == standard.amount_usd * 6  # every bucket, both context tiers
-
-
-@pytest.mark.parametrize("model", ["gpt-6-sol", "gpt-6.1-sol-pro", "gpt-6.1-sol-preview-900k"])
-def test_served_ultrafast_on_a_model_without_a_published_rate_is_unknown(model):
-    assert estimate_usage_cost(model, _usage(1_000, "ultrafast"), provider="openai-api").status == "unknown"
-
-
-@pytest.mark.parametrize("provider", ["openai", "openai-api"])
-@pytest.mark.parametrize("base_url,amount,source", [
-    ("https://api.openai.com/v1", "0.06", "official_docs_snapshot"),
-    ("https://proxy.example/v1", "0.007", "provider_models_api"),
-    ("https://api.openai.com.proxy.example/v1", "0.007", "provider_models_api"),
-])
-def test_context_alias_pricing_preserves_custom_endpoint_rates(monkeypatch, provider, base_url, amount, source):
-    import agent.usage_pricing as pricing
-
-    monkeypatch.setattr(pricing, "fetch_endpoint_model_metadata", lambda *a, **kw: {
-        "gpt-6-astra-900k": {"pricing": {"prompt": "0.000003", "completion": "0.000004"}},
-    })
-    cost = estimate_usage_cost(
-        "gpt-6-astra-900k", CanonicalUsage(input_tokens=1000, output_tokens=1000),
-        provider=provider, base_url=base_url,
-    )
-    assert (cost.amount_usd, cost.source) == (Decimal(amount), source)
-
-
 @pytest.mark.parametrize("model", SOL_SPELLINGS)
-def test_sol_ultrafast_codex_request_uses_the_wire_slug_and_keeps_subscription_accounting(model):
+def test_sol_ultrafast_codex_request_uses_the_wire_slug(model):
     from agent.fast_mode import effective_request_overrides
     from agent.transports.codex import ResponsesApiTransport
     from hermes_cli.model_normalize import normalize_model_for_provider
@@ -168,8 +118,6 @@ def test_sol_ultrafast_codex_request_uses_the_wire_slug_and_keeps_subscription_a
     wire = transport.preflight_kwargs(kwargs, sanitize_harmony_tokens=True)
     assert wire["service_tier"] == "ultrafast"
     assert wire["model"] == "gpt-6.1-sol"
-    cost = estimate_usage_cost(model, _usage(1_000, "ultrafast"), provider="openai-codex", base_url=base_url)
-    assert cost.status == "included" and cost.pricing_version == "included-route"
 
 
 def test_codex_stream_assembler_keeps_the_served_tier():

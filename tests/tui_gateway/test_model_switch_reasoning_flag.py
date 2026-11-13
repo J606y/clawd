@@ -29,7 +29,6 @@ def _quiet_switch(monkeypatch):
         runtime_capabilities=None)
     monkeypatch.setattr("hermes_cli.model_switch.switch_model", lambda **_kw: result)
     monkeypatch.setattr("hermes_cli.model_switch.persist_model_selection", lambda _r: None)
-    monkeypatch.setattr("hermes_cli.model_cost_guard.expensive_model_warning", lambda *a, **k: None)
     for name in ("_restart_slash_worker", "_persist_live_session_runtime", "_persist_live_session_system_prompt",
                  "_append_model_switch_marker", "_emit_session_info"):
         monkeypatch.setattr(server, name, lambda *a, **k: None)

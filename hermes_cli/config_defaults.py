@@ -135,9 +135,6 @@ DEFAULT_CONFIG = {
         # open on ambiguous evidence (missing usage, any tokens, model/provider change).
         "empty_response_guard": {
             "enabled": True,  # False = legacy fixed 3 retries unconditionally
-            # When one empty attempt's estimated input cost >= this USD, the streak's retry budget
-            # drops from 3 to 1. Unknown pricing / missing usage leaves it untouched.
-            "cost_threshold_usd": 0.25,
         },
         # Fast mode: "" / "normal" (off), "fast" (always), "auto" (first fast_auto_seconds of every
         # turn), "cold" (first turn of a session only).
@@ -876,7 +873,6 @@ DEFAULT_CONFIG = {
         # truncated stream, pending tool result, iteration/budget limit) instead of the bare
         # "(empty)" sentinel.
         "turn_completion_explainer": True,
-        "show_cost": False,       # $ cost in the status bar
         "battery": False,         # battery read-out first in status bar; no-op w/o battery
         # Focus view (/focus): display-only. Pins tool_progress to "off", reports per-turn
         # hidden-line count, pins a "focus" status segment. focus_saved_tool_progress holds the mode

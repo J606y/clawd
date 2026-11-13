@@ -387,7 +387,7 @@ class AIAgent(
 
     def reset_session_state(self, previous_messages: Optional[list] = None, old_session_id: Optional[str] = None,
                             carry_over_context: bool = False):
-        """Reset session-scoped token/cost counters and compressor state for a fresh session.
+        """Reset session-scoped token counters and compressor state for a fresh session.
 
         With ``previous_messages`` / ``old_session_id`` / ``carry_over_context`` the context engine gets the
         full transition lifecycle instead of a bare reset.
@@ -398,9 +398,6 @@ class AIAgent(
             "session_reasoning_tokens", "session_api_calls",
         ):
             setattr(self, counter, 0)
-        self.session_estimated_cost_usd = 0.0
-        self.session_cost_status = "unknown"
-        self.session_cost_source = "none"
 
         # Session boundary: the usage anchor describes the OLD transcript; fall back to full estimation.
         self._usage_anchor = None

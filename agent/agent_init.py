@@ -1458,11 +1458,9 @@ def _apply_agent_section(agent, _agent_cfg):
             _agent_section.get("run_budget_seconds")
         )
 
-    # Empty-response guard: a malformed section falls back to schema defaults (on, $0.25).
+    # Empty-response guard: a malformed section falls back to schema defaults (on).
     from agent.empty_response_guard import resolve_guard_settings
-    (
-        agent._empty_guard_enabled, agent._empty_guard_cost_threshold_usd
-    ) = resolve_guard_settings(_agent_section.get("empty_response_guard"))
+    agent._empty_guard_enabled = resolve_guard_settings(_agent_section.get("empty_response_guard"))
 
     # "auto" (codex_responses only), true (all api_modes), false, or model substrings.
     agent._intent_ack_continuation = _agent_section.get("intent_ack_continuation", "auto")
@@ -2251,9 +2249,6 @@ _USAGE_STATE: dict[str, Any] = {
     "session_cache_read_tokens": 0,
     "session_cache_write_tokens": 0,
     "session_reasoning_tokens": 0,
-    "session_estimated_cost_usd": 0.0,
-    "session_cost_status": "unknown",
-    "session_cost_source": "none",
     # Status-bar latency/velocity history (last 10 calls), shared by loop + codex_runtime.
     "_api_latency_history": lambda: deque(maxlen=10),
     "_api_output_history": lambda: deque(maxlen=10),

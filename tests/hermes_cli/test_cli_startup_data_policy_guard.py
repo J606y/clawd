@@ -65,19 +65,6 @@ def fake_cli(monkeypatch):
     return captured
 
 
-@pytest.fixture
-def codex_config(monkeypatch):
-    monkeypatch.setattr(
-        "hermes_cli.config.load_config",
-        lambda: {
-            "model": {
-                "provider": "openai-codex",
-                "default": "gpt-5.5",
-                "base_url": "https://chatgpt.com/backend-api/codex",
-            }
-        },
-    )
-
 
 def _set_startup_config(
     monkeypatch, *, provider="custom", default="safe-model", base_url="", ack=None
@@ -93,32 +80,8 @@ def _set_startup_config(
     monkeypatch.setattr("hermes_cli.config.load_config", lambda: config)
 
 
-def test_cmd_chat_rejects_noninteractive_gpt55_pro_startup_override(
-    main_mod, fake_cli, codex_config, monkeypatch, capsys
-):
-    monkeypatch.setattr(sys, "stdin", _NonInteractiveStdin())
-
-    with pytest.raises(SystemExit) as excinfo:
-        main_mod.cmd_chat(_chat_args(model="openai/gpt-5.5-pro"))
-
-    assert excinfo.value.code == 1
-    assert not fake_cli
-    err = capsys.readouterr().err
-    assert "EXPENSIVE MODEL WARNING" in err
-    assert "non-interactive" in err
 
 
-def test_cmd_chat_rejects_noninteractive_gpt55_pro_even_with_yolo(
-    main_mod, fake_cli, codex_config, monkeypatch, capsys
-):
-    monkeypatch.setattr(sys, "stdin", _NonInteractiveStdin())
-
-    with pytest.raises(SystemExit) as excinfo:
-        main_mod.cmd_chat(_chat_args(model="openai/gpt-5.5-pro", yolo=True))
-
-    assert excinfo.value.code == 1
-    assert not fake_cli
-    assert "EXPENSIVE MODEL WARNING" in capsys.readouterr().err
 
 
 def test_cmd_chat_allows_acknowledged_data_training_tier_noninteractively(
@@ -155,24 +118,6 @@ def test_cmd_chat_rejects_unacknowledged_data_training_tier_with_opt_in_hint(
     assert "security.allow_data_training_tiers_noninteractive" in err
 
 
-def test_data_training_acknowledgement_does_not_bypass_cost_guard(
-    main_mod, fake_cli, monkeypatch, capsys
-):
-    monkeypatch.setattr(sys, "stdin", _NonInteractiveStdin())
-    _set_startup_config(
-        monkeypatch,
-        provider="openai-codex",
-        default="gpt-5.5",
-        base_url="https://chatgpt.com/backend-api/codex",
-        ack=True,
-    )
-
-    with pytest.raises(SystemExit) as excinfo:
-        main_mod.cmd_chat(_chat_args(model="openai/gpt-5.5-pro"))
-
-    assert excinfo.value.code == 1
-    assert not fake_cli
-    assert "EXPENSIVE MODEL WARNING" in capsys.readouterr().err
 
 
 def test_data_training_acknowledgement_requires_literal_true(
@@ -207,64 +152,12 @@ def test_data_training_acknowledgement_does_not_skip_interactive_confirmation(
     assert "Model override cancelled" in capsys.readouterr().err
 
 
-def test_cmd_chat_allows_interactive_gpt55_pro_when_confirmed(
-    main_mod, fake_cli, codex_config, monkeypatch
-):
-    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
-    monkeypatch.setattr("builtins.input", lambda _prompt: "yes")
-
-    main_mod.cmd_chat(_chat_args(model="openai/gpt-5.5-pro"))
-
-    assert fake_cli["model"] == "openai/gpt-5.5-pro"
 
 
-def test_cmd_chat_cancels_interactive_gpt55_pro_when_not_confirmed(
-    main_mod, fake_cli, codex_config, monkeypatch, capsys
-):
-    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
-    monkeypatch.setattr("builtins.input", lambda _prompt: "n")
-
-    with pytest.raises(SystemExit) as excinfo:
-        main_mod.cmd_chat(_chat_args(model="openai/gpt-5.5-pro"))
-
-    assert excinfo.value.code == 1
-    assert not fake_cli
-    assert "Model override cancelled" in capsys.readouterr().err
 
 
-def test_cmd_chat_cancels_interactive_gpt55_pro_on_eof(
-    main_mod, fake_cli, codex_config, monkeypatch, capsys
-):
-    monkeypatch.setattr(sys.stdin, "isatty", lambda: True)
-
-    def raise_eof(_prompt):
-        raise EOFError
-
-    monkeypatch.setattr("builtins.input", raise_eof)
-
-    with pytest.raises(SystemExit) as excinfo:
-        main_mod.cmd_chat(_chat_args(model="openai/gpt-5.5-pro"))
-
-    assert excinfo.value.code == 1
-    assert not fake_cli
-    assert "Model override cancelled" in capsys.readouterr().err
 
 
-def test_cmd_chat_rejects_noninteractive_provider_only_override_when_default_is_expensive(
-    main_mod, fake_cli, monkeypatch, capsys
-):
-    monkeypatch.setattr(sys, "stdin", _NonInteractiveStdin())
-    monkeypatch.setattr(
-        "hermes_cli.config.load_config",
-        lambda: {"model": {"provider": "openai-codex", "default": "openai/gpt-5.5-pro"}},
-    )
-
-    with pytest.raises(SystemExit) as excinfo:
-        main_mod.cmd_chat(_chat_args(model=None, provider="nous"))
-
-    assert excinfo.value.code == 1
-    assert not fake_cli
-    assert "EXPENSIVE MODEL WARNING" in capsys.readouterr().err
 
 
 def test_cmd_chat_allows_noninteractive_safe_codex_startup_override(
@@ -282,26 +175,3 @@ def test_cmd_chat_allows_noninteractive_safe_codex_startup_override(
     assert fake_cli["provider"] == "openai-codex"
 
 
-def test_top_level_oneshot_rejects_noninteractive_gpt55_pro_startup_override(
-    main_mod, codex_config, monkeypatch, capsys
-):
-    monkeypatch.setattr(sys, "stdin", _NonInteractiveStdin())
-    monkeypatch.setattr(sys, "argv", ["hermes", "-z", "hello", "-m", "openai/gpt-5.5-pro"])
-    monkeypatch.setattr(main_mod, "_prepare_agent_startup", lambda _args: None)
-
-    called = False
-
-    def fake_run_and_exit_oneshot(*_args, **_kwargs):
-        nonlocal called
-        called = True
-
-    monkeypatch.setattr(main_mod, "_run_and_exit_oneshot", fake_run_and_exit_oneshot)
-
-    with pytest.raises(SystemExit) as excinfo:
-        main_mod.main()
-
-    assert excinfo.value.code == 1
-    assert called is False
-    err = capsys.readouterr().err
-    assert "EXPENSIVE MODEL WARNING" in err
-    assert "non-interactive" in err

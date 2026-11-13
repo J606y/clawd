@@ -1294,10 +1294,6 @@ CONFIG_SCHEMA = ProviderConfigSchema(
         """A bare vendor name from analytics rows (no billing_provider) is not
         a Hermes provider — keep the user's aggregator instead of writing a
         provider that can never resolve credentials."""
-        monkeypatch.setattr(
-            "hermes_cli.model_cost_guard.expensive_model_warning",
-            lambda *_args, **_kwargs: None,
-        )
         from hermes_cli.config import load_config, save_config
         cfg = load_config()
         cfg["model"] = {"provider": "openrouter", "default": "openai/gpt-5.5"}
@@ -1326,7 +1322,6 @@ CONFIG_SCHEMA = ProviderConfigSchema(
         from hermes_cli import free_tier_bootstrap as fb
 
         fb.reset_for_tests()
-        monkeypatch.setattr("hermes_cli.model_cost_guard.expensive_model_warning", lambda *_a, **_k: None)
         monkeypatch.setattr("agent.bedrock_adapter.has_aws_credentials", lambda *_a, **_kw: False)
         broadcasts = []
         monkeypatch.setattr(fb, "_broadcast", broadcasts.append)

@@ -95,9 +95,7 @@ class TestUsageCachedAgent:
         runner = _make_runner(SK, agent=running, cached_agent=cached)
         event = MagicMock()
 
-        with patch("agent.rate_limit_tracker.format_rate_limit_compact", return_value="RPM: 50/60"), \
-             patch("agent.usage_pricing.estimate_usage_cost") as mock_cost:
-            mock_cost.return_value = MagicMock(amount_usd=None, status="unknown")
+        with patch("agent.rate_limit_tracker.format_rate_limit_compact", return_value="RPM: 50/60"):
             result = await runner._handle_usage_command(event)
 
         assert "80,000" in result   # running agent's total

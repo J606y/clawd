@@ -196,7 +196,7 @@ def gemini_accepts_parameters_json_schema(base_url: str) -> bool:
 
 
 def probe_gemini_tier(
-    api_key: str, base_url: str = DEFAULT_GEMINI_BASE_URL, *, model: str = "gemini-3.7-flash", timeout: float = 10.0
+    api_key: str, base_url: str = DEFAULT_GEMINI_BASE_URL, *, model: str = "gemini-3.6-flash", timeout: float = 10.0
 ) -> str:
     """Probe a Google AI Studio key → ``"free"`` | ``"paid"`` | ``"unknown"`` (probe failed; callers proceed without blocking)."""
     key = (api_key or "").strip()
@@ -916,7 +916,7 @@ class GeminiNativeClient:
         return (True, None) if chunk is _END else (False, chunk)
 
     def _create_chat_completion(
-        self, *, model: str = "gemini-3.7-flash", messages: Optional[list[dict[str, Any]]] = None, stream: bool = False,
+        self, *, model: str = "gemini-3.6-flash", messages: Optional[list[dict[str, Any]]] = None, stream: bool = False,
         tools: Any = None, tool_choice: Any = None, temperature: Optional[float] = None, max_tokens: Optional[int] = None,
         top_p: Optional[float] = None, stop: Any = None, response_format: Any = None, extra_body: Optional[dict[str, Any]] = None,
         timeout: Any = None, **_: Any,

@@ -45,7 +45,7 @@ _PUBLIC = frozenset({
     "hermes_cli.dashboard_auth", "hermes_cli.platform_actions", "hermes_cli.plugins:PluginContext",
     "hermes_cli.plugins_ledger:PluginRegistration", "hermes_cli.plugins_state:PluginState",
     # prose in memory-provider / model-provider / terminal-environment plugin pages
-    "agent.runtime_cwd:resolve_agent_cwd", "agent.usage_pricing:CostResult", "hermes_cli.auth_constants:AuthError",
+    "agent.runtime_cwd:resolve_agent_cwd", "hermes_cli.auth_constants:AuthError",
     "tools.environments.base:BaseEnvironment", "tools.environments:BaseEnvironment",  # package ``__all__``
     "utils:atomic_json_write", "utils:read_json_or_empty",
     # adding-platform-adapters.md § Public helpers for platform plugins

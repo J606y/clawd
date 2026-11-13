@@ -45,7 +45,7 @@ OPENROUTER_MODELS: list[tuple[str, str]] = [
         "openai/gpt-6-luna", "openai/gpt-6-luna-pro",
         "openai/gpt-5.5", "openai/gpt-5.5-pro", "openai/gpt-5.4-mini", "google/gemini-4-argon",
         "google/gemini-3.1-pro-preview",
-        "google/gemini-3.8-flash", "google/gemini-3.7-flash", "x-ai/grok-4.7", "x-ai/grok-4.6",
+        "x-ai/grok-4.7", "x-ai/grok-4.6",
         "deepseek/deepseek-v4-pro",
         "deepseek/deepseek-v4-pro-0813", "deepseek/deepseek-v4.1-flash", "deepseek/deepseek-v4.1-flash-1017",
         "deepseek/deepseek-v4-flash-0731",
@@ -234,9 +234,9 @@ _PROVIDER_MODELS: dict[str, list[str]] = _CuratedCatalog({
     "openai-codex": _codex_curated_models(),
     "xai-oauth": _xai_finalize_catalog(list(_XAI_STATIC_FALLBACK)),
     "gemini": [
-        # Argon second: [0] is the silent default when no model is configured, and a flagship never is.
-        "gemini-3.8-flash", "gemini-4-argon", "gemini-3.7-flash",
-        "gemini-3.1-pro-preview", "gemini-3-pro-preview", "gemini-3.6-flash", "gemini-3.1-flash-lite-preview",
+        # 3.6-flash first: [0] is the silent default when no model is configured, and a flagship never is.
+        "gemini-3.6-flash", "gemini-4-argon", "gemini-3.1-pro-preview", "gemini-3-pro-preview",
+        "gemini-3.1-flash-lite-preview",
     ],
     "zai": [
         "glm-5.3", "glm-5.3-flash", "glm-5.2", "glm-5.1", "glm-5", "glm-5v-turbo", "glm-5-turbo",
@@ -292,8 +292,8 @@ _PROVIDER_MODELS: dict[str, list[str]] = _CuratedCatalog({
         "gpt-5.3-codex-spark", "gpt-5.2", "gpt-5.2-codex", "gpt-5.1", "gpt-5.1-codex", "gpt-5.1-codex-max",
         "gpt-5.1-codex-mini", "gpt-5", "gpt-5-codex", "gpt-5-nano", "claude-fable-5", "claude-opus-5",
         "claude-sonnet-5", "claude-opus-4-8", "claude-opus-4-7", "claude-opus-4-6", "claude-opus-4-5",
-        "claude-sonnet-4-6", "claude-sonnet-4-5", "claude-sonnet-4", "claude-haiku-4-5", "gemini-3.8-flash",
-        "gemini-3.7-flash", "gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.1-pro", "gemini-3-flash",
+        "claude-sonnet-4-6", "claude-sonnet-4-5", "claude-sonnet-4", "claude-haiku-4-5",
+        "gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.1-pro", "gemini-3-flash",
         "grok-4.6", "grok-4.5", "grok-build-0.1", "muse-spark-1.2", "minimax-m3", "minimax-m2.7", "minimax-m2.5",
         "glm-5.3", "glm-5.3-flash", "glm-5.2", "glm-5.1", "glm-5", "kimi-k2.7-code", "deepseek-v4-pro",
         "deepseek-v4-flash", "qwen3.6-plus", "qwen3.5-plus", "big-pickle", "mimo-v2.5-free",
@@ -344,8 +344,8 @@ _PROVIDER_MODELS: dict[str, list[str]] = _CuratedCatalog({
     # only shows the configured model. IDs carry the "google/" publisher prefix Vertex expects
     # (see hermes_cli/model_setup_flows.py); validated live against a GCP project (global region).
     "vertex": [
-        "google/gemini-3.8-flash", "google/gemini-4-argon", "google/gemini-3.7-flash",  # [0] = silent default
-        "google/gemini-3.1-pro-preview", "google/gemini-3-pro-preview", "google/gemini-3.6-flash",
+        "google/gemini-3.6-flash", "google/gemini-4-argon",  # [0] = silent default
+        "google/gemini-3.1-pro-preview", "google/gemini-3-pro-preview",
         "google/gemini-3.5-flash", "google/gemini-3.5-flash-lite", "google/gemini-3-flash-preview",
         "google/gemini-3.1-flash-lite-preview", "google/gemini-3.1-flash-lite",
     ],

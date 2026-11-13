@@ -21,14 +21,11 @@ class _Owner:
         from gateway.session_authority import SessionAuthority
         from gateway.session_controls import AuthorityConnection
         from gateway.session_local import create_local_session
-        from hermes_cli import model_cost_guard, model_switch
+        from hermes_cli import model_switch
         import hermes_state_runtime as rt
         monkeypatch.setattr(run, '_load_gateway_config', lambda *a: {})
         monkeypatch.setattr(model_switch, 'switch_model', lambda **k: model_switch.ModelSwitchResult(
             success=True, new_model=k['raw_input'], target_provider='custom', base_url='http://127.0.0.1:9/v1'))
-        monkeypatch.setattr(model_cost_guard, 'expensive_model_warning', lambda model, **k: (
-            model_cost_guard.ExpensiveModelWarning(model, 'custom', None, None, 'test', f'{model} IS EXPENSIVE')
-            if model.startswith('pricey') else None))
         self.store = SessionStore(tmp_path / 'sessions', GatewayConfig())
         self.db = self.store._db
         runner = SimpleNamespace(session_store=self.store, _session_db=self.db, adapters={}, _draining=False,
@@ -75,26 +72,26 @@ async def test_cli_chat_view_asks_and_applies_a_guarded_model_once_with_the_toke
         before = owner.state()
         view = GatewayChatView(owner, {'stored_session_id': owner.sid})
         view._composer = Composer('2')  # cancel
-        assert await view.command('/model pricey') is True
+        assert await view.command('/model muse-spark-1.2-contributor') is True
         assert view._composer.asked == 1 and owner.state() == before, 'declined switch changed the session'
-        assert 'pricey IS EXPENSIVE' in capsys.readouterr().out
+        assert 'CONTRIBUTOR TIER' in capsys.readouterr().out
         assert [p.get('confirm') for p in owner.mutations] == [None], 'a declined switch was re-sent'
 
         owner.mutations.clear()
         view._composer = Composer('y')
-        assert await view.command('/model pricey') is True
+        assert await view.command('/model muse-spark-1.2-contributor') is True
         assert view._composer.asked == 1
         token = owner.mutations[1].get('confirm')
         assert token and [p.get('confirm') for p in owner.mutations] == [None, token]
-        assert owner.state() == ('pricey', before[1] + 1, before[2] + 1), 'confirmed switch not applied once'
-        assert view.model == 'pricey'
+        assert owner.state() == ('muse-spark-1.2-contributor', before[1] + 1, before[2] + 1), 'confirmed switch not applied once'
+        assert view.model == 'muse-spark-1.2-contributor'
 
         # Non-interactive (`-q`, no TTY): no prompt, a refusal naming the message; nothing written.
         owner.mutations.clear()
         view._composer = None
-        with pytest.raises(GatewayClientError, match='pricey-xl IS EXPENSIVE'):
-            await view.command('/model pricey-xl')
-        assert len(owner.mutations) == 1 and owner.state()[0] == 'pricey'
+        with pytest.raises(GatewayClientError, match='CONTRIBUTOR TIER'):
+            await view.command('/model muse-spark-1.3-contributor')
+        assert len(owner.mutations) == 1 and owner.state()[0] == 'muse-spark-1.2-contributor'
     finally:
         await owner.close()
 
@@ -121,16 +118,16 @@ async def test_acp_set_session_model_asks_through_request_permission(tmp_path, m
         before = owner.state()
         agent._conn = Editor(DeniedOutcome(outcome='cancelled'))
         with pytest.raises(GatewayClientError, match='model_switch_cancelled'):
-            await agent.set_session_model(model_id='pricey', session_id=owner.sid)
+            await agent.set_session_model(model_id='muse-spark-1.2-contributor', session_id=owner.sid)
         assert owner.state() == before and [p.get('confirm') for p in owner.mutations] == [None]
         assert asked[0][0] == owner.sid and asked[0][1] == ['allow_once', 'deny']
 
         owner.mutations.clear()
         agent._conn = Editor(AllowedOutcome(outcome='selected', option_id='allow_once'))
-        await agent.set_session_model(model_id='pricey', session_id=owner.sid)
+        await agent.set_session_model(model_id='muse-spark-1.2-contributor', session_id=owner.sid)
         token = owner.mutations[1].get('confirm')
         assert token and [p.get('confirm') for p in owner.mutations] == [None, token]
-        assert owner.state() == ('pricey', before[1] + 1, before[2] + 1)
+        assert owner.state() == ('muse-spark-1.2-contributor', before[1] + 1, before[2] + 1)
     finally:
         await owner.close()
 

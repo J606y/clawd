@@ -155,17 +155,12 @@ _MAX_REFERENCE_WORKERS = 8
 
 @dataclass(slots=True)
 class _RefAccounting:
-    """Per-reference usage, cost and full trace (third slot of a reference-output tuple).
+    """Per-reference usage and full trace (third slot of a reference-output tuple).
 
-    Cost is priced at the advisor's OWN rate and summed in dollars (advisors may run
-    on a different model than the aggregator). Trace fields are only populated when
-    tracing is on.
+    Trace fields are only populated when tracing is on.
     """
 
     usage: Any
-    cost_usd: Any = None
-    cost_status: str | None = None
-    cost_source: str | None = None
     _: KW_ONLY
     messages: Any = None
     output: str | None = None
@@ -374,25 +369,17 @@ def _maybe_apply_moa_cache_control(
         return messages
 
 
-def _price_reference_response(
+def _normalize_reference_usage(
     response: Any, slot: dict[str, Any], runtime: dict[str, Any]
-) -> tuple[Any, Any, str | None, str | None]:
-    """Normalize a reference's usage with the slot's OWN provider/api_mode and price it
-    at its own rate (hence fan-out cost is summed in dollars). Never raises."""
-    from agent.usage_pricing import estimate_usage_cost, normalize_usage
+) -> Any:
+    """Normalize a reference's usage with the slot's OWN provider/api_mode. Never raises."""
+    from agent.usage_pricing import normalize_usage
     usage = CanonicalUsage()
     raw_usage = getattr(response, "usage", None)
     if raw_usage:
         with contextlib.suppress(Exception):  # pragma: no cover - defensive
             usage = normalize_usage(raw_usage, provider=runtime.get("provider"), api_mode=runtime.get("api_mode"))
-    try:
-        cost = estimate_usage_cost(
-            slot.get("model") or "", usage, provider=runtime.get("provider"),
-            base_url=runtime.get("base_url"), api_key=runtime.get("api_key"),
-        )
-        return usage, cost.amount_usd, cost.status, cost.source
-    except Exception:  # pragma: no cover - defensive
-        return usage, None, None, None
+    return usage
 
 
 def _slot_request_headers(runtime: dict[str, Any], agent: Any = None) -> dict[str, str] | None:
@@ -457,7 +444,7 @@ def _run_reference(
                 extra_headers=initiator_headers, **runtime,
             )
         output_text = _extract_text(response) or "(empty response)"
-        acct = _RefAccounting(*_price_reference_response(response, slot, runtime), messages=trimmed, output=output_text, **trace_fields)
+        acct = _RefAccounting(_normalize_reference_usage(response, slot, runtime), messages=trimmed, output=output_text, **trace_fields)
         return label, output_text, acct
     except Exception as exc:
         logger.warning("MoA reference model %s failed: %s", label, exc)
@@ -874,17 +861,14 @@ def _join_reference_outputs(outputs: list[tuple[str, str, Any]], degraded: str =
     return joined
 
 
-def _sum_reference_accounting(outputs: list[tuple[str, str, Any]]) -> tuple[Any, Any]:
-    """Sum fan-out usage AND cost in dollars (each advisor priced at its OWN rate)."""
+def _sum_reference_accounting(outputs: list[tuple[str, str, Any]]) -> Any:
+    """Sum fan-out token usage across advisors."""
     usage = CanonicalUsage()
-    cost: Any = None
     for _lbl, _txt, acct in outputs:
         if isinstance(acct, _RefAccounting):
             if isinstance(acct.usage, CanonicalUsage):
                 usage = usage + acct.usage
-            if acct.cost_usd is not None:
-                cost = (cost or 0) + acct.cost_usd
-    return usage, cost
+    return usage
 
 
 def _degraded_notice(failed_labels: list[str], policy: str) -> str:
@@ -1070,12 +1054,11 @@ class MoAChatCompletions:
         # Reference cache keyed on the advisory-view signature (HIT = no re-run, no re-emit).
         self._ref_cache_key: tuple | None = None
         self._ref_cache_outputs: list[tuple[str, str, Any]] = []
-        # Fan-out spend awaiting consume_reference_usage (nothing deposited on a HIT so
-        # spend counts once); the lock guards late-accounting callbacks on worker threads.
+        # Fan-out usage awaiting consume_reference_usage (nothing deposited on a HIT so
+        # usage counts once); the lock guards late-accounting callbacks on worker threads.
         self._pending_reference_usage: Any = CanonicalUsage()
-        self._pending_reference_cost: Any = None
         self._accounting_lock = threading.Lock()
-        # Real aggregator slot so cost accounting prices the acting turn at its model.
+        # Real aggregator slot (model/provider/base_url) for the acting turn.
         self.last_aggregator_slot: Any = None
         # Full-turn trace parts from a cache-MISS create(), flushed by consume_and_save_trace.
         self._pending_trace: Any = None
@@ -1092,33 +1075,29 @@ class MoAChatCompletions:
         # cache-stable shape (agent/moa_alternation.py).
         self._merge_same_role_destinations: set[tuple[str, str]] = set()
 
-    def consume_reference_usage(self) -> tuple[Any, Any]:
-        """Pop pending fan-out ``(CanonicalUsage, cost_usd_or_None)`` and reset both
+    def consume_reference_usage(self) -> Any:
+        """Pop pending fan-out ``CanonicalUsage`` and reset it
         (so a streaming retry re-entering accounting cannot double-count)."""
         with self._accounting_lock:
             usage = self._pending_reference_usage or CanonicalUsage()
-            cost = self._pending_reference_cost
             self._pending_reference_usage = CanonicalUsage()
-            self._pending_reference_cost = None
-        return usage, cost
+        return usage
 
     def last_reference_metrics(self) -> Any:
         """Per-advisor metrics from the most recent fan-out, or None (read-only)."""
         return self._last_reference_metrics
 
     def _record_late_reference_accounting(self, label: str, accounting: Any) -> None:
-        """Done-callback for abandoned (still billing) futures: fold their real spend in."""
+        """Done-callback for abandoned futures: fold their usage in."""
         if not isinstance(accounting, _RefAccounting):
             return
-        self._fold_pending_accounting(*_sum_reference_accounting([(label, "", accounting)]))
+        self._fold_pending_accounting(_sum_reference_accounting([(label, "", accounting)]))
         logger.debug("MoA: recorded late accounting for interrupted reference %s", label)
 
-    def _fold_pending_accounting(self, usage: Any, cost: Any) -> None:
-        """Add (never overwrite) fan-out spend so late interrupted-reference deposits survive."""
+    def _fold_pending_accounting(self, usage: Any) -> None:
+        """Add (never overwrite) fan-out usage so late interrupted-reference deposits survive."""
         with self._accounting_lock:
             self._pending_reference_usage = (self._pending_reference_usage or CanonicalUsage()) + usage
-            if cost is not None:
-                self._pending_reference_cost = (self._pending_reference_cost or 0) + cost
 
     def consume_and_save_trace(self, session_id: Any = None, aggregator_output_fallback: Any = None) -> None:
         """Flush the pending full-turn trace to disk (no-op when nothing is pending).
@@ -1358,8 +1337,8 @@ class MoAChatCompletions:
         interrupted = any(text == _INTERRUPTED_REFERENCE_NOTE for _lbl, text, _acct in reference_outputs)
         self._ref_cache_key = None if interrupted else cache_key
         self._ref_cache_outputs = [] if interrupted else list(reference_outputs)
-        # Fold advisor spend into accounting exactly once per turn.
-        self._fold_pending_accounting(*_sum_reference_accounting(reference_outputs))
+        # Fold advisor usage into accounting exactly once per turn.
+        self._fold_pending_accounting(_sum_reference_accounting(reference_outputs))
         # Stash the fan-out for trace persistence (aggregator parts filled in later).
         # Traces are persisted, so ANY active privacy mode redacts them.
         privacy_mode = self._privacy_mode

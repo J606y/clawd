@@ -162,9 +162,10 @@ def test_public_lifecycle_runs_host_aggregation(monkeypatch):
         tool_call_history=[],
         duration_ms=250,
     )
-    assert parent.session_estimated_cost_usd == 3.5
-    assert parent.session_cost_source == "subagent"
-    assert parent.session_cost_status == "estimated"
+    # Pricing removed: child spend no longer folds into the parent session cost.
+    assert parent.session_estimated_cost_usd == 1.0
+    assert parent.session_cost_source == "none"
+    assert parent.session_cost_status == "unknown"
 
 
 

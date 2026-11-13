@@ -2,10 +2,9 @@
 
 After every successful model API call, ``record_response_usage`` folds ``response.usage``
 into: the context compressor (``update_from_response`` + the compression-budget rearm
-latch), the usage anchor for display/compression math, per-session token/cost counters,
+latch), the usage anchor for display/compression math, per-session token counters,
 the state.db token-delta queue, and the observability log line. MoA sessions additionally
-fold advisor fan-out usage into the reported counts and price the aggregator at its REAL
-model/provider. Logger name stays ``agent.conversation_loop`` for caplog parity.
+fold advisor fan-out usage into the reported counts. Logger name stays ``agent.conversation_loop`` for caplog parity.
 """
 
 from __future__ import annotations
@@ -18,7 +17,7 @@ from typing import Any, Dict, List
 
 from agent.image_token_cost import calibrate_from_usage
 from agent.usage_anchor import capture_usage_anchor, set_usage_anchor
-from agent.usage_pricing import estimate_usage_cost, normalize_usage, with_served_service_tier
+from agent.usage_pricing import normalize_usage
 
 logger = logging.getLogger("agent.conversation_loop")
 
@@ -48,13 +47,12 @@ def _loop_mod():
 
 def _fold_moa_usage(agent, canonical_usage):
     """MoA: fold advisor fan-out usage into REPORTED token counts (only aggregator usage is
-    returned, so advisor spend would be invisible) and flush the full-turn trace when
-    ``moa.save_traces`` is on. Returns ``(client, canonical_usage, advisor_cost)``."""
-    _moa_ref_cost = None
+    returned, so advisor tokens would be invisible) and flush the full-turn trace when
+    ``moa.save_traces`` is on. Returns ``(client, canonical_usage)``."""
     _moa_client = getattr(agent, "client", None)
     if _moa_client is not None and hasattr(_moa_client, "consume_reference_usage"):
         try:
-            _ref_usage, _moa_ref_cost = _moa_client.consume_reference_usage()
+            _ref_usage = _moa_client.consume_reference_usage()
             if _ref_usage is not None:
                 canonical_usage = canonical_usage + _ref_usage
         except Exception as _moa_acct_exc:  # pragma: no cover - defensive
@@ -68,7 +66,7 @@ def _fold_moa_usage(agent, canonical_usage):
             )
         except Exception as _moa_trace_exc:  # pragma: no cover - defensive
             logger.debug("MoA trace flush failed: %s", _moa_trace_exc)
-    return _moa_client, canonical_usage, _moa_ref_cost
+    return _moa_client, canonical_usage
 
 
 def record_response_usage(
@@ -81,7 +79,7 @@ def record_response_usage(
     rearmed = False
     compressor = agent.context_compressor
     # Count every completed provider attempt, including providers that omit usage.
-    # Token/cost accounting below stays gated on real usage, but the request itself
+    # Token accounting below stays gated on real usage, but the request itself
     # must remain observable.
     agent.session_api_calls += 1
     if not (hasattr(response, 'usage') and response.usage):
@@ -99,12 +97,10 @@ def record_response_usage(
         )
         return ResponseUsageOutcome(compression_attempts=compression_attempts, rearmed=rearmed)
 
-    canonical_usage = with_served_service_tier(
-        normalize_usage(response.usage, provider=agent.provider, api_mode=agent.api_mode), response)
-    # Aggregator-only usage kept for pricing: advisor tokens are priced at each advisor's
-    # OWN model rate and added as dollars below.
+    canonical_usage = normalize_usage(response.usage, provider=agent.provider, api_mode=agent.api_mode)
+    # Aggregator-only usage kept for anchor/meter math (pre-MoA-fold).
     aggregator_usage = canonical_usage
-    _moa_client, canonical_usage, _moa_ref_cost = _fold_moa_usage(agent, canonical_usage)
+    _, canonical_usage = _fold_moa_usage(agent, canonical_usage)
     prompt_tokens = canonical_usage.prompt_tokens
     completion_tokens = canonical_usage.output_tokens
     total_tokens = canonical_usage.total_tokens
@@ -136,8 +132,8 @@ def record_response_usage(
     # transcript (main-loop ONLY; MoA uses pre-fold aggregator usage). The display meter
     # anchors on the turn's FIRST response: later same-turn responses inflate
     # prompt_tokens with replayed thinking. Display-only; compression math uses real usage.
-    # The provider just priced this request exactly: if the delta since the previous anchor
-    # introduced images, the residual is their real per-image cost (learned before re-anchoring).
+    # The provider just measured this request exactly: if the delta since the previous anchor
+    # introduced images, the residual is their real per-image token cost (learned before re-anchoring).
     calibrate_from_usage(agent, messages, context_prompt_tokens or aggregator_usage.prompt_tokens)
     _new_anchor = capture_usage_anchor(
         context_prompt_tokens or aggregator_usage.prompt_tokens, aggregator_usage.output_tokens, messages
@@ -222,35 +218,6 @@ def record_response_usage(
             from agent.nous_wire import maybe_switch_wire_after_first_response
             maybe_switch_wire_after_first_response(agent, response, agent.session_api_calls)
 
-    # MoA: agent.model/provider are the virtual preset/"moa" with no pricing entry, silently
-    # dropping aggregator spend. Price at the REAL model/provider from the aggregator slot.
-    _agg_cost_model, _agg_cost_provider, _agg_cost_base_url = agent.model, agent.provider, agent.base_url
-    _agg_slot = getattr(_moa_client, "last_aggregator_slot", None) if _moa_client is not None else None
-    if _agg_slot and _agg_slot.get("model"):
-        _agg_cost_model = _agg_slot["model"]
-        _agg_cost_provider = _agg_slot.get("provider") or agent.provider
-        _agg_cost_base_url = _agg_slot.get("base_url") or agent.base_url
-    cost_result = estimate_usage_cost(
-        _agg_cost_model, aggregator_usage, provider=_agg_cost_provider,
-        base_url=_agg_cost_base_url, api_key=getattr(agent, "api_key", ""),
-    )
-    # Cost delta = aggregator + MoA advisor cost (already priced per-advisor at each
-    # advisor's own model rate), so state.db's estimated_cost_usd matches the folded
-    # token counts.
-    _cost_delta = None
-    if cost_result.amount_usd is not None:
-        _cost_delta = float(cost_result.amount_usd)
-        agent.session_estimated_cost_usd += _cost_delta
-    if _moa_ref_cost is not None:
-        try:
-            _moa_cost = float(_moa_ref_cost)
-        except (TypeError, ValueError):  # pragma: no cover - defensive
-            _moa_cost = None
-        if _moa_cost is not None:
-            agent.session_estimated_cost_usd += _moa_cost
-            _cost_delta = (_cost_delta or 0.0) + _moa_cost
-    agent.session_cost_status = cost_result.status
-    agent.session_cost_source = cost_result.source
 
     # Persist per-call token deltas for any session_id so non-CLI runs can't lose
     # accounting; gateway/session-store writes use absolute totals and safely overwrite
@@ -270,13 +237,8 @@ def record_response_usage(
                 cache_read_tokens=canonical_usage.cache_read_tokens,
                 cache_write_tokens=canonical_usage.cache_write_tokens,
                 reasoning_tokens=canonical_usage.reasoning_tokens,
-                estimated_cost_usd=_cost_delta,
-                cost_status=cost_result.status,
-                cost_source=cost_result.source,
                 billing_provider=agent.provider,
                 billing_base_url=agent.base_url,
-                billing_mode="subscription_included"
-                if cost_result.status == "included" else None,
                 model=agent.model,
                 api_call_count=1,
                 task=getattr(agent, "_turn_route_task", "") or "",

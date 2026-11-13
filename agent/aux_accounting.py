@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 _accounting: ContextVar[Optional[tuple]] = ContextVar("aux_accounting_context", default=None)
 
 # MoA advisor/aggregator usage is already folded into conversation_loop's
-# update_token_counts delta (tokens AND cost); recording it here would double-count.
+# update_token_counts delta (tokens); recording it here would double-count.
 _EXCLUDED_TASKS = frozenset({"moa_reference", "moa_aggregator"})
 
 
@@ -64,9 +64,9 @@ def record_aux_usage(
         if raw_usage is None:
             return
 
-        from agent.usage_pricing import estimate_usage_cost, normalize_usage, with_served_service_tier
+        from agent.usage_pricing import normalize_usage
 
-        usage = with_served_service_tier(normalize_usage(raw_usage, provider=provider), response)
+        usage = normalize_usage(raw_usage, provider=provider)
         if not (
             usage.input_tokens or usage.output_tokens
             or usage.cache_read_tokens or usage.cache_write_tokens
@@ -74,13 +74,6 @@ def record_aux_usage(
         ):
             return
         model = str(getattr(response, "model", "") or "") or "unknown"
-        estimated_cost = None
-        try:
-            cost = estimate_usage_cost(model, usage, provider=provider, base_url=base_url)
-            if cost.amount_usd is not None:
-                estimated_cost = float(cost.amount_usd)
-        except Exception:
-            logger.debug("Aux usage cost estimation failed", exc_info=True)
         # Inside a Relay-driven tool callback the thread runs Relay's loop; a worker store refuses
         # synchronous RPC there (#139029).
         from agent.runtime_session_store import call_off_event_loop
@@ -89,7 +82,7 @@ def record_aux_usage(
             session_id, task, model=model, billing_provider=provider, billing_base_url=base_url,
             input_tokens=usage.input_tokens, output_tokens=usage.output_tokens,
             cache_read_tokens=usage.cache_read_tokens, cache_write_tokens=usage.cache_write_tokens,
-            reasoning_tokens=usage.reasoning_tokens, estimated_cost_usd=estimated_cost,
+            reasoning_tokens=usage.reasoning_tokens,
         )
     except Exception:
         logger.debug("Aux usage recording failed (non-fatal)", exc_info=True)

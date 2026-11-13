@@ -27,7 +27,6 @@ def client(monkeypatch, _isolate_hermes_home):
     from hermes_cli.config import load_config, save_config
     from hermes_cli.web_server import _SESSION_HEADER_NAME, _SESSION_TOKEN, app
 
-    monkeypatch.setattr("hermes_cli.model_cost_guard.expensive_model_warning", lambda *_a, **_k: None)
     cfg = load_config()
     cfg["model"] = {"provider": "openrouter", "default": "openai/gpt-5.5"}
     save_config(cfg)

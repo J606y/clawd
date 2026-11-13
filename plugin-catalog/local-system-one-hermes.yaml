@@ -14,7 +14,7 @@ description: >-
   observation-only: the plugin never sends a push/message/webhook and persists decision metadata,
   not raw response text. Its only request mutations, in acknowledged Canary mode on the first
   provider call of a turn, are removing web_search/web_extract tools for audited deterministic
-  no-Web rules and (off by default) lowering reasoning_effort for gemini-3.8-flash-tiered on audited
+  no-Web rules and (off by default) lowering reasoning_effort on audited
   hard-fast rules. The sidecar (same repo, separate pip install, Apple-Silicon MLX/CoreML) is a text
   classifier that downloads a pinned Hugging Face model.
 maintainer: NMTZ-z

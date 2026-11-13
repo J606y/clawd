@@ -67,11 +67,6 @@ def _runner_with_store(tmp_path, monkeypatch):
     )
     monkeypatch.setattr("hermes_constants.get_hermes_home", lambda: hermes_home)
     monkeypatch.setattr("hermes_cli.config.get_hermes_home", lambda: hermes_home)
-    # No expensive-model confirmation detour.
-    monkeypatch.setattr(
-        "hermes_cli.model_cost_guard.expensive_model_warning",
-        lambda *a, **k: None,
-    )
 
     runner = object.__new__(GatewayRunner)
     runner.adapters = {}

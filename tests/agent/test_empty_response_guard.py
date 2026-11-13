@@ -13,7 +13,6 @@ Fail-open contract under test:
   everything falls back to defaults.
 """
 
-from decimal import Decimal
 from types import SimpleNamespace
 
 from agent import empty_response_guard as guard
@@ -179,106 +178,18 @@ class TestDeterministicEmpty:
 
 
 class TestEmptyRetryBudget:
-    def test_default_budget_when_cost_unknown(self, monkeypatch):
-        monkeypatch.setattr(guard, "_estimate_attempt_cost", lambda a, r: None)
+    def test_budget_is_always_default(self):
         assert (
             guard.empty_retry_budget(_agent(), _response())
             == guard.DEFAULT_EMPTY_RETRY_BUDGET
         )
 
-    def test_reduced_budget_above_threshold(self, monkeypatch):
-        monkeypatch.setattr(
-            guard, "_estimate_attempt_cost", lambda a, r: Decimal("0.80")
-        )
-        assert (
-            guard.empty_retry_budget(_agent(), _response())
-            == guard.REDUCED_EMPTY_RETRY_BUDGET
-        )
-
-    def test_default_budget_below_threshold(self, monkeypatch):
-        monkeypatch.setattr(
-            guard, "_estimate_attempt_cost", lambda a, r: Decimal("0.01")
-        )
-        assert (
-            guard.empty_retry_budget(_agent(), _response())
-            == guard.DEFAULT_EMPTY_RETRY_BUDGET
-        )
-
-    def test_custom_threshold_config(self, monkeypatch):
-        monkeypatch.setattr(
-            guard, "_estimate_attempt_cost", lambda a, r: Decimal("0.80")
-        )
-        assert (
-            guard.empty_retry_budget(
-                _agent(_empty_guard_cost_threshold_usd=Decimal("5.00")),
-                _response(),
-            )
-            == guard.DEFAULT_EMPTY_RETRY_BUDGET
-        )
-
-    def test_bad_threshold_attr_falls_back(self):
-        # Non-Decimal or non-positive resolved values fall back to default.
-        assert (
-            guard._cost_threshold_usd(_agent(_empty_guard_cost_threshold_usd="banana"))
-            == guard.DEFAULT_COST_THRESHOLD_USD
-        )
-        assert (
-            guard._cost_threshold_usd(
-                _agent(_empty_guard_cost_threshold_usd=Decimal(-1))
-            )
-            == guard.DEFAULT_COST_THRESHOLD_USD
-        )
-        assert (
-            guard._cost_threshold_usd(_agent())  # attr absent entirely
-            == guard.DEFAULT_COST_THRESHOLD_USD
-        )
-
-    def test_guard_disabled_keeps_default_budget(self, monkeypatch):
-        monkeypatch.setattr(
-            guard, "_estimate_attempt_cost", lambda a, r: Decimal("9.99")
-        )
-        assert (
-            guard.empty_retry_budget(_agent(_empty_guard_enabled=False), _response())
-            == guard.DEFAULT_EMPTY_RETRY_BUDGET
-        )
-
-    def test_pricing_exception_fails_open(self):
-        # Garbage usage at the normalize layer must not tighten the budget;
-        # _estimate_attempt_cost catches internally and returns None.
+    def test_garbage_usage_still_returns_default(self):
+        # Unparseable usage must not change the budget; there is no cost
+        # input left to fail open on.
         agent = _agent(model=None, provider=None)
         resp = SimpleNamespace(usage=object())
-        assert (
-            guard.empty_retry_budget(agent, resp)
-            == guard.DEFAULT_EMPTY_RETRY_BUDGET
-        )
-
-
-class TestStreakCost:
-    def test_streak_cost_accumulates(self, monkeypatch):
-        costs = iter([Decimal("1.10"), Decimal("1.23")])
-        monkeypatch.setattr(
-            guard, "_estimate_attempt_cost", lambda a, r: next(costs)
-        )
-        agent = _agent()
-        _record_streak(agent, [_response(), _response()])
-        assert guard.streak_cost_usd(agent) == Decimal("2.33")
-
-    def test_streak_cost_none_when_unknown(self, monkeypatch):
-        monkeypatch.setattr(guard, "_estimate_attempt_cost", lambda a, r: None)
-        agent = _agent()
-        _record_streak(agent, [_response(), _response()])
-        assert guard.streak_cost_usd(agent) is None
-
-    def test_streak_cost_resets_on_new_streak(self, monkeypatch):
-        monkeypatch.setattr(
-            guard, "_estimate_attempt_cost", lambda a, r: Decimal("1.00")
-        )
-        agent = _agent()
-        _record_streak(agent, [_response(), _response()])
-        assert guard.streak_cost_usd(agent) == Decimal("2.00")
-        agent._empty_content_retries = 0
-        guard.record_empty_attempt(agent, finish_reason="stop", response=_response())
-        assert guard.streak_cost_usd(agent) == Decimal("1.00")
+        assert guard.empty_retry_budget(agent, resp) == guard.DEFAULT_EMPTY_RETRY_BUDGET
 
 
 class TestZeroOutputExtraction:
@@ -326,52 +237,28 @@ class TestZeroOutputExtraction:
 
 class TestResolveGuardSettings:
     """resolve_guard_settings maps the additive agent.empty_response_guard
-    config.yaml section into (enabled, threshold), tolerating malformed
-    input by falling back to schema defaults."""
+    config.yaml section into enabled, tolerating malformed input by
+    falling back to schema defaults.
+    """
 
     def test_missing_section_uses_defaults(self):
-        assert guard.resolve_guard_settings(None) == (
-            guard.DEFAULT_GUARD_ENABLED,
-            guard.DEFAULT_COST_THRESHOLD_USD,
-        )
+        assert guard.resolve_guard_settings(None) is guard.DEFAULT_GUARD_ENABLED
 
     def test_non_dict_section_uses_defaults(self):
-        assert guard.resolve_guard_settings("nope") == (
-            guard.DEFAULT_GUARD_ENABLED,
-            guard.DEFAULT_COST_THRESHOLD_USD,
-        )
+        assert guard.resolve_guard_settings("nope") is guard.DEFAULT_GUARD_ENABLED
 
     def test_disabled(self):
-        enabled, _ = guard.resolve_guard_settings({"enabled": False})
-        assert enabled is False
+        assert guard.resolve_guard_settings({"enabled": False}) is False
 
     def test_yaml_string_bool(self):
-        enabled, _ = guard.resolve_guard_settings({"enabled": "false"})
-        assert enabled is False
-        enabled, _ = guard.resolve_guard_settings({"enabled": "true"})
-        assert enabled is True
-
-    def test_custom_threshold(self):
-        _, threshold = guard.resolve_guard_settings({"cost_threshold_usd": 5})
-        assert threshold == Decimal(5)
-        _, threshold = guard.resolve_guard_settings({"cost_threshold_usd": "1.50"})
-        assert threshold == Decimal("1.50")
-
-    def test_bad_threshold_falls_back(self):
-        _, threshold = guard.resolve_guard_settings({"cost_threshold_usd": "banana"})
-        assert threshold == guard.DEFAULT_COST_THRESHOLD_USD
-        _, threshold = guard.resolve_guard_settings({"cost_threshold_usd": -1})
-        assert threshold == guard.DEFAULT_COST_THRESHOLD_USD
-        _, threshold = guard.resolve_guard_settings({"cost_threshold_usd": True})
-        assert threshold == guard.DEFAULT_COST_THRESHOLD_USD
+        assert guard.resolve_guard_settings({"enabled": "false"}) is False
+        assert guard.resolve_guard_settings({"enabled": "true"}) is True
 
     def test_default_config_schema_matches(self):
         """The shipped DEFAULT_CONFIG section resolves to the module
-        defaults — keeps config_defaults.py and this module in sync."""
+        defaults — keeps config_defaults.py and this module in sync.
+        """
         from hermes_cli.config_defaults import DEFAULT_CONFIG
 
         section = DEFAULT_CONFIG["agent"]["empty_response_guard"]
-        assert guard.resolve_guard_settings(section) == (
-            guard.DEFAULT_GUARD_ENABLED,
-            guard.DEFAULT_COST_THRESHOLD_USD,
-        )
+        assert guard.resolve_guard_settings(section) is guard.DEFAULT_GUARD_ENABLED

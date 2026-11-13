@@ -45,7 +45,6 @@ def _usage(**overrides):
         "cache_write_tokens": 0,
         "reasoning_tokens": 0,
         "api_calls": 5,
-        "estimated_cost_usd": 0.05,
     }
     base.update(overrides)
     return base
@@ -65,7 +64,6 @@ def test_records_fork_usage_against_parent_session(db):
     assert r["output_tokens"] == 2400
     assert r["cache_read_tokens"] == 190000
     assert r["api_call_count"] == 5
-    assert r.get("estimated_cost_usd") == 0.05
 
 def test_accumulates_repeated_forks_same_model(db):
     db.create_session("sess-parent", source="cli")

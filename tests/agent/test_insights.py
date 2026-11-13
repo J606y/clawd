@@ -4,15 +4,8 @@ import time
 import pytest
 
 from hermes_state import SessionDB
-from agent.insights import (
-    InsightsEngine,
-    _estimate_cost,
-    _bar_chart,
-)
-from agent.usage_pricing import (
-    format_duration_compact as _format_duration,
-    has_known_pricing as _has_known_pricing,
-)
+from agent.insights import InsightsEngine, _bar_chart
+from agent.usage_pricing import format_duration_compact as _format_duration
 
 @pytest.fixture()
 def db(tmp_path):
@@ -135,33 +128,7 @@ def populated_db(db):
     db._conn.commit()
     return db
 
-class TestHasKnownPricing:
 
-    def test_unknown_custom_model(self):
-        assert _has_known_pricing("FP16_Hermes_4.5") is False
-        assert _has_known_pricing("my-custom-model") is False
-        assert _has_known_pricing("glm-5") is False
-        assert _has_known_pricing("") is False
-        assert _has_known_pricing(None) is False
-
-    def test_heuristic_matched_models_are_not_considered_known(self):
-        assert _has_known_pricing("some-opus-model") is False
-        assert _has_known_pricing("future-sonnet-v2") is False
-
-class TestEstimateCost:
-
-    def test_cache_aware_usage(self):
-        cost, status = _estimate_cost(
-            "anthropic/claude-sonnet-4-20250514",
-            1000,
-            500,
-            cache_read_tokens=2000,
-            cache_write_tokens=400,
-            provider="anthropic",
-        )
-        assert status == "estimated"
-        expected = (1000 * 3.0 + 500 * 15.0 + 2000 * 0.30 + 400 * 3.75) / 1_000_000
-        assert cost == pytest.approx(expected, abs=0.0001)
 
 # =========================================================================
 # Format helpers
@@ -246,25 +213,6 @@ class TestInsightsPopulated:
         assert models["deepseek-v4-pro"]["total_tokens"] == 48000
         assert models["claude-opus-4.8"]["total_tokens"] == 54000
 
-    def test_overview_cost_matches_per_model_stored_cost(self, db):
-        db.create_session(session_id="cost", source="cli", model="model-a")
-        db.update_token_counts(
-            "cost", input_tokens=10, model="model-a", billing_provider="custom",
-            estimated_cost_usd=1.25, actual_cost_usd=1.0,
-            cost_status="estimated", cost_source="provider", api_call_count=1,
-        )
-        db.update_session_model("cost", "model-b")
-        db.update_session_billing_route("cost", provider="custom-b", base_url=None)
-        db.update_token_counts(
-            "cost", input_tokens=20, model="model-b", billing_provider="custom-b",
-            estimated_cost_usd=2.5, actual_cost_usd=2.0,
-            cost_status="estimated", cost_source="provider", api_call_count=1,
-        )
-
-        report = InsightsEngine(db).generate(days=30)
-        assert sum(m["cost"] for m in report["models"]) == pytest.approx(3.75)
-        assert report["overview"]["estimated_cost"] == pytest.approx(3.75)
-        assert report["overview"]["actual_cost"] == pytest.approx(3.0)
 
     def test_tool_usage_sums_disjoint_sessions_without_double_counting_pairs(self, db):
         """One session records a call as tool_name only, another as tool_calls only: both count.
@@ -444,22 +392,6 @@ class TestInsightsPopulated:
 # Formatting
 # =========================================================================
 
-class TestTerminalFormatting:
-
-    def test_terminal_format_unknown_bucket_for_custom_models(self, db):
-        """Custom models with no pricing surface as the Unknown bucket (#77223)."""
-        db.create_session(session_id="s1", source="cli", model="my-custom-model")
-        db.update_token_counts("s1", input_tokens=1000, output_tokens=500)
-        db._conn.commit()
-
-        engine = InsightsEngine(db)
-        report = engine.generate(days=30)
-        text = engine.format_terminal(report)
-
-        # Cost section surfaces unknown-cost sessions (#77223) instead of
-        # hiding them — a custom model with no pricing data shows in the
-        # Unknown bucket rather than silently reporting $0.
-        assert "Unknown" in text
 
 class TestGatewayFormatting:
     def test_gateway_format_is_shorter(self, populated_db):
@@ -489,38 +421,7 @@ class TestEdgeCases:
         models = report["models"]
         assert len(models) == 1
         assert models[0]["model"] == "unknown"
-        assert models[0]["has_pricing"] is False
 
-    def test_mixed_commercial_and_custom_models(self, db):
-        """Mix of commercial and custom models: only commercial ones get costs."""
-        db.create_session(session_id="s1", source="cli", model="anthropic/claude-sonnet-4-20250514")
-        db.update_token_counts(
-            "s1",
-            input_tokens=10000,
-            output_tokens=5000,
-            billing_provider="anthropic",
-        )
-        db.create_session(session_id="s2", source="cli", model="my-local-llama")
-        db.update_token_counts("s2", input_tokens=10000, output_tokens=5000)
-        db._conn.commit()
-
-        engine = InsightsEngine(db)
-        report = engine.generate(days=30)
-
-        # Cost should only come from gpt-4o, not from the custom model
-        overview = report["overview"]
-        assert overview["estimated_cost"] > 0
-        assert "claude-sonnet-4-20250514" in overview["models_with_pricing"]  # list now, not set
-        assert "my-local-llama" in overview["models_without_pricing"]
-
-        # Verify individual model entries
-        claude = next(m for m in report["models"] if m["model"] == "claude-sonnet-4-20250514")
-        assert claude["has_pricing"] is True
-        assert claude["cost"] > 0
-
-        llama = next(m for m in report["models"] if m["model"] == "my-local-llama")
-        assert llama["has_pricing"] is False
-        assert llama["cost"] == 0.0
 
     def test_only_one_platform(self, db):
         """Single-platform usage should still work."""
@@ -537,58 +438,7 @@ class TestEdgeCases:
         # (it still shows platforms section if there's only cli and nothing else)
         # Actually the condition is > 1 platforms OR non-cli, so single cli won't show
 
-    def test_cost_buckets_displayed_in_terminal_format(self, db):
-        """#77223: included/estimated/unknown cost buckets surface in terminal."""
-        # Estimated cost session
-        db.create_session(session_id="est", source="cli", model="model-a")
-        db.update_token_counts(
-            "est", input_tokens=100, model="model-a",
-            billing_provider="custom",
-            estimated_cost_usd=1.50, actual_cost_usd=1.0,
-            cost_status="estimated", cost_source="provider", api_call_count=1,
-        )
-        # Included cost session (subscription)
-        db.create_session(session_id="inc", source="cli", model="gpt-5.4-mini")
-        db.update_token_counts(
-            "inc", input_tokens=200, model="gpt-5.4-mini",
-            billing_provider="openai-codex",
-            estimated_cost_usd=0.0, actual_cost_usd=0.0,
-            cost_status="included", cost_source="none", api_call_count=1,
-        )
 
-        engine = InsightsEngine(db)
-        report = engine.generate(days=30)
-        text = engine.format_terminal(report)
-
-        # The cost section should appear with the buckets this DB has
-        # (estimated + included; no unknown-cost session is created here)
-        assert "~$1.50" in text  # estimated
-        assert "included" in text.lower()
-        assert "subscription" in text.lower()
-
-    def test_sub_cent_aggregate_estimated_cost_not_zero(self, db):
-        """A sub-cent aggregate must not render 'Estimated: ~$0.00' (#79220).
-
-        The insights formatters share format_cost_label with per-response
-        labels; a cheap-model period totaling $0.0046 shows 4dp, not $0.00.
-        """
-        db.create_session(session_id="est", source="cli", model="model-a")
-        db.update_token_counts(
-            "est", input_tokens=100, model="model-a",
-            billing_provider="custom",
-            estimated_cost_usd=0.0046, actual_cost_usd=0.0,
-            cost_status="estimated", cost_source="provider", api_call_count=1,
-        )
-
-        engine = InsightsEngine(db)
-        report = engine.generate(days=30)
-        terminal_text = engine.format_terminal(report)
-        gateway_text = engine.format_gateway(report)
-
-        assert "~$0.00\n" not in terminal_text
-        assert "~$0.0046" in terminal_text
-        assert "~$0.00 estimated" not in gateway_text
-        assert "~$0.0046 estimated" in gateway_text
 
 
 def _label(db, session_id, source, created_source):

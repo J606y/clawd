@@ -750,11 +750,11 @@ def _response_with_usage(content="advice", *, prompt=100, completion=50, cached=
     return SimpleNamespace(choices=[choice], usage=usage, model="fake-model")
 
 
-def test_run_reference_captures_usage_and_cost(monkeypatch):
-    """A reference call returns per-advisor CanonicalUsage + priced cost.
+def test_run_reference_captures_usage(monkeypatch):
+    """A reference call returns per-advisor CanonicalUsage.
 
     Before this, _run_reference discarded response.usage entirely, so the
-    advisor fan-out was invisible to cost tracking.
+    advisor fan-out was invisible to usage tracking.
     """
     from agent.moa_loop import _RefAccounting, _run_reference
     from agent.usage_pricing import CanonicalUsage
@@ -763,16 +763,11 @@ def test_run_reference_captures_usage_and_cost(monkeypatch):
         "agent.moa_loop.call_llm",
         lambda **kw: _response_with_usage(prompt=1000, completion=200, cached=400),
     )
-    # Keep runtime resolution + pricing deterministic.
+    # Keep runtime resolution deterministic.
     monkeypatch.setattr(
         "agent.moa_loop._slot_runtime",
         lambda slot: {"provider": "openrouter", "model": slot.get("model")},
     )
-    monkeypatch.setattr(
-        "agent.usage_pricing.estimate_usage_cost",
-        lambda *a, **k: SimpleNamespace(amount_usd=0.0123, status="estimated", source="table"),
-    )
-
     _label, text, acct = _run_reference(
         {"provider": "openrouter", "model": "vendor/adv-model"},
         [{"role": "user", "content": "state?"}],
@@ -785,7 +780,6 @@ def test_run_reference_captures_usage_and_cost(monkeypatch):
     assert acct.usage.input_tokens == 600
     assert acct.usage.cache_read_tokens == 400
     assert acct.usage.output_tokens == 200
-    assert acct.cost_usd == 0.0123
 
 
 
@@ -1177,18 +1171,16 @@ moa:
     assert facade._ref_cache_key is None
     assert facade._ref_cache_outputs == []
 
-    # A late completion depositing real spend is picked up by consume().
+    # A late completion depositing real usage is picked up by consume().
     facade._record_late_reference_accounting(
         "openrouter:advisor",
-        moa_loop._RefAccounting(CanonicalUsage(input_tokens=33), 0.42),
+        moa_loop._RefAccounting(CanonicalUsage(input_tokens=33)),
     )
-    usage, cost = facade.consume_reference_usage()
+    usage = facade.consume_reference_usage()
     assert usage.input_tokens == 33
-    assert cost == pytest.approx(0.42)
     # And consume() drained it — no double count.
-    usage2, cost2 = facade.consume_reference_usage()
+    usage2 = facade.consume_reference_usage()
     assert usage2.input_tokens == 0
-    assert cost2 is None
 
 
 class _CountingCtxLen:

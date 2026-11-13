@@ -1,6 +1,6 @@
 """Unified selection-time guard registry for model switching surfaces.
 
-Guard modules (``model_cost_guard``, ``model_data_policy_guard``) keep their public APIs — existing
+Guard modules (``model_data_policy_guard``) keep their public APIs — existing
 tests and mock patch points remain valid; this module only aggregates them.
 """
 
@@ -16,7 +16,7 @@ from agent.models_dev import ModelInfo
 class SelectionWarning:
     """A selection-time warning a surface must confirm before applying."""
 
-    kind: str  # "cost" | "data_policy" | "context_cache" | future guard kinds
+    kind: str  # "data_policy" | "context_cache" | future guard kinds
     title: str
     model: str
     provider: str
@@ -25,7 +25,7 @@ class SelectionWarning:
 
 @dataclass(frozen=True)
 class SelectionContext:
-    """Live-session facts a surface threads into the registry. Model-only guards (cost, data-policy)
+    """Live-session facts a surface threads into the registry. Model-only guards (data-policy)
     ignore it; guards about the *switch itself* (context-cache) need the size of the conversation at
     stake and the model it is currently on. Surfaces without a live agent omit it and those guards
     stay silent."""
@@ -63,14 +63,6 @@ def _wrap(kind: str, title: str, warning, model_name: str, provider: Optional[st
         provider=getattr(warning, "provider", provider or ""), message=warning.message)
 
 
-def _cost_guard(
-    model_name: str, provider: Optional[str], base_url: Optional[str], api_key: Optional[str],
-    model_info: Optional[ModelInfo], ctx: Optional[SelectionContext] = None) -> Optional[SelectionWarning]:
-    from hermes_cli.model_cost_guard import expensive_model_warning
-
-    warning = expensive_model_warning(
-        model_name, provider=provider, base_url=base_url, api_key=api_key, model_info=model_info)
-    return _wrap("cost", "Expensive Model Warning", warning, model_name, provider)
 
 
 def _data_policy_guard(
@@ -122,7 +114,7 @@ def _context_cache_guard(
         "",
         f"This session holds ~{tokens:,} tokens of context.",
         f"Switching to {target} makes the next reply re-read all of it uncached (providers key "
-        "prompt caches per model) — a one-time full-price input cost.",
+        "prompt caches per model) — a one-time full re-read.",
         "",
         f"Threshold: model.switch_context_confirm_tokens (currently {threshold:,}; 0 disables this check).",
         "Confirm only if you intend to switch now."])
@@ -133,7 +125,7 @@ def _context_cache_guard(
 
 # Registry, evaluated in order. Add new guard classes here — never at the
 # individual surfaces.
-_GUARDS = (_cost_guard, _data_policy_guard, _context_cache_guard)
+_GUARDS = (_data_policy_guard, _context_cache_guard)
 
 
 def selection_warnings(
@@ -166,7 +158,7 @@ def combined_selection_warning(
     api_key: Optional[str] = None, model_info: Optional[ModelInfo] = None,
     selection_context: Optional[SelectionContext] = None,
 ) -> Optional[SelectionWarning]:
-    """Drop-in for ``expensive_model_warning`` call sites: ``None``, the single warning, or a merged
+    """Drop-in for guard call sites: ``None``, the single warning, or a merged
     ``kind="multiple"`` warning stacking every message."""
     warnings = selection_warnings(
         model_name, provider=provider, base_url=base_url, api_key=api_key, model_info=model_info,

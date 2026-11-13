@@ -54,11 +54,10 @@ async def owner(tmp_path, monkeypatch):
     from gateway.session_authority import initialize_session_authority
     from gateway.session_controls import AuthorityConnection
     from gateway.session_local import create_local_session
-    from hermes_cli import model_cost_guard, model_switch
+    from hermes_cli import model_switch
     monkeypatch.setattr(run, '_load_gateway_config', lambda *a: {'platform_toolsets': {'acp': []}})
     monkeypatch.setattr(model_switch, 'switch_model', lambda **k: model_switch.ModelSwitchResult(
         success=True, new_model=k['raw_input'], target_provider='custom', base_url='http://127.0.0.1:9/v1'))
-    monkeypatch.setattr(model_cost_guard, 'expensive_model_warning', lambda model, **k: None)
     store = SessionStore(tmp_path / 'sessions', GatewayConfig())
     executed = []
 

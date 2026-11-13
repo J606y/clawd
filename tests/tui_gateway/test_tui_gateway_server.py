@@ -4527,10 +4527,6 @@ def test_apply_model_switch_persist_override_false_never_persists(monkeypatch):
         "hermes_cli.model_switch.persist_model_selection",
         lambda _r: pytest.fail("persist_override=False must not persist"),
     )
-    monkeypatch.setattr(
-        "hermes_cli.model_cost_guard.expensive_model_warning",
-        lambda *a, **k: None,
-    )
     session = {"agent": None}
 
     out = server._apply_model_switch(
@@ -10083,7 +10079,7 @@ def test_config_set_model_waits_for_lazy_agent_before_switch(monkeypatch):
         server._sessions.pop("sid", None)
 
 
-def test_config_set_model_requires_confirmation_for_expensive_model(monkeypatch):
+def test_config_set_model_requires_confirmation_for_contributor_model(monkeypatch):
     class _Agent:
         provider = "openrouter"
         model = "old/model"
@@ -10096,7 +10092,7 @@ def test_config_set_model_requires_confirmation_for_expensive_model(monkeypatch)
 
     result = types.SimpleNamespace(
         success=True,
-        new_model="openai/gpt-5.5-pro",
+        new_model="muse-spark-1.2-contributor",
         target_provider="openrouter",
         api_key="sk-or",
         base_url="https://openrouter.ai/api/v1",
@@ -10124,7 +10120,7 @@ def test_config_set_model_requires_confirmation_for_expensive_model(monkeypatch)
             "params": {
                 "session_id": "sid",
                 "key": "model",
-                "value": "openai/gpt-5.5-pro --provider openrouter",
+                "value": "muse-spark-1.2-contributor --provider openrouter",
             },
         }
     )
@@ -10139,14 +10135,14 @@ def test_config_set_model_requires_confirmation_for_expensive_model(monkeypatch)
             "params": {
                 "session_id": "sid",
                 "key": "model",
-                "value": "openai/gpt-5.5-pro --provider openrouter",
+                "value": "muse-spark-1.2-contributor --provider openrouter",
                 "confirm_expensive_model": True,
             },
         }
     )
 
     assert confirmed["result"]["confirm_required"] is False
-    assert confirmed["result"]["value"] == "openai/gpt-5.5-pro"
+    assert confirmed["result"]["value"] == "muse-spark-1.2-contributor"
     assert agent.switched is True
 
 

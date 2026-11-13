@@ -126,7 +126,6 @@ export interface ConfigDisplayConfig {
   language?: string
   mouse_tracking?: boolean | null | number | string
   sections?: Record<string, string>
-  show_cost?: boolean
   show_reasoning?: boolean
   /** CLI/TUI status-bar field visibility filter (shared with the classic
    *  CLI bar — see display.status_bar.fields in configuration docs).

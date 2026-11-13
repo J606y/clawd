@@ -206,19 +206,6 @@ class TestLargeContextPickAsksBeforeStashing:
         assert result["confirm_required"] is False
         assert running_session["pending_model_switch"]["raw"] == UNGUARDED_MODEL
 
-def test_bare_pick_is_guarded_against_the_live_provider(running_session, monkeypatch):
-    """A pick without --provider resolves against the live provider at turn start, so a
-    provider-keyed price check must see that provider at pick time or it drops the pick later."""
-    from hermes_cli import model_cost_guard
-
-    monkeypatch.setattr(model_cost_guard, "expensive_model_warning", lambda model, provider=None, **_kw: (
-        types.SimpleNamespace(message="pricey") if provider == "openai-api" else None))
-    running_session["agent"] = types.SimpleNamespace(model="gpt-4.1-nano", provider="openai-api")
-
-    result = _config_set_model("o1-pro")["result"]
-
-    assert result["confirm_required"] is True and result["deferred"] is False
-    assert "pending_model_switch" not in running_session
 
 class TestDroppedQueuedPickIsLogged:
     def test_turn_start_drop_leaves_a_server_log_line(self, monkeypatch, caplog):

@@ -666,8 +666,6 @@ def _build_result_entry(
         exit_reason = "completed" if result.get("completed", False) else "max_iterations"
         status = "completed" if usable_summary else "failed"
 
-    _cost = getattr(child, "session_estimated_cost_usd", 0.0)
-    _cost_status = getattr(child, "session_cost_status", None)
     # Result entry contract: see the _run_single_child docstring.
     entry: dict[str, Any] = {
         "task_index": task_index,
@@ -692,14 +690,9 @@ def _build_result_entry(
         },
         "tool_trace": _build_tool_trace(result.get("messages") or []),
         # Captured before the finally block calls child.close() so the parent thread can fire subagent_stop with the
-        # correct role; stripped before the dict is serialised back to the model (as is _child_cost_usd, folded into
-        # the parent's session cost by the aggregator).
+        # correct role; stripped before the dict is serialised back to the model.
         "_child_role": getattr(child, "_delegate_role", None),
-        "_child_cost_usd": float(_cost or 0.0) if isinstance(_cost, (int, float)) else 0.0,
     }
-    # Model-visible per-delegation spend (unlike _child_cost_usd above).
-    entry["cost_usd"] = round(entry["_child_cost_usd"], 6)
-    entry["cost_status"] = _cost_status if isinstance(_cost_status, str) and _cost_status else "unknown"
     _route = _route_report(child)
     if _route is not None:
         entry["route"] = _route
@@ -1136,10 +1129,6 @@ class _ChildRun:
         if entry.get("failure_reason"):
             # Classified verdict rides the event so every surface glosses the failure the same way.
             complete_kwargs["failure_reason"] = entry["failure_reason"]
-        _cost_usd = getattr(child, "session_estimated_cost_usd", None)
-        if _cost_usd is not None:
-            with _quiet(None):
-                complete_kwargs["cost_usd"] = float(_cost_usd)
         _safe_progress(self.child_progress_cb, "subagent.complete", **redact_child_result(complete_kwargs, force=False))
 
     def cleanup(self, *, heartbeat: _Heartbeat, child_pool: Any, leased_cred_id: Any, close_deferred: bool) -> None:

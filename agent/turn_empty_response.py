@@ -99,12 +99,6 @@ def _terminal_empty(agent: Any, assistant_message: Any, finish_reason: str, mess
     """Retries and fallback exhausted: persist the ``(empty)`` sentinel row and return the
     delivery text. Reasoning is never copied into the delivery text here — the persisted row
     keeps the sentinel so later "continue" turns don't replay it and loop on empties."""
-    _streak_cost = _empty_guard.streak_cost_usd(agent)
-    if _streak_cost is not None:
-        agent._buffer_diagnostic_status(
-            f"ℹ️ Estimated cost of these empty attempts: ~${_streak_cost:.2f} (input tokens are billed "
-            f"per attempt even when no answer is produced)"
-        )
     agent._flush_status_buffer()
     reasoning_text = agent._extract_reasoning(assistant_message)
     agent._drop_trailing_empty_response_scaffolding(messages)

@@ -637,14 +637,11 @@ async def test_guarded_model_target_commits_only_with_its_confirmation_token(tmp
     from gateway.session_authority import SessionAuthority
     from gateway.session_controls import AuthorityConnection
     from gateway.session_local import create_local_session
-    from hermes_cli import model_cost_guard, model_switch
+    from hermes_cli import model_switch
     import hermes_state_runtime as rt
     monkeypatch.setattr(run, '_load_gateway_config', lambda *a: {})
     monkeypatch.setattr(model_switch, 'switch_model', lambda **k: model_switch.ModelSwitchResult(
         success=True, new_model=k['raw_input'], target_provider='custom', base_url='http://127.0.0.1:9/v1'))
-    monkeypatch.setattr(model_cost_guard, 'expensive_model_warning', lambda model, **k: (
-        model_cost_guard.ExpensiveModelWarning(model, 'custom', None, None, 'test', f'{model} IS EXPENSIVE')
-        if model.startswith('pricey') else None))
     store = SessionStore(tmp_path / 'sessions', GatewayConfig())
     db = store._db
     runner = SimpleNamespace(session_store=store, _session_db=db, adapters={}, _draining=False,
@@ -672,17 +669,17 @@ async def test_guarded_model_target_commits_only_with_its_confirmation_token(tmp
         return row['runtime_revision'], row['runtime_generation'], row['model'], authority.sessions[ref.session_id]
     try:
         before = state()
-        refused, _ = await mutate({'model': 'pricey'})
-        assert refused['status'] == 'confirmation_required' and 'pricey IS EXPENSIVE' in refused['confirm_message']
+        refused, _ = await mutate({'model': 'muse-spark-1.2-contributor'})
+        assert refused['status'] == 'confirmation_required' and 'CONTRIBUTOR TIER' in refused['confirm_message']
         assert 'model' not in refused, 'a refusal must not read as an applied switch'
-        wrong, _ = await mutate({'model': 'pricey', 'confirm': '0' * 64})
-        other, _ = await mutate({'model': 'pricey-xl', 'confirm': refused['confirm']})
+        wrong, _ = await mutate({'model': 'muse-spark-1.2-contributor', 'confirm': '0' * 64})
+        other, _ = await mutate({'model': 'muse-spark-1.3-contributor', 'confirm': refused['confirm']})
         assert wrong['status'] == other['status'] == 'confirmation_required'
         assert other['confirm'] != refused['confirm'], 'a token must not carry to another target'
         assert state() == before, 'an unconfirmed selection changed revision/generation/policy'
-        confirmed = {'model': 'pricey', 'confirm': refused['confirm']}
+        confirmed = {'model': 'muse-spark-1.2-contributor', 'confirm': refused['confirm']}
         applied, params = await mutate(confirmed)
-        assert applied['model'] == 'pricey' and applied['execution_generation'] == before[1] + 1
+        assert applied['model'] == 'muse-spark-1.2-contributor' and applied['execution_generation'] == before[1] + 1
         assert (await mutate(confirmed, params))[0] == applied  # exact retry: applied once
         assert db.get_session(ref.session_id)['runtime_generation'] == before[1] + 1
         stale, _ = await mutate(confirmed)  # same target, but the selection it replaced is gone

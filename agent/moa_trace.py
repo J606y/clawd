@@ -46,7 +46,6 @@ def _sanitize_session_id(session_id: Optional[str]) -> str:
 
 _USAGE_FIELDS = ("input_tokens", "output_tokens", "cache_read_tokens", "cache_write_tokens", "reasoning_tokens")
 _ACCT_FIELDS = ("model", "provider", "temperature")
-_COST_FIELDS = ("cost_usd", "cost_status", "cost_source")
 
 
 def _slot_trace(acct: Any, label: str) -> dict[str, Any]:
@@ -57,7 +56,6 @@ def _slot_trace(acct: Any, label: str) -> dict[str, Any]:
         "label": label, **{f: getattr(acct, f, None) for f in _ACCT_FIELDS},
         "input_messages": getattr(acct, "messages", None), "output": getattr(acct, "output", None),
         "usage": {f: getattr(usage, f, 0) for f in _USAGE_FIELDS} if usage is not None else {},
-        **{f: getattr(acct, f, None) for f in _COST_FIELDS},
     }
 
 

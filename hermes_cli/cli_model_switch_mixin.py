@@ -677,7 +677,7 @@ class CLIModelSwitchMixin:
         return True
 
     def _confirm_owner_model_switch(self, refusal) -> bool:
-        """The gateway owner refused a guarded target (``confirmation_required``: cost, data policy,
+        """The gateway owner refused a guarded target (``confirmation_required``: data policy,
         large context; Ink/Desktop/ACP show the same ``confirm_message``): ask in the same prompt as
         ``_confirm_expensive_model_switch``. Only a yes re-sends with the owner's token. The identical
         warning the user just confirmed for this switch is not asked twice."""
