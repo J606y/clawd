@@ -213,6 +213,15 @@ export function ConfigTab() {
 
   const view = settings.data;
   const searching = query.trim() !== "";
+  const searchText = query.trim().toLowerCase();
+  // 对象存储是自定义区块，不在上面那批可搜索字段里；单独算它是否命中搜索。
+  const storageHit =
+    searching &&
+    ["对象存储", "s3", "存储", "桶", "上传", "endpoint", "access key", "secret key", "对象", "oss"].some(
+      (word) =>
+        word === searchText ||
+        (searchText.length >= 2 && (word.includes(searchText) || searchText.includes(word))),
+    );
   const visible = (() => {
     if (!view) return { list: [] as SettingsField[], capped: false };
     const q = query.trim().toLowerCase();
@@ -270,13 +279,13 @@ export function ConfigTab() {
                   <SettingRow key={field.key} field={field} state={rows[field.key]} onCommit={commit} onRow={patchRow} onReset={reset} />
                 ))}
               </div>
-            ) : (
+            ) : storageHit ? null : (
               <Empty>{searching ? "没有匹配的配置项" : onlyChanged ? "这个分组里还没有改过的配置项" : "这个分组是空的"}</Empty>
             )}
             {visible.capped ? <p className="sub">只显示前 {SEARCH_LIMIT} 项，请把关键字写得更具体些。</p> : null}
           </>
         )}
-        {view || settings.isError ? <ConfigGroups onNotice={setNotice} notice={view ? "" : notice} /> : null}
+        {view || settings.isError ? <ConfigGroups onNotice={setNotice} notice={view ? "" : notice} searching={searching} storageHit={storageHit} /> : null}
       </div>
       {sub === "yaml" ? (
         <>
@@ -331,15 +340,29 @@ export function ConfigTab() {
   );
 }
 
-function ConfigGroups({ onNotice, notice }: { onNotice: (text: string) => void; notice: string }) {
+function ConfigGroups({
+  onNotice,
+  notice,
+  searching,
+  storageHit,
+}: {
+  onNotice: (text: string) => void;
+  notice: string;
+  searching: boolean;
+  storageHit: boolean;
+}) {
   return (
     <>
       {notice ? <div className="notice ok">{notice}</div> : null}
-      <ToolsSection />
-      <MemorySection />
-      <ConnectionsSection />
-      <StorageSection />
-      <AdvancedObjects onNotice={onNotice} />
+      {searching ? null : (
+        <>
+          <ToolsSection />
+          <MemorySection />
+          <ConnectionsSection />
+        </>
+      )}
+      {searching ? (storageHit ? <StorageSection /> : null) : <StorageSection />}
+      {searching ? null : <AdvancedObjects onNotice={onNotice} />}
     </>
   );
 }
