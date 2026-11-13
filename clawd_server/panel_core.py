@@ -5417,6 +5417,21 @@ def get_update_info(force: bool = False) -> dict[str, Any]:
         return data
 
 
+
+# ---------------------------------------------------------------- 看板（clawd 原生）
+# 列表/详情的真正实现在 clawd_server.kanban_native 里，安装时由
+# clawd_server.admin_native 绑到本模块上（与 update_native 同一模式）。
+# 未安装时返回 503，不让路由因名字不存在而 500。
+
+
+def list_kanban_tasks(status: str | None = None) -> dict[str, Any]:
+    raise ApiError(503, "kanban_unavailable", "看板接口未安装")
+
+
+def get_kanban_task(task_id: str) -> dict[str, Any]:
+    raise ApiError(503, "kanban_unavailable", "看板接口未安装")
+
+
 # ---------------------------------------------------------------- Hermes 更新执行
 # 与官方面板同一做法：脱离面板进程，后台跑 `hermes update`，日志落盘，前端轮询日志与结果。
 # 区别只有两点：(1) 更新前把安装目录里的本地改动导出成补丁存档；(2) 放进独立 systemd 单元里跑，
@@ -6249,6 +6264,10 @@ class Handler:
                 return get_update_plan()
             if path == "/update/check":
                 return get_update_info(query.get("force") == "1", query.get("channel"))
+            if path == "/kanban/tasks":
+                return list_kanban_tasks(query.get("status"))
+            if path.startswith("/kanban/tasks/"):
+                return get_kanban_task(path[len("/kanban/tasks/"):])
             if path == "/usage":
                 try:
                     days = int(query.get("days", "30"))

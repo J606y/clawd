@@ -1,0 +1,248 @@
+/* 看板页：与 activity.css 同一套 page/head/card 约定，选择器挂在 .kanban-page 下。 */
+
+.kanban-page {
+  display: block;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.kanban-page .page {
+  display: block;
+  flex: none;
+  width: 100%;
+  max-width: 920px;
+  margin: 0 auto;
+  padding: 24px 20px calc(32px + var(--safe-bottom));
+  background: transparent;
+}
+
+.kanban-page .head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.kanban-page .head h1 {
+  margin: 0;
+  flex: 1;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.kanban-page .sub {
+  margin: -8px 0 16px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.kanban-page .card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-l);
+  box-shadow: none;
+}
+
+.kanban-page .card.list > * + * {
+  border-top: 1px solid var(--border);
+}
+
+.kanban-page .error {
+  color: var(--danger);
+  font-size: 13px;
+}
+
+.kanban-page .empty,
+.kanban-page .loading {
+  padding: 40px 0;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.kanban-page .filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.kanban-page .chip {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-elevated);
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.kanban-page .chip.active {
+  background: var(--text);
+  color: var(--bg);
+  border-color: var(--text);
+}
+
+.kanban-page .row {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  width: 100%;
+  padding: 12px 16px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.kanban-page .row.selected {
+  background: var(--bg);
+}
+
+.kanban-page .row .title {
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.kanban-page .row .meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.kanban-page .status {
+  padding: 1px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 12px;
+}
+
+.kanban-page .status-blocked {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+.kanban-page .status-done {
+  color: var(--success, var(--text-secondary));
+}
+
+.kanban-page .detail {
+  margin-top: 20px;
+  padding: 16px;
+}
+
+.kanban-page .detail-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.kanban-page .detail-head h2 {
+  margin: 0;
+  flex: 1;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.kanban-page .facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 8px 16px;
+  margin: 16px 0;
+}
+
+.kanban-page .facts div {
+  display: flex;
+  gap: 8px;
+  font-size: 13px;
+}
+
+.kanban-page .facts dt {
+  color: var(--text-secondary);
+}
+
+.kanban-page .facts dd {
+  margin: 0;
+  word-break: break-all;
+}
+
+.kanban-page .body {
+  margin: 0 0 16px;
+  font-size: 14px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.kanban-page .open-session {
+  margin-bottom: 16px;
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-l);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.kanban-page .no-session {
+  margin: 0 0 16px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.kanban-page .detail h3 {
+  margin: 16px 0 8px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.kanban-page .comments,
+.kanban-page .events {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.kanban-page .comments li,
+.kanban-page .events li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 0;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.kanban-page .comments .author,
+.kanban-page .events .kind {
+  font-weight: 600;
+}
+
+.kanban-page .comments .time,
+.kanban-page .events .time {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.kanban-page .comments .text {
+  flex-basis: 100%;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.kanban-page .empty-line {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+}

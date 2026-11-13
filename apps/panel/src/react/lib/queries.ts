@@ -43,6 +43,8 @@ import {
   type HostStatus,
   type ImageItem,
   type ImageModel,
+  type KanbanTaskDetail,
+  type KanbanTasks,
   type LogQuery,
   type LogResult,
   type LogSources,
@@ -81,6 +83,8 @@ export const queryKeys = {
   healthDetailed: ["health-detailed"] as const,
   hostStatus: ["host-status"] as const,
   activity: (limit: number) => ["activity", { limit }] as const,
+  kanbanTasks: (status: string | null) => ["kanban-tasks", status] as const,
+  kanbanTask: (id: string) => ["kanban-task", id] as const,
   skills: ["skills"] as const,
   skill: (path: string) => ["skill", path] as const,
   skillBackups: (path: string) => ["skill-backups", path] as const,
@@ -340,6 +344,23 @@ export function useUpdatePlan(enabled: boolean): UseQueryResult<{ plan: string; 
     queryKey: queryKeys.updatePlan,
     queryFn: () => sidecar.updatePlan(),
     enabled,
+  });
+}
+
+export function useKanbanTasks(status: string | null, visible = true): UseQueryResult<KanbanTasks> {
+  return useQuery({
+    queryKey: queryKeys.kanbanTasks(status),
+    queryFn: () => sidecar.kanbanTasks(status ?? undefined),
+    enabled: visible,
+    refetchInterval: visible ? 10_000 : false,
+  });
+}
+
+export function useKanbanTask(id: string | null, visible = true): UseQueryResult<KanbanTaskDetail> {
+  return useQuery({
+    queryKey: queryKeys.kanbanTask(id ?? ""),
+    queryFn: () => sidecar.kanbanTask(id ?? ""),
+    enabled: visible && !!id,
   });
 }
 

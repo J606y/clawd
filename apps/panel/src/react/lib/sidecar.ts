@@ -216,6 +216,44 @@ export interface UpdateRun {
   hasUntracked?: boolean;
   logTail: string;
 }
+export interface KanbanTask {
+  id: string;
+  title: string;
+  status: string;
+  assignee: string | null;
+  priority: number;
+  created_at: number | null;
+  started_at: number | null;
+  completed_at: number | null;
+  workspace: string | null;
+  session_id: string | null;
+}
+
+export interface KanbanComment {
+  id: number;
+  author: string;
+  body: string;
+  created_at: number;
+}
+
+export interface KanbanEvent {
+  id: number;
+  kind: string;
+  payload: Record<string, unknown> | null;
+  created_at: number;
+  run_id: number | null;
+}
+
+export interface KanbanTaskDetail extends KanbanTask {
+  body: string | null;
+  comments: KanbanComment[];
+  events: KanbanEvent[];
+}
+
+export interface KanbanTasks {
+  tasks: KanbanTask[];
+  statuses: string[];
+}
 export interface PluginInfo { name: string; enabled: boolean; status: string; version: string; description: string; source: string }
 export interface ProfileInfo { name: string; active: boolean; model: string | null; gateway: string | null; alias: string | null }
 export interface ProfilesView { data: ProfileInfo[]; raw: string | null }
@@ -695,6 +733,12 @@ export const sidecar = {
     const query = params.toString();
     return request<UpdateInfo>(`update/check${query ? `?${query}` : ""}`, {}, 30000, BASE);
   },
+  kanbanTasks: (status?: string) => {
+    const query = status ? `?${new URLSearchParams({ status })}` : "";
+    return request<KanbanTasks>(`kanban/tasks${query}`, {}, 15000, BASE);
+  },
+  kanbanTask: (id: string) =>
+    request<KanbanTaskDetail>(`kanban/tasks/${encodeURIComponent(id)}`, {}, 15000, BASE),
   settings: () => request<SettingsView>("settings", {}, 90000, BASE),
   setSetting: (key: string, value: unknown) => request<{ ok: boolean }>("settings/set", post({ key, value }), 90000, BASE),
   resetSetting: (key: string) => request<{ ok: boolean }>("settings/reset", post({ key }), 90000, BASE),
